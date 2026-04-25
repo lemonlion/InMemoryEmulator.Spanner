@@ -149,17 +149,22 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	public async Task Extract_Date_ReturnsExpected(string expr, long expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#extract
+	//   "If no time zone is specified, the default time zone, America/Los_Angeles, is used."
+	//   2024-06-15T14:30:45Z → LA(UTC-7 DST) = 2024-06-15T07:30:45
+	//   2024-01-01T00:00:00Z → LA(UTC-8)     = 2023-12-31T16:00:00
+	//   2024-12-31T23:59:59Z → LA(UTC-8)     = 2024-12-31T15:59:59
 	[Theory]
-	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-06-15T14:30:45Z')", 14L)]
+	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-06-15T14:30:45Z')", 7L)]
 	[InlineData("EXTRACT(MINUTE FROM TIMESTAMP '2024-06-15T14:30:45Z')", 30L)]
 	[InlineData("EXTRACT(SECOND FROM TIMESTAMP '2024-06-15T14:30:45Z')", 45L)]
 	[InlineData("EXTRACT(YEAR FROM TIMESTAMP '2024-06-15T14:30:45Z')", 2024L)]
 	[InlineData("EXTRACT(MONTH FROM TIMESTAMP '2024-06-15T14:30:45Z')", 6L)]
 	[InlineData("EXTRACT(DAY FROM TIMESTAMP '2024-06-15T14:30:45Z')", 15L)]
-	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-01-01T00:00:00Z')", 0L)]
+	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-01-01T00:00:00Z')", 16L)]
 	[InlineData("EXTRACT(MINUTE FROM TIMESTAMP '2024-01-01T00:00:00Z')", 0L)]
 	[InlineData("EXTRACT(SECOND FROM TIMESTAMP '2024-01-01T00:00:00Z')", 0L)]
-	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-12-31T23:59:59Z')", 23L)]
+	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-12-31T23:59:59Z')", 15L)]
 	[InlineData("EXTRACT(MINUTE FROM TIMESTAMP '2024-12-31T23:59:59Z')", 59L)]
 	[InlineData("EXTRACT(SECOND FROM TIMESTAMP '2024-12-31T23:59:59Z')", 59L)]
 	public async Task Extract_Timestamp_ReturnsExpected(string expr, long expected)
@@ -190,6 +195,9 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task Extract_Date_FromTimestamp()
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#extract
+		//   Default timezone: America/Los_Angeles.
+		//   2024-06-15T14:30:45Z → LA(UTC-7 DST) = 2024-06-15T07:30:45 → DATE = 2024-06-15
 		var result = (DateTime)(await Eval("EXTRACT(DATE FROM TIMESTAMP '2024-06-15T14:30:45Z')"))!;
 		result.Should().Be(new DateTime(2024, 6, 15));
 	}
@@ -326,8 +334,9 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task TimestampTrunc_Day()
 	{
+		// LA: Jun 15 07:30:45 → trunc DAY → Jun 15 00:00 LA → UTC Jun 15 07:00
 		var result = (DateTime)(await Eval("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T14:30:45Z', DAY)"))!;
-		result.Should().Be(new DateTime(2024, 6, 15, 0, 0, 0, DateTimeKind.Utc));
+		result.Should().Be(new DateTime(2024, 6, 15, 7, 0, 0, DateTimeKind.Utc));
 	}
 
 	[Fact]
@@ -354,15 +363,17 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task TimestampTrunc_Month()
 	{
+		// LA: Jun 15 07:30:45 → trunc MONTH → Jun 1 00:00 LA → UTC Jun 1 07:00
 		var result = (DateTime)(await Eval("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T14:30:45Z', MONTH)"))!;
-		result.Should().Be(new DateTime(2024, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+		result.Should().Be(new DateTime(2024, 6, 1, 7, 0, 0, DateTimeKind.Utc));
 	}
 
 	[Fact]
 	public async Task TimestampTrunc_Year()
 	{
+		// LA: Jun 15 07:30:45 → trunc YEAR → Jan 1 00:00 LA (UTC-8) → UTC Jan 1 08:00
 		var result = (DateTime)(await Eval("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T14:30:45Z', YEAR)"))!;
-		result.Should().Be(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+		result.Should().Be(new DateTime(2024, 1, 1, 8, 0, 0, DateTimeKind.Utc));
 	}
 
 	// ═══════════════════════════════════════════════════════════════

@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -28,7 +29,9 @@ public class JsonAndSubqueryIntegrationTests : IntegrationTestBase
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json_string
 	// ═══════════════════════════════════════════════════════════════
 
+	// Go emulator: TO_JSON_STRING is not supported on non-JSON types (StatusCode=Unimplemented).
 	[Theory]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	[InlineData("TO_JSON_STRING(1)", "1")]
 	[InlineData("TO_JSON_STRING(0)", "0")]
 	[InlineData("TO_JSON_STRING(-1)", "-1")]
@@ -39,7 +42,9 @@ public class JsonAndSubqueryIntegrationTests : IntegrationTestBase
 	public async Task ToJsonString_Scalars(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
+	// Go emulator: TO_JSON_STRING is not supported on non-JSON types (StatusCode=Unimplemented).
 	[Theory]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	[InlineData("TO_JSON_STRING(CAST(NULL AS INT64))", "null")]
 	[InlineData("TO_JSON_STRING(CAST(NULL AS STRING))", "null")]
 	[InlineData("TO_JSON_STRING(CAST(NULL AS BOOL))", "null")]

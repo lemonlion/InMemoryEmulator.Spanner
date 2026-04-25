@@ -191,6 +191,11 @@ public abstract class IntegrationTestBase
 			string => SpannerDbType.String,
 			bool => SpannerDbType.Bool,
 			double or float => SpannerDbType.Float64,
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#date_type
+			//   DATE columns store calendar dates. DateTime values with no time component
+			//   (midnight, Unspecified kind) map to Date; all others to Timestamp.
+			DateTime dt when dt.TimeOfDay == TimeSpan.Zero && dt.Kind != DateTimeKind.Utc
+				=> SpannerDbType.Date,
 			DateTime => SpannerDbType.Timestamp,
 			DateTimeOffset => SpannerDbType.Timestamp,
 			byte[] => SpannerDbType.Bytes,

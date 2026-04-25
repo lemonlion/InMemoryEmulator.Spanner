@@ -71,15 +71,16 @@ public class DateTimeCombinationIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Theory]
-	[InlineData("EXTRACT(YEAR FROM TIMESTAMP '2024-06-15T12:30:45Z')", 2024L)]
+	// Ref: default timezone is America/Los_Angeles (Jan=UTC-8, Jun=UTC-7 DST)
+	[InlineData("EXTRACT(YEAR FROM TIMESTAMP '2024-06-15T12:30:45Z')", 2024L)]  // LA: 05:30:45 Jun 15
 	[InlineData("EXTRACT(MONTH FROM TIMESTAMP '2024-06-15T12:30:45Z')", 6L)]
 	[InlineData("EXTRACT(DAY FROM TIMESTAMP '2024-06-15T12:30:45Z')", 15L)]
-	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-06-15T12:30:45Z')", 12L)]
+	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-06-15T12:30:45Z')", 5L)]     // 12-7=5
 	[InlineData("EXTRACT(MINUTE FROM TIMESTAMP '2024-06-15T12:30:45Z')", 30L)]
 	[InlineData("EXTRACT(SECOND FROM TIMESTAMP '2024-06-15T12:30:45Z')", 45L)]
-	[InlineData("EXTRACT(YEAR FROM TIMESTAMP '2000-01-01T00:00:00Z')", 2000L)]
-	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-01-01T00:00:00Z')", 0L)]
-	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-01-01T23:59:59Z')", 23L)]
+	[InlineData("EXTRACT(YEAR FROM TIMESTAMP '2000-01-01T00:00:00Z')", 1999L)]  // LA: 1999-12-31 16:00
+	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-01-01T00:00:00Z')", 16L)]    // LA: 2023-12-31 16:00
+	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-01-01T23:59:59Z')", 15L)]    // LA: 2024-01-01 15:59:59
 	[InlineData("EXTRACT(MINUTE FROM TIMESTAMP '2024-01-01T00:00:00Z')", 0L)]
 	[InlineData("EXTRACT(MINUTE FROM TIMESTAMP '2024-01-01T00:59:00Z')", 59L)]
 	[InlineData("EXTRACT(SECOND FROM TIMESTAMP '2024-01-01T00:00:00Z')", 0L)]
@@ -247,12 +248,13 @@ public class DateTimeCombinationIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Theory]
-	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T12:30:45Z', HOUR)", "2024-06-15T12:00:00Z")]
-	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T12:30:45Z', MINUTE)", "2024-06-15T12:30:00Z")]
-	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T12:30:45Z', SECOND)", "2024-06-15T12:30:45Z")]
-	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T12:30:45Z', DAY)", "2024-06-15T00:00:00Z")]
-	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T12:30:45Z', MONTH)", "2024-06-01T00:00:00Z")]
-	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T12:30:45Z', YEAR)", "2024-01-01T00:00:00Z")]
+	// Ref: TIMESTAMP_TRUNC truncates in the default timezone (America/Los_Angeles), then converts back to UTC
+	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T12:30:45Z', HOUR)", "2024-06-15T12:00:00Z")]   // sub-hour: same UTC
+	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T12:30:45Z', MINUTE)", "2024-06-15T12:30:00Z")] // sub-hour: same UTC
+	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T12:30:45Z', SECOND)", "2024-06-15T12:30:45Z")] // no-op
+	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T12:30:45Z', DAY)", "2024-06-15T07:00:00Z")]    // LA midnight Jun 15 → UTC+7
+	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T12:30:45Z', MONTH)", "2024-06-01T07:00:00Z")]  // LA midnight Jun 1 → UTC+7
+	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T12:30:45Z', YEAR)", "2024-01-01T08:00:00Z")]   // LA midnight Jan 1 → UTC+8
 	public async Task TimestampTrunc_Combinations(string expr, string expected)
 	{
 		var result = (DateTime)(await Eval(expr))!;
@@ -406,7 +408,7 @@ public class DateTimeCombinationIntegrationTests : IntegrationTestBase
 	[InlineData("EXTRACT(DAY FROM DATE_SUB(DATE '2024-03-01', INTERVAL 1 DAY))", 29L)]
 	[InlineData("DATE_DIFF(DATE_ADD(DATE '2024-01-01', INTERVAL 10 DAY), DATE '2024-01-01', DAY)", 10L)]
 	[InlineData("DATE_DIFF(DATE_ADD(DATE '2024-01-01', INTERVAL 1 YEAR), DATE '2024-01-01', DAY)", 366L)]
-	[InlineData("EXTRACT(HOUR FROM TIMESTAMP_ADD(TIMESTAMP '2024-01-01T23:00:00Z', INTERVAL 2 HOUR))", 1L)]
+	[InlineData("EXTRACT(HOUR FROM TIMESTAMP_ADD(TIMESTAMP '2024-01-01T23:00:00Z', INTERVAL 2 HOUR))", 17L)] // Result: 2024-01-02T01:00Z → LA: 2024-01-01 17:00
 	public async Task DateTimePipeline_Combinations(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 

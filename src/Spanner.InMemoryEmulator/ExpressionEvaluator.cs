@@ -1368,15 +1368,26 @@ internal class ExpressionEvaluator
 		return DateTime.Parse(Convert.ToString(v)!).Date;
 	}
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#extract
+	//   "If no time zone is specified, the default time zone, America/Los_Angeles, is used."
+	private static readonly TimeZoneInfo DefaultTimeZone =
+		TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+
 	private object? EvalExtract(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		// EXTRACT(part FROM expr) — simplified: func.Arguments[0] is the part name, [1] is the expr
-		// In our AST, EXTRACT might be parsed differently. For now, handle common patterns.
 		if (func.Arguments.Count < 2) return null;
 		var part = Evaluate(func.Arguments[0], row);
 		var ts = Evaluate(func.Arguments[1], row);
 		if (ts == null) return null;
 		var dt = ts is DateTime d ? d : DateTime.Parse(Convert.ToString(ts)!);
+
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#extract
+		//   EXTRACT on TIMESTAMP converts to civil time in the default timezone (America/Los_Angeles)
+		//   before extracting date/time parts. DATE values are not converted.
+		if (dt.Kind == DateTimeKind.Utc)
+			dt = TimeZoneInfo.ConvertTimeFromUtc(dt, DefaultTimeZone);
+
 		var partName = Convert.ToString(part)?.ToUpperInvariant() ?? "";
 		return partName switch
 		{
@@ -1457,24 +1468,37 @@ internal class ExpressionEvaluator
 		};
 	}
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_trunc
+	//   "If no time zone is specified, the default time zone, America/Los_Angeles, is used."
+	//   TIMESTAMP_TRUNC converts to the default timezone, truncates, then converts back to UTC.
 	private object? EvalTimestampTrunc(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		var ts = Evaluate(func.Arguments[0], row);
 		var part = Convert.ToString(Evaluate(func.Arguments[1], row))?.ToUpperInvariant();
 		if (ts == null) return null;
 		var dt = ts is DateTime d ? d : DateTime.Parse(Convert.ToString(ts)!);
-		return part switch
+
+		// Convert UTC timestamps to default timezone before truncating
+		var isUtc = dt.Kind == DateTimeKind.Utc;
+		if (isUtc) dt = TimeZoneInfo.ConvertTimeFromUtc(dt, DefaultTimeZone);
+
+		var truncated = part switch
 		{
-			"MICROSECOND" => new DateTime(dt.Ticks / 10 * 10, DateTimeKind.Utc),
-			"MILLISECOND" => new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second, dt.Millisecond, DateTimeKind.Utc),
-			"SECOND" => new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second, DateTimeKind.Utc),
-			"MINUTE" => new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, 0, DateTimeKind.Utc),
-			"HOUR" => new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, 0, 0, DateTimeKind.Utc),
-			"DAY" => dt.Date,
-			"MONTH" => new DateTime(dt.Year, dt.Month, 1, 0, 0, 0, DateTimeKind.Utc),
-			"YEAR" => new DateTime(dt.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+			"MICROSECOND" => new DateTime(dt.Ticks / 10 * 10, dt.Kind),
+			"MILLISECOND" => new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second, dt.Millisecond, dt.Kind),
+			"SECOND" => new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second, dt.Kind),
+			"MINUTE" => new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, 0, dt.Kind),
+			"HOUR" => new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, 0, 0, dt.Kind),
+			"DAY" => new DateTime(dt.Year, dt.Month, dt.Day, 0, 0, 0, dt.Kind),
+			"MONTH" => new DateTime(dt.Year, dt.Month, 1, 0, 0, 0, dt.Kind),
+			"YEAR" => new DateTime(dt.Year, 1, 1, 0, 0, 0, dt.Kind),
 			_ => throw new InvalidOperationException($"TIMESTAMP_TRUNC: unsupported part '{part}'.")
 		};
+
+		// Convert back to UTC
+		if (isUtc) truncated = TimeZoneInfo.ConvertTimeToUtc(truncated, DefaultTimeZone);
+
+		return truncated;
 	}
 
 	private object? EvalDateAdd(FunctionCallExpr func, Dictionary<string, object?> row)

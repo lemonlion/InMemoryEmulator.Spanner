@@ -50,16 +50,17 @@ public class DateTimeDenseIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Theory]
+	// Ref: default timezone is America/Los_Angeles (Jan=UTC-8)
 	[InlineData("EXTRACT(YEAR FROM TIMESTAMP '2024-01-15T10:30:45Z')", 2024L)]
 	[InlineData("EXTRACT(MONTH FROM TIMESTAMP '2024-01-15T10:30:45Z')", 1L)]
 	[InlineData("EXTRACT(DAY FROM TIMESTAMP '2024-01-15T10:30:45Z')", 15L)]
-	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-01-15T10:30:45Z')", 10L)]
+	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-01-15T10:30:45Z')", 2L)]       // 10-8=2
 	[InlineData("EXTRACT(MINUTE FROM TIMESTAMP '2024-01-15T10:30:45Z')", 30L)]
 	[InlineData("EXTRACT(SECOND FROM TIMESTAMP '2024-01-15T10:30:45Z')", 45L)]
-	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-01-15T00:00:00Z')", 0L)]
+	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-01-15T00:00:00Z')", 16L)]      // LA: Jan 14 16:00
 	[InlineData("EXTRACT(MINUTE FROM TIMESTAMP '2024-01-15T00:00:00Z')", 0L)]
 	[InlineData("EXTRACT(SECOND FROM TIMESTAMP '2024-01-15T00:00:00Z')", 0L)]
-	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-01-15T23:59:59Z')", 23L)]
+	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-01-15T23:59:59Z')", 15L)]      // 23-8=15
 	[InlineData("EXTRACT(MINUTE FROM TIMESTAMP '2024-01-15T23:59:59Z')", 59L)]
 	[InlineData("EXTRACT(SECOND FROM TIMESTAMP '2024-01-15T23:59:59Z')", 59L)]
 	public async Task ExtractFromTimestamp(string expr, long expected) =>
@@ -172,12 +173,13 @@ public class DateTimeDenseIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Theory]
-	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-01-15T10:30:45Z', HOUR)", "2024-01-15T10:00:00")]
-	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-01-15T10:30:45Z', MINUTE)", "2024-01-15T10:30:00")]
-	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-01-15T10:30:45Z', SECOND)", "2024-01-15T10:30:45")]
-	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-01-15T10:30:45Z', DAY)", "2024-01-15T00:00:00")]
-	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T10:30:45Z', MONTH)", "2024-06-01T00:00:00")]
-	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T10:30:45Z', YEAR)", "2024-01-01T00:00:00")]
+	// Ref: TIMESTAMP_TRUNC truncates in the default timezone (America/Los_Angeles), then converts back to UTC
+	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-01-15T10:30:45Z', HOUR)", "2024-01-15T10:00:00")]   // sub-hour: same UTC
+	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-01-15T10:30:45Z', MINUTE)", "2024-01-15T10:30:00")] // sub-hour: same UTC
+	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-01-15T10:30:45Z', SECOND)", "2024-01-15T10:30:45")] // no-op
+	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-01-15T10:30:45Z', DAY)", "2024-01-15T08:00:00")]    // LA midnight Jan 15 → UTC+8
+	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T10:30:45Z', MONTH)", "2024-06-01T07:00:00")]  // LA midnight Jun 1 → UTC+7
+	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T10:30:45Z', YEAR)", "2024-01-01T08:00:00")]   // LA midnight Jan 1 → UTC+8
 	public async Task TimestampTrunc(string expr, string expected)
 	{
 		var result = (DateTime)(await Eval(expr))!;

@@ -1,3 +1,5 @@
+using Google.Api.Gax;
+using Google.Cloud.Spanner.Admin.Database.V1;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 using Xunit;
 
@@ -49,7 +51,27 @@ public class EmulatorSession : IAsyncLifetime
 			Environment.SetEnvironmentVariable("SPANNER_EMULATOR_HOST", $"localhost:{_server.Port}");
 		}
 		// For Emulator / CloudSpanner, connection is established via SPANNER_EMULATOR_HOST
-		// or standard Spanner connection settings
+		// or standard Spanner connection settings.
+		// Reset the database to ensure a clean slate (tables persist across test runs).
+		if (Target == SpannerTestTarget.Emulator)
+		{
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.admin.database.v1
+			//   DropDatabase + CreateDatabase ensures no stale tables from previous runs.
+			var adminClientBuilder = new DatabaseAdminClientBuilder
+			{
+				EmulatorDetection = EmulatorDetection.EmulatorOnly
+			};
+			var adminClient = await adminClientBuilder.BuildAsync();
+			var databaseName = $"projects/{ProjectId}/instances/{InstanceId}/databases/{DatabaseId}";
+
+			try { await adminClient.DropDatabaseAsync(databaseName); } catch { }
+
+			await adminClient.CreateDatabaseAsync(new CreateDatabaseRequest
+			{
+				Parent = $"projects/{ProjectId}/instances/{InstanceId}",
+				CreateStatement = $"CREATE DATABASE `{DatabaseId}`"
+			});
+		}
 	}
 
 	public async Task DisposeAsync()

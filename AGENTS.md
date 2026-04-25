@@ -34,7 +34,7 @@ Every piece of behavioral logic in the source code — status codes, validation 
    // Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#executesqlrequest
    //   "A single SQL query string."
    ```
-3. **If sources conflict** (e.g., the Go emulator behaves differently from the documentation), prefer the official documentation over observed emulator behavior. Document the discrepancy in a code comment and mark the relevant integration test with `[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]`.
+3. **If sources conflict** (e.g., the Go emulator behaves differently from the documentation), prefer the official documentation over observed emulator behavior. Document the discrepancy in a code comment and mark the relevant integration test with `[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]`.
 4. **If no source can be found**, do not guess. Ask for guidance or raise a discussion in the PR.
 
 ### Approved Behavioral Sources (in priority order)

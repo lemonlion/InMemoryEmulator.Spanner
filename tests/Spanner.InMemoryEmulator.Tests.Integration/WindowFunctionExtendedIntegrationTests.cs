@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -8,7 +9,11 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 /// Comprehensive edge-case tests for window functions.
 /// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls
 /// </summary>
+/// <remarks>
+/// Go emulator limitation: "Analytic functions not supported" — all tests in this class fail.
+/// </remarks>
 [Collection(IntegrationCollection.Name)]
+[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 public class WindowFunctionExtendedIntegrationTests : IntegrationTestBase
 {
 	public WindowFunctionExtendedIntegrationTests(EmulatorSession session) : base(session) { }

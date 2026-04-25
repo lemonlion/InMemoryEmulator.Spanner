@@ -220,7 +220,8 @@ public class FinalBatchIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Theory]
-	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-06-15T15:45:30Z')", 15L)]
+	// Ref: default timezone is America/Los_Angeles (Jun=UTC-7 DST)
+	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-06-15T15:45:30Z')", 8L)]       // 15-7=8
 	[InlineData("EXTRACT(MINUTE FROM TIMESTAMP '2024-06-15T15:45:30Z')", 45L)]
 	[InlineData("EXTRACT(SECOND FROM TIMESTAMP '2024-06-15T15:45:30Z')", 30L)]
 	[InlineData("EXTRACT(YEAR FROM TIMESTAMP '2024-06-15T15:45:30Z')", 2024L)]

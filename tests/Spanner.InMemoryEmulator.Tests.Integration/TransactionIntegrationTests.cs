@@ -1,0 +1,196 @@
+using FluentAssertions;
+using Google.Cloud.Spanner.Data;
+using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
+
+namespace Spanner.InMemoryEmulator.Tests.Integration;
+
+/// <summary>
+/// Integration tests for transaction support through the real SDK pipeline.
+/// Tests: BeginTransaction, Commit, Rollback, DML within transactions,
+/// and the RunInTransactionAsync retry pattern.
+/// </summary>
+[Collection(IntegrationCollection.Name)]
+public class TransactionIntegrationTests
+{
+	private readonly ITestDatabaseFixture _fixture;
+
+	public TransactionIntegrationTests(EmulatorSession session)
+	{
+		_fixture = TestFixtureFactory.Create(session);
+	}
+
+	private string CreateTable(string suffix)
+	{
+		var table = $"T_{suffix}";
+		_fixture.Database!.ExecuteDdl(
+			$"CREATE TABLE {table} (Id INT64 NOT NULL, Name STRING(MAX), Value INT64) PRIMARY KEY (Id)");
+		return table;
+	}
+
+	// ─── RunInTransactionAsync (retry pattern) ───
+
+	[Fact]
+	[Trait(TestTraits.Category, "Transaction")]
+	public async Task RunInTransactionAsync_CommitsSuccessfully()
+	{
+		var table = CreateTable("Commit");
+		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Value"] = 100L });
+
+		using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync();
+
+		await connection.RunWithRetriableTransactionAsync(async transaction =>
+		{
+			var cmd = transaction.CreateBatchDmlCommand();
+			cmd.Add($"UPDATE {table} SET Value = 200 WHERE Id = 1");
+			await cmd.ExecuteNonQueryAsync();
+		});
+
+		// Verify the update was committed
+		var rows = _fixture.Database!.ExecuteQuery($"SELECT Value FROM {table} WHERE Id = 1");
+		Convert.ToInt64(rows[0]["Value"]).Should().Be(200L);
+	}
+
+	// ─── DML within transaction ───
+
+	[Fact]
+	[Trait(TestTraits.Category, "Transaction")]
+	public async Task DmlInsert_WithinTransaction_Succeeds()
+	{
+		var table = CreateTable("DmlIns");
+
+		using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync();
+
+		await connection.RunWithRetriableTransactionAsync(async transaction =>
+		{
+			using var cmd = connection.CreateDmlCommand($"INSERT INTO {table} (Id, Name, Value) VALUES (1, 'Alice', 100)");
+			cmd.Transaction = transaction;
+			await cmd.ExecuteNonQueryAsync();
+		});
+
+		var rows = _fixture.Database!.ExecuteQuery($"SELECT Name FROM {table} WHERE Id = 1");
+		rows.Should().HaveCount(1);
+		rows[0]["Name"].Should().Be("Alice");
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "Transaction")]
+	public async Task DmlUpdate_WithinTransaction_Succeeds()
+	{
+		var table = CreateTable("DmlUpd");
+		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Value"] = 100L });
+
+		using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync();
+
+		await connection.RunWithRetriableTransactionAsync(async transaction =>
+		{
+			using var cmd = connection.CreateDmlCommand($"UPDATE {table} SET Name = 'Bob' WHERE Id = 1");
+			cmd.Transaction = transaction;
+			await cmd.ExecuteNonQueryAsync();
+		});
+
+		var rows = _fixture.Database!.ExecuteQuery($"SELECT Name FROM {table} WHERE Id = 1");
+		rows[0]["Name"].Should().Be("Bob");
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "Transaction")]
+	public async Task DmlDelete_WithinTransaction_Succeeds()
+	{
+		var table = CreateTable("DmlDel");
+		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice" });
+
+		using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync();
+
+		await connection.RunWithRetriableTransactionAsync(async transaction =>
+		{
+			using var cmd = connection.CreateDmlCommand($"DELETE FROM {table} WHERE Id = 1");
+			cmd.Transaction = transaction;
+			await cmd.ExecuteNonQueryAsync();
+		});
+
+		var rows = _fixture.Database!.ExecuteQuery($"SELECT * FROM {table}");
+		rows.Should().BeEmpty();
+	}
+
+	// ─── Mutations within transaction ───
+
+	[Fact]
+	[Trait(TestTraits.Category, "Transaction")]
+	public async Task MutationInsert_WithinTransaction_CommitsOnSuccess()
+	{
+		var table = CreateTable("MutTxn");
+
+		using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync();
+
+		await connection.RunWithRetriableTransactionAsync(async transaction =>
+		{
+			using var cmd = connection.CreateInsertCommand(table);
+			cmd.Parameters.Add("Id", SpannerDbType.Int64, 1L);
+			cmd.Parameters.Add("Name", SpannerDbType.String, "Alice");
+			cmd.Parameters.Add("Value", SpannerDbType.Int64, 42L);
+			cmd.Transaction = transaction;
+			await cmd.ExecuteNonQueryAsync();
+		});
+
+		var rows = _fixture.Database!.ExecuteQuery($"SELECT Name FROM {table} WHERE Id = 1");
+		rows.Should().HaveCount(1);
+		rows[0]["Name"].Should().Be("Alice");
+	}
+
+	// ─── Read within transaction ───
+
+	[Fact]
+	[Trait(TestTraits.Category, "Transaction")]
+	public async Task SelectWithinTransaction_ReadsData()
+	{
+		var table = CreateTable("SelTxn");
+		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Value"] = 100L });
+
+		using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync();
+
+		string? name = null;
+		await connection.RunWithRetriableTransactionAsync(async transaction =>
+		{
+			using var cmd = connection.CreateSelectCommand($"SELECT Name FROM {table} WHERE Id = 1");
+			cmd.Transaction = transaction;
+			using var reader = await cmd.ExecuteReaderAsync();
+			if (await reader.ReadAsync())
+			{
+				name = reader.GetString(0);
+			}
+		});
+
+		name.Should().Be("Alice");
+	}
+
+	// ─── DML returns row count ───
+
+	[Fact]
+	[Trait(TestTraits.Category, "Transaction")]
+	public async Task DmlReturnsRowCount()
+	{
+		var table = CreateTable("DmlCnt");
+		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Value"] = 100L });
+		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["Id"] = 2L, ["Name"] = "Bob", ["Value"] = 200L });
+
+		using var connection = _fixture.CreateConnection();
+		await connection.OpenAsync();
+
+		long rowCount = 0;
+		await connection.RunWithRetriableTransactionAsync(async transaction =>
+		{
+			using var cmd = connection.CreateDmlCommand($"UPDATE {table} SET Value = 0 WHERE Value > 50");
+			cmd.Transaction = transaction;
+			rowCount = await cmd.ExecuteNonQueryAsync();
+		});
+
+		rowCount.Should().Be(2);
+	}
+}

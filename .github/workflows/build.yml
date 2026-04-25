@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  DOTNET_VERSION: '8.0.x'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - run: dotnet build --configuration Release
+
+  test-inmemory:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      SPANNER_TEST_TARGET: InMemory
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Run unit tests (in-memory)
+        run: |
+          dotnet test tests/Spanner.InMemoryEmulator.Tests.Unit/ \
+            --configuration Release \
+            --logger "trx;LogFileName=unit.trx"
+      - name: Run integration tests (in-memory)
+        run: |
+          dotnet test tests/Spanner.InMemoryEmulator.Tests.Integration/ \
+            --configuration Release \
+            --logger "trx;LogFileName=integration.trx"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-inmemory
+          path: '**/*.trx'
+
+  test-emulator:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      SPANNER_TEST_TARGET: Emulator
+      SPANNER_EMULATOR_HOST: localhost:9010
+    services:
+      spanner-emulator:
+        image: gcr.io/cloud-spanner-emulator/emulator
+        ports:
+          - 9010:9010
+          - 9020:9020
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Create Spanner instance + database
+        run: |
+          # Wait for emulator
+          for i in $(seq 1 30); do curl -sf http://localhost:9020/ && break || sleep 1; done
+          # Create instance
+          curl -s -X POST http://localhost:9020/v1/projects/test-project/instances \
+            -H "Content-Type: application/json" \
+            -d '{"instanceId":"test-instance","instance":{"config":"projects/test-project/instanceConfigs/emulator-config","displayName":"Test","nodeCount":1}}'
+          # Create database
+          curl -s -X POST http://localhost:9020/v1/projects/test-project/instances/test-instance/databases \
+            -H "Content-Type: application/json" \
+            -d '{"createStatement":"CREATE DATABASE \"test-db\""}'
+      - name: Run integration tests (emulator)
+        run: |
+          dotnet test tests/Spanner.InMemoryEmulator.Tests.Integration/ \
+            --configuration Release \
+            --logger "trx;LogFileName=emulator.trx" \
+            --filter "Target!=InMemoryOnly"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-emulator
+          path: '**/*.trx'
+
+  release:
+    needs: [test-inmemory, test-emulator]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Pack
+        run: dotnet pack --configuration Release -o ./nupkg
+      - name: Push to NuGet
+        run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json

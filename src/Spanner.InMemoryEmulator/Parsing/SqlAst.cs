@@ -1,0 +1,263 @@
+using Google.Cloud.Spanner.V1;
+using TypeCode = Google.Cloud.Spanner.V1.TypeCode;
+
+namespace Spanner.InMemoryEmulator.Parsing;
+
+// ──────────────────────────────────────────────
+// DDL Statements
+// ──────────────────────────────────────────────
+
+internal record CreateTableStatement(
+	string Name,
+	List<ParsedColumnDef> Columns,
+	List<PrimaryKeyPart> PrimaryKey,
+	string? ParentTable,
+	OnDeleteAction? OnDelete,
+	List<ParsedCheckConstraint>? CheckConstraints = null,
+	List<ParsedForeignKey>? ForeignKeys = null);
+
+internal record ParsedCheckConstraint(string? Name, string Expression);
+internal record ParsedForeignKey(
+	string? Name,
+	List<string> Columns,
+	string ReferencedTable,
+	List<string> ReferencedColumns,
+	bool IsEnforced = true,
+	ForeignKeyDeleteAction OnDelete = ForeignKeyDeleteAction.NoAction);
+
+internal record DropTableStatement(string Name);
+
+internal record AlterTableStatement(string Name, AlterAction Action);
+
+internal abstract record AlterAction;
+internal record AddColumnAction(ParsedColumnDef Column) : AlterAction;
+internal record DropColumnAction(string ColumnName) : AlterAction;
+
+internal record CreateIndexStatement(
+	string Name,
+	string TableName,
+	List<IndexColumnDef> Columns,
+	List<string>? StoringColumns,
+	bool IsUnique,
+	bool IsNullFiltered);
+
+internal record DropIndexStatement(string Name);
+
+internal record CreateViewStatement(string Name, string SqlBody, bool OrReplace);
+internal record DropViewStatement(string Name);
+
+internal record CreateSequenceStatement(string Name, string SequenceKind, long? StartWithCounter, long? SkipRangeMin, long? SkipRangeMax);
+internal record DropSequenceStatement(string Name);
+
+// ──────────────────────────────────────────────
+// DDL Supporting Types
+// ──────────────────────────────────────────────
+
+internal record ParsedColumnDef(
+	string Name,
+	TypeCode SpannerType,
+	bool IsNullable,
+	long? MaxLength,
+	TypeCode? ArrayElementType,
+	string? GeneratedExpression,
+	bool IsStored,
+	string? DefaultExpression,
+	bool AllowCommitTimestamp);
+
+internal record PrimaryKeyPart(string ColumnName, SortOrder Order = SortOrder.Asc);
+
+internal record IndexColumnDef(string ColumnName, SortOrder Order = SortOrder.Asc);
+
+// ──────────────────────────────────────────────
+// DML Statements
+// ──────────────────────────────────────────────
+
+internal record InsertStatement(
+	string Table,
+	List<string> Columns,
+	List<List<SqlExpression>>? ValueRows,
+	InsertMode Mode = InsertMode.Insert,
+	SelectStatement? SelectSource = null);
+
+internal enum InsertMode { Insert, InsertOrUpdate, InsertOrIgnore }
+
+internal record UpdateStatement(
+	string Table,
+	List<SetClause> Sets,
+	SqlExpression? Where);
+
+internal record SetClause(string Column, SqlExpression Value);
+
+internal record DeleteStatement(string Table, SqlExpression? Where);
+
+// ──────────────────────────────────────────────
+// SELECT / Query
+// ──────────────────────────────────────────────
+
+internal record SelectStatement(
+	bool IsDistinct,
+	List<SelectColumn> Columns,
+	FromClause? From,
+	SqlExpression? Where,
+	List<SqlExpression>? GroupBy,
+	SqlExpression? Having,
+	List<OrderByColumn>? OrderBy,
+	long? Limit,
+	long? Offset);
+
+internal record SelectColumn(SqlExpression Expr, string? Alias);
+
+internal record FromClause(
+	string Table,
+	string? Alias,
+	List<JoinClause>? Joins);
+
+internal record JoinClause(
+	JoinType Type,
+	string Table,
+	string? Alias,
+	SqlExpression? On);
+
+internal enum JoinType
+{
+	Inner,
+	Left,
+	Right,
+	Full,
+	Cross
+}
+
+internal record OrderByColumn(SqlExpression Expr, SortOrder Order);
+
+// ──────────────────────────────────────────────
+// SQL Expressions (shared by DML, SELECT, WHERE)
+// ──────────────────────────────────────────────
+
+internal abstract record SqlExpression;
+
+internal record ColumnRefExpr(string? TableAlias, string Column) : SqlExpression;
+
+internal record LiteralExpr(object? Value) : SqlExpression;
+
+internal record ParameterExpr(string Name) : SqlExpression;
+
+internal record BinaryExpr(SqlExpression Left, BinaryOp Op, SqlExpression Right) : SqlExpression;
+
+internal record UnaryExpr(UnaryOp Op, SqlExpression Operand) : SqlExpression;
+
+internal record FunctionCallExpr(string Name, List<SqlExpression> Arguments, bool IsDistinct = false) : SqlExpression;
+
+internal record CastExpr(SqlExpression Value, TypeCode TargetType, bool Safe = false) : SqlExpression;
+
+internal record CaseExpr(SqlExpression? Operand, List<WhenClause> Whens, SqlExpression? Else) : SqlExpression;
+
+internal record WhenClause(SqlExpression Condition, SqlExpression Result);
+
+internal record InExpr(SqlExpression Value, List<SqlExpression> List, bool IsNegated) : SqlExpression;
+
+internal record BetweenExpr(SqlExpression Value, SqlExpression Low, SqlExpression High, bool IsNegated) : SqlExpression;
+
+internal record IsNullExpr(SqlExpression Value, bool IsNegated) : SqlExpression;
+
+internal record StarExpr() : SqlExpression;
+
+internal record CountStarExpr() : SqlExpression;
+
+// Subquery expressions
+// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/subqueries
+
+/// <summary>Scalar subquery: (SELECT col FROM ...)</summary>
+internal record ScalarSubqueryExpr(SelectStatement Subquery) : SqlExpression;
+
+/// <summary>EXISTS (SELECT ...)</summary>
+internal record ExistsExpr(SelectStatement Subquery, bool IsNegated) : SqlExpression;
+
+/// <summary>expr [NOT] IN (SELECT ...)</summary>
+internal record InSubqueryExpr(SqlExpression Value, SelectStatement Subquery, bool IsNegated) : SqlExpression;
+
+/// <summary>ARRAY(SELECT ...)</summary>
+internal record ArraySubqueryExpr(SelectStatement Subquery) : SqlExpression;
+internal record ArrayLiteralExpr(List<SqlExpression> Elements) : SqlExpression;
+
+// ──────────────────────────────────────────────
+// Window Functions
+// ──────────────────────────────────────────────
+// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls
+
+internal record WindowExpr(
+	SqlExpression Function,
+	List<SqlExpression>? PartitionBy,
+	List<OrderByColumn>? OrderBy) : SqlExpression;
+
+// ──────────────────────────────────────────────
+// UNNEST
+// ──────────────────────────────────────────────
+// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#unnest_operator
+
+internal record UnnestFromClause(
+	SqlExpression ArrayExpr,
+	string? Alias,
+	bool WithOffset,
+	string? OffsetAlias,
+	List<JoinClause>? Joins) : FromClause("__unnest__", Alias, Joins);
+
+// ──────────────────────────────────────────────
+// Array element access: arr[OFFSET(n)], arr[ORDINAL(n)], arr[SAFE_OFFSET(n)], arr[SAFE_ORDINAL(n)]
+// ──────────────────────────────────────────────
+// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#array_subscript_operator
+
+internal enum ArrayAccessMode { Offset, Ordinal, SafeOffset, SafeOrdinal }
+internal record ArrayAccessExpr(SqlExpression Array, SqlExpression Index, ArrayAccessMode Mode) : SqlExpression;
+
+// ──────────────────────────────────────────────
+// STRUCT
+// ──────────────────────────────────────────────
+// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#struct_type
+
+internal record StructExpr(List<(string? Name, SqlExpression Value)> Fields) : SqlExpression;
+internal record StructFieldAccessExpr(SqlExpression Struct, string FieldName) : SqlExpression;
+
+/// <summary>Subquery as FROM source: FROM (SELECT ...) AS alias</summary>
+internal record SubqueryFromClause(
+	SelectStatement Subquery,
+	string Alias,
+	List<JoinClause>? Joins) : FromClause(Alias, Alias, Joins);
+
+// Set operations
+// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#set_operators
+
+internal enum SetOperationType { UnionAll, UnionDistinct, IntersectAll, IntersectDistinct, ExceptAll, ExceptDistinct }
+
+internal record SetOperation(SetOperationType Type, SelectStatement Right);
+
+/// <summary>A query with optional CTEs and set operations.</summary>
+internal record FullQuery(
+	List<CteDefinition>? Ctes,
+	SelectStatement Select,
+	List<SetOperation>? SetOps);
+
+internal record CteDefinition(string Name, SelectStatement Query);
+
+internal enum BinaryOp
+{
+	Equal,
+	NotEqual,
+	LessThan,
+	GreaterThan,
+	LessThanOrEqual,
+	GreaterThanOrEqual,
+	And,
+	Or,
+	Add,
+	Subtract,
+	Multiply,
+	Divide,
+	Modulo,
+	Concat // ||
+}
+
+internal enum UnaryOp
+{
+	Not,
+	Negate
+}

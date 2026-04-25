@@ -156,7 +156,7 @@ public FunctionIntegrationTests(EmulatorSession session) : base(session) { }
 
 	[Fact] public async Task CastStringToInt() => (await ScalarAsync("CAST('42' AS INT64)")).Should().Be(42L);
 
-	[Fact] public async Task CastFloatToInt() => (await ScalarAsync("CAST(3.9 AS INT64)")).Should().Be(3L);
+	[Fact] public async Task CastFloatToInt() => (await ScalarAsync("CAST(3.9 AS INT64)")).Should().Be(4L);
 
 	[Fact] public async Task SafeCastInvalid() => (await ScalarAsync("SAFE_CAST('abc' AS INT64)")).Should().BeNull();
 

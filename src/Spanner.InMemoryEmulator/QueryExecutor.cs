@@ -37,13 +37,43 @@ internal class QueryExecutor
 
 		var result = Execute(fullQuery.Select, parameters, cteMap);
 
-		// Apply set operations
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#set_operators
+		// Apply set operations. A trailing ORDER BY applies to the final combined result,
+		// not to the last SELECT in the chain.
 		if (fullQuery.SetOps is { Count: > 0 })
 		{
+			// Extract the trailing ORDER BY from the last right SELECT (it belongs to the full query)
+			var lastRight = fullQuery.SetOps[^1].Right;
+			var finalOrderBy = lastRight.OrderBy;
+			var finalLimit = lastRight.Limit;
+			var finalOffset = lastRight.Offset;
+
 			foreach (var setOp in fullQuery.SetOps)
 			{
-				var rightResult = Execute(setOp.Right, parameters, cteMap);
+				// For the last set op, strip ORDER BY/LIMIT from the right SELECT
+				var rightSelect = setOp == fullQuery.SetOps[^1] && finalOrderBy != null
+					? setOp.Right with { OrderBy = null, Limit = null, Offset = null }
+					: setOp.Right;
+				var rightResult = Execute(rightSelect, parameters, cteMap);
 				result = ApplySetOperation(result, rightResult, setOp.Type);
+			}
+
+			// Apply ORDER BY to the combined result
+			if (finalOrderBy is { Count: > 0 })
+			{
+				SortResultSetRows(result, finalOrderBy);
+			}
+
+			// Apply LIMIT/OFFSET
+			if (finalLimit != null || finalOffset != null)
+			{
+				var offset = (int)(finalOffset ?? 0);
+				var rows = result.Rows.ToList();
+				rows = rows.Skip(offset).ToList();
+				if (finalLimit != null)
+					rows = rows.Take((int)finalLimit.Value).ToList();
+				result.Rows.Clear();
+				result.Rows.AddRange(rows);
 			}
 		}
 
@@ -51,12 +81,66 @@ internal class QueryExecutor
 	}
 
 	/// <summary>
+	/// Sorts a ResultSet's rows based on ORDER BY columns (used for set operation results).
+	/// </summary>
+	private static void SortResultSetRows(ResultSet result, List<OrderByColumn> orderBy)
+	{
+		var fields = result.Metadata.RowType.Fields;
+		var fieldMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+		for (int i = 0; i < fields.Count; i++)
+			fieldMap[fields[i].Name] = i;
+
+		var rows = result.Rows.ToList();
+		rows.Sort((a, b) =>
+		{
+			foreach (var col in orderBy)
+			{
+				var colName = col.Expr is ColumnRefExpr cref ? cref.Column : InferColumnNameStatic(col.Expr);
+				if (!fieldMap.TryGetValue(colName, out var idx)) continue;
+
+				int cmp = CompareProtoValues(a.Values[idx], b.Values[idx]);
+				if (cmp != 0) return col.Order == SortOrder.Desc ? -cmp : cmp;
+			}
+			return 0;
+		});
+		result.Rows.Clear();
+		result.Rows.AddRange(rows);
+	}
+
+	/// <summary>
+	/// Compares two protobuf Values for ordering.
+	/// Spanner INT64 values are represented as strings in protobuf.
+	/// </summary>
+	private static int CompareProtoValues(Google.Protobuf.WellKnownTypes.Value a, Google.Protobuf.WellKnownTypes.Value b)
+	{
+		if (a.KindCase == Google.Protobuf.WellKnownTypes.Value.KindOneofCase.NullValue &&
+			b.KindCase == Google.Protobuf.WellKnownTypes.Value.KindOneofCase.NullValue) return 0;
+		if (a.KindCase == Google.Protobuf.WellKnownTypes.Value.KindOneofCase.NullValue) return -1;
+		if (b.KindCase == Google.Protobuf.WellKnownTypes.Value.KindOneofCase.NullValue) return 1;
+
+		if (a.KindCase == Google.Protobuf.WellKnownTypes.Value.KindOneofCase.StringValue)
+		{
+			// Spanner encodes INT64/NUMERIC as strings — try numeric comparison first
+			if (long.TryParse(a.StringValue, out var la) && long.TryParse(b.StringValue, out var lb))
+				return la.CompareTo(lb);
+			if (double.TryParse(a.StringValue, out var da) && double.TryParse(b.StringValue, out var db))
+				return da.CompareTo(db);
+			return string.Compare(a.StringValue, b.StringValue, StringComparison.Ordinal);
+		}
+		if (a.KindCase == Google.Protobuf.WellKnownTypes.Value.KindOneofCase.NumberValue)
+			return a.NumberValue.CompareTo(b.NumberValue);
+		if (a.KindCase == Google.Protobuf.WellKnownTypes.Value.KindOneofCase.BoolValue)
+			return a.BoolValue.CompareTo(b.BoolValue);
+		return 0;
+	}
+
+	/// <summary>
 	/// Executes a parsed SELECT statement and returns the result as a ResultSet protobuf.
 	/// </summary>
 	public ResultSet Execute(SelectStatement select, IDictionary<string, object?>? parameters,
-		Dictionary<string, SelectStatement>? cteMap = null)
+		Dictionary<string, SelectStatement>? cteMap = null, Dictionary<string, object?>? outerRow = null)
 	{
-		var evaluator = new ExpressionEvaluator(parameters, this, cteMap);
+		var evaluator = new ExpressionEvaluator(parameters, this, cteMap, outerRow);
 
 		// 1. FROM — get all rows from the source table
 		List<Dictionary<string, object?>> rows;
@@ -144,7 +228,7 @@ internal class QueryExecutor
 			{
 				foreach (var join in select.From.Joins)
 				{
-					rows = ExecuteJoin(rows, join, evaluator);
+					rows = ExecuteJoin(rows, join, evaluator, cteMap);
 				}
 			}
 		}
@@ -184,10 +268,27 @@ internal class QueryExecutor
 
 		// 6. ORDER BY — sort before projection so all source columns are available
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#order_by_clause
-		//   ORDER BY can reference columns not in the SELECT list.
+		//   ORDER BY can reference columns not in the SELECT list, and can also use SELECT aliases.
 		if (select.OrderBy != null && select.OrderBy.Count > 0)
 		{
-			rows = OrderRows(select.OrderBy, rows, evaluator);
+			// Resolve SELECT aliases in ORDER BY expressions.
+			// After GROUP BY, alias values are already computed in output rows — resolving aliases
+			// back to source expressions would fail because source columns are no longer available.
+			// Also skip resolution for window/aggregate expressions (pre-computed under alias key).
+			var hasGroupBy = select.GroupBy is { Count: > 0 } || HasAggregates(select.Columns);
+			var resolvedOrderBy = select.OrderBy.Select(ob =>
+			{
+				if (hasGroupBy) return ob;
+				if (ob.Expr is ColumnRefExpr colRef && colRef.TableAlias == null)
+				{
+					var alias = select.Columns.FirstOrDefault(c =>
+						string.Equals(c.Alias, colRef.Column, StringComparison.OrdinalIgnoreCase));
+					if (alias != null && alias.Expr is not WindowExpr && !IsAggregate(alias.Expr))
+						return new OrderByColumn(alias.Expr, ob.Order);
+				}
+				return ob;
+			}).ToList();
+			rows = OrderRows(resolvedOrderBy, rows, evaluator);
 		}
 
 		// 7. SELECT — project columns and evaluate expressions
@@ -231,12 +332,43 @@ internal class QueryExecutor
 			if (col.Expr is StarExpr)
 			{
 				// SELECT * — expand to all columns from source table
-				if (sourceTable == null)
-					throw new InvalidOperationException("SELECT * requires a FROM clause.");
-
-				foreach (var tablCol in sourceTable.Columns)
+				if (sourceTable != null)
 				{
-					expandedColumns.Add((new ColumnRefExpr(null, tablCol.Name), tablCol.Name));
+					foreach (var tablCol in sourceTable.Columns)
+					{
+						expandedColumns.Add((new ColumnRefExpr(null, tablCol.Name), tablCol.Name));
+					}
+				}
+				else if (rows.Count > 0)
+				{
+					// No sourceTable (subquery/CTE) — use row keys
+					foreach (var key in rows[0].Keys)
+					{
+						expandedColumns.Add((new ColumnRefExpr(null, key), key));
+					}
+				}
+			}
+			else if (col.Expr is ColumnRefExpr starRef && starRef.Column == "*" && starRef.TableAlias != null)
+			{
+				// SELECT t.* — expand to all columns with the given alias prefix
+				var prefix = starRef.TableAlias + ".";
+				if (rows.Count > 0)
+				{
+					foreach (var key in rows[0].Keys)
+					{
+						if (key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+						{
+							var colName = key[prefix.Length..];
+							expandedColumns.Add((new ColumnRefExpr(starRef.TableAlias, colName), colName));
+						}
+					}
+				}
+				else if (sourceTable != null)
+				{
+					foreach (var tablCol in sourceTable.Columns)
+					{
+						expandedColumns.Add((new ColumnRefExpr(starRef.TableAlias, tablCol.Name), tablCol.Name));
+					}
 				}
 			}
 			else
@@ -250,8 +382,15 @@ internal class QueryExecutor
 		foreach (var (expr, name) in expandedColumns)
 		{
 			var typeCode = InferType(expr, sourceTable);
-			outputColumns.Add(new ColumnDef(name, typeCode));
+			TypeCode? arrayElementType = null;
+			if (typeCode == TypeCode.Array)
+				arrayElementType = InferArrayElementType(expr, sourceTable);
+			outputColumns.Add(new ColumnDef(name, typeCode, arrayElementType: arrayElementType));
 		}
+
+		// Determine if we're in a GROUP BY / aggregation context where rows have
+		// precomputed values but no original source columns.
+		var isAggregationResult = select.GroupBy is { Count: > 0 } || HasAggregates(select.Columns);
 
 		// Project each row
 		foreach (var row in rows)
@@ -259,8 +398,10 @@ internal class QueryExecutor
 			var projected = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
 			foreach (var (expr, name) in expandedColumns)
 			{
-				// If the value is already in the row (e.g., from aggregation or window functions), use it directly
-				if (row.ContainsKey(name) && (IsAggregate(expr) || expr is WindowExpr))
+				// If the value is already in the row, use it directly for:
+				// - Aggregate/window expressions (always precomputed)
+				// - Any expression in GROUP BY/aggregation context (source columns unavailable)
+				if (row.ContainsKey(name) && (isAggregationResult || IsAggregate(expr) || expr is WindowExpr))
 				{
 					projected[name] = row[name];
 				}
@@ -272,16 +413,98 @@ internal class QueryExecutor
 			projectedRows.Add(projected);
 		}
 
+		// When sourceTable is null (CTE, subquery, UNNEST, etc.), InferType may default to String.
+		// Fix column types by inspecting actual row values.
+		if (projectedRows.Count > 0)
+		{
+			for (int i = 0; i < outputColumns.Count; i++)
+			{
+				var name = outputColumns[i].Name;
+				if (outputColumns[i].SpannerType == TypeCode.String)
+				{
+					var sample = projectedRows.FirstOrDefault(r => r.TryGetValue(name, out var v) && v != null)?[name];
+					if (sample != null)
+					{
+						var inferred = InferTypeFromValue(sample);
+						if (inferred == TypeCode.Array && sample is IList<object?> list)
+						{
+							var elemType = list.OfType<object>().Select(InferTypeFromValue).FirstOrDefault(TypeCode.String);
+							outputColumns[i] = new ColumnDef(name, TypeCode.Array, arrayElementType: elemType);
+						}
+						else if (inferred != TypeCode.String)
+							outputColumns[i] = new ColumnDef(name, inferred);
+					}
+				}
+				// Also fix Array columns that have no element type
+				else if (outputColumns[i].SpannerType == TypeCode.Array && outputColumns[i].ArrayElementType == null)
+				{
+					var sample = projectedRows.FirstOrDefault(r => r.TryGetValue(name, out var v) && v is IList<object?>)?[name];
+					if (sample is IList<object?> list2)
+					{
+						var elemType = list2.OfType<object>().Select(InferTypeFromValue).FirstOrDefault(TypeCode.String);
+						outputColumns[i] = new ColumnDef(name, TypeCode.Array, arrayElementType: elemType);
+					}
+					else
+					{
+						// Default to STRING element type to avoid null ArrayElementType
+						outputColumns[i] = new ColumnDef(name, TypeCode.Array, arrayElementType: TypeCode.String);
+					}
+				}
+			}
+		}
+
 		return (outputColumns.AsReadOnly(), projectedRows);
 	}
 
-	private static string InferColumnName(SqlExpression expr) => expr switch
+	private static TypeCode InferTypeFromValue(object value) => value switch
+	{
+		long => TypeCode.Int64,
+		double => TypeCode.Float64,
+		float => TypeCode.Float32,
+		bool => TypeCode.Bool,
+		DateTime dt => dt.TimeOfDay == TimeSpan.Zero ? TypeCode.Date : TypeCode.Timestamp,
+		byte[] => TypeCode.Bytes,
+		IList<object?> => TypeCode.Array,
+		_ => TypeCode.String
+	};
+
+	private static TypeCode InferArrayElementType(SqlExpression expr, TableDefinition? table)
+	{
+		if (expr is FunctionCallExpr func)
+		{
+			var name = func.Name.ToUpperInvariant();
+			// ARRAY_AGG returns array of argument type
+			if (name == "ARRAY_AGG" && func.Arguments.Count > 0)
+				return InferType(func.Arguments[0], table);
+			// GENERATE_ARRAY typically returns INT64 or FLOAT64 array
+			if (name == "GENERATE_ARRAY" && func.Arguments.Count > 0)
+				return InferType(func.Arguments[0], table);
+			// SPLIT returns ARRAY<STRING>
+			if (name == "SPLIT") return TypeCode.String;
+			// ARRAY_CONCAT — infer from first argument's element type
+			if (name == "ARRAY_CONCAT" && func.Arguments.Count > 0)
+				return InferArrayElementType(func.Arguments[0], table);
+		}
+		if (expr is ArrayLiteralExpr arr && arr.Elements.Count > 0)
+			return InferType(arr.Elements[0], table);
+		if (expr is ColumnRefExpr col && table != null)
+		{
+			var colDef = table.Columns.FirstOrDefault(c => string.Equals(c.Name, col.Column, StringComparison.OrdinalIgnoreCase));
+			return colDef?.ArrayElementType ?? TypeCode.String;
+		}
+		// ArraySubqueryExpr — infer from subquery result
+		return TypeCode.String; // Default element type
+	}
+
+	private static string InferColumnName(SqlExpression expr) => InferColumnNameStatic(expr);
+
+	internal static string InferColumnNameStatic(SqlExpression expr) => expr switch
 	{
 		ColumnRefExpr col => col.Column,
 		FunctionCallExpr func => func.Name,
 		CountStarExpr => "COUNT(*)",
-		CastExpr cast => InferColumnName(cast.Value),
-		WindowExpr win => InferColumnName(win.Function),
+		CastExpr cast => InferColumnNameStatic(cast.Value),
+		WindowExpr win => InferColumnNameStatic(win.Function),
 		_ => ""
 	};
 
@@ -303,9 +526,27 @@ internal class QueryExecutor
 		FunctionCallExpr func => InferFunctionReturnType(func, table),
 		CastExpr cast => cast.TargetType,
 		BinaryExpr bin => InferBinaryType(bin, table),
-		UnaryExpr un => InferType(un.Operand, table),
+		UnaryExpr un => un.Op == UnaryOp.Not ? TypeCode.Bool : InferType(un.Operand, table),
 		WindowExpr win => InferType(win.Function, table),
-		ArrayAccessExpr => TypeCode.String, // Element type unknown at inference time
+		ArrayAccessExpr acc => acc.Array is ArrayLiteralExpr arr && arr.Elements.Count > 0
+			? InferType(arr.Elements[0], table)
+			: TypeCode.String, // Element type unknown at inference time
+		// Boolean-returning expressions
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators
+		IsNullExpr => TypeCode.Bool,
+		BetweenExpr => TypeCode.Bool,
+		InExpr => TypeCode.Bool,
+		InSubqueryExpr => TypeCode.Bool,
+		InUnnestExpr => TypeCode.Bool,
+		ExistsExpr => TypeCode.Bool,
+		// CASE WHEN — infer from THEN/ELSE branches
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conditional_expressions#case
+		CaseExpr c => c.Whens.Count > 0 ? InferType(c.Whens[0].Result, table)
+			: c.Else != null ? InferType(c.Else, table)
+			: TypeCode.String,
+		// Scalar subquery — infer from the first output column
+		ScalarSubqueryExpr => TypeCode.String, // Cannot easily infer without executing
+		ParameterExpr => TypeCode.String, // Parameter types not known at inference time
 		_ => TypeCode.String
 	};
 
@@ -320,20 +561,37 @@ internal class QueryExecutor
 			return InferType(func.Arguments[0], table);
 		}
 
-		// Functions that return the same type as their first argument
-		if (name is "ABS" or "MOD" or "SIGN" or "ROUND" or "GREATEST" or "LEAST"
+		// Functions that return the same type as their first non-null argument
+		if (name is "ABS" or "MOD" or "SIGN" or "ROUND"
 				or "SAFE_ADD" or "SAFE_SUBTRACT" or "SAFE_MULTIPLY" or "SAFE_NEGATE"
-				or "NULLIF" or "COALESCE"
+				or "NULLIF"
 			&& func.Arguments.Count > 0)
 		{
 			return InferType(func.Arguments[0], table);
 		}
 
-		// IF(cond, then, else) / IFNULL(expr, default) — infer from the result expression
+		// GREATEST/LEAST/COALESCE — infer from first non-null-literal argument
+		if (name is "GREATEST" or "LEAST" or "COALESCE" && func.Arguments.Count > 0)
+		{
+			return InferFirstNonNullArgType(func, table);
+		}
+
+		// IF(cond, then, else) — infer from the then expression
 		if (name is "IF" && func.Arguments.Count > 1)
 			return InferType(func.Arguments[1], table);
+		// IFNULL(expr, default) — infer from the first non-null argument type
+		if (name is "IFNULL" && func.Arguments.Count > 1)
+			return InferFirstNonNullArgType(func, table);
 		if (name is "IFNULL" && func.Arguments.Count > 0)
 			return InferType(func.Arguments[0], table);
+
+		// Navigation window functions — return type of their first argument
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/navigation_functions
+		if (name is "LAG" or "LEAD" or "FIRST_VALUE" or "LAST_VALUE" or "NTH_VALUE"
+			&& func.Arguments.Count > 0)
+		{
+			return InferType(func.Arguments[0], table);
+		}
 
 		return name switch
 		{
@@ -378,6 +636,10 @@ internal class QueryExecutor
 				or "TIMESTAMP_MILLIS" or "TIMESTAMP_MICROS" or "PENDING_COMMIT_TIMESTAMP" => TypeCode.Timestamp,
 			"CURRENT_DATE" or "DATE" or "DATE_ADD" or "DATE_SUB" or "DATE_TRUNC"
 				or "PARSE_DATE" => TypeCode.Date,
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#extract
+			// EXTRACT(DATE FROM ...) returns DATE; all other parts return INT64.
+			"EXTRACT" when func.Arguments.Count > 0 && func.Arguments[0] is LiteralExpr lit
+				&& string.Equals(lit.Value?.ToString(), "DATE", StringComparison.OrdinalIgnoreCase) => TypeCode.Date,
 			"EXTRACT" or "TIMESTAMP_DIFF" or "DATE_DIFF" or "UNIX_SECONDS"
 				or "UNIX_MILLIS" or "UNIX_MICROS"
 				or "GET_NEXT_SEQUENCE_VALUE" or "GET_INTERNAL_SEQUENCE_STATE" => TypeCode.Int64,
@@ -409,14 +671,29 @@ internal class QueryExecutor
 		BinaryOp.Equal or BinaryOp.NotEqual or BinaryOp.LessThan or BinaryOp.GreaterThan
 			or BinaryOp.LessThanOrEqual or BinaryOp.GreaterThanOrEqual or BinaryOp.And or BinaryOp.Or => TypeCode.Bool,
 		BinaryOp.Concat => TypeCode.String,
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
+		//   If either operand is FLOAT64, the result is FLOAT64.
 		BinaryOp.Add or BinaryOp.Subtract or BinaryOp.Multiply or BinaryOp.Divide or BinaryOp.Modulo =>
-			InferType(bin.Left, table),
+			InferType(bin.Left, table) == TypeCode.Float64 || InferType(bin.Right, table) == TypeCode.Float64
+				? TypeCode.Float64
+				: InferType(bin.Left, table),
 		_ => TypeCode.String
 	};
 
+	private static TypeCode InferFirstNonNullArgType(FunctionCallExpr func, TableDefinition? table)
+	{
+		foreach (var arg in func.Arguments)
+		{
+			var t = InferType(arg, table);
+			if (t != TypeCode.String || arg is not LiteralExpr { Value: null })
+				return t;
+		}
+		return TypeCode.String;
+	}
+
 	private static bool HasAggregates(List<SelectColumn> columns)
 	{
-		return columns.Any(c => IsAggregate(c.Expr));
+		return columns.Any(c => ContainsAggregate(c.Expr));
 	}
 
 	private static bool IsAggregate(SqlExpression expr) => expr switch
@@ -427,6 +704,20 @@ internal class QueryExecutor
 			or "ARRAY_AGG" or "STRING_AGG" or "COUNTIF" or "ANY_VALUE"
 			or "LOGICAL_AND" or "LOGICAL_OR"
 			or "BIT_AND" or "BIT_OR" or "BIT_XOR",
+		_ => false
+	};
+
+	/// <summary>
+	/// Recursively checks whether an expression contains any aggregate function call.
+	/// </summary>
+	private static bool ContainsAggregate(SqlExpression expr) => expr switch
+	{
+		_ when IsAggregate(expr) => true,
+		FunctionCallExpr func => func.Arguments.Any(ContainsAggregate),
+		BinaryExpr bin => ContainsAggregate(bin.Left) || ContainsAggregate(bin.Right),
+		UnaryExpr un => ContainsAggregate(un.Operand),
+		CaseExpr cs => cs.Whens.Any(w => ContainsAggregate(w.Condition) || ContainsAggregate(w.Result))
+			|| (cs.Else != null && ContainsAggregate(cs.Else)),
 		_ => false
 	};
 
@@ -479,16 +770,12 @@ internal class QueryExecutor
 						"ROW_NUMBER" => (long)(i + 1),
 						"RANK" => ComputeRank(partitionRows, i, win.OrderBy, evaluator),
 						"DENSE_RANK" => ComputeDenseRank(partitionRows, i, win.OrderBy, evaluator),
-						"LAG" => i > 0
-							? GetWindowFuncArg(win.Function, partitionRows[i - 1], evaluator)
-							: GetWindowFuncDefault(win.Function, evaluator),
-						"LEAD" => i < partitionRows.Count - 1
-							? GetWindowFuncArg(win.Function, partitionRows[i + 1], evaluator)
-							: GetWindowFuncDefault(win.Function, evaluator),
-						"FIRST_VALUE" => GetWindowFuncArg(win.Function, partitionRows[0], evaluator),
-						"LAST_VALUE" => GetWindowFuncArg(win.Function, partitionRows[^1], evaluator),
+						"LAG" => EvalLag(win.Function, partitionRows, i, evaluator),
+						"LEAD" => EvalLead(win.Function, partitionRows, i, evaluator),
+						"FIRST_VALUE" => GetWindowFuncArg(win.Function, GetFrameRows(partitionRows, i, win.Frame)[0], evaluator),
+						"LAST_VALUE" => GetWindowFuncArg(win.Function, GetFrameRows(partitionRows, i, win.Frame)[^1], evaluator),
 						// Aggregate window functions (SUM, COUNT, AVG, MIN, MAX OVER ...)
-						_ => EvaluateAggregateWindow(win.Function, partitionRows, evaluator)
+						_ => EvaluateAggregateWindow(win.Function, GetFrameRows(partitionRows, i, win.Frame), evaluator)
 					};
 					row[windowName] = value;
 				}
@@ -510,6 +797,63 @@ internal class QueryExecutor
 		if (func is FunctionCallExpr f && f.Arguments.Count >= 3)
 			return evaluator.Evaluate(f.Arguments[2], new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase));
 		return null;
+	}
+
+	private static object? EvalLag(SqlExpression func, List<Dictionary<string, object?>> partitionRows,
+		int i, ExpressionEvaluator evaluator)
+	{
+		int offset = 1;
+		if (func is FunctionCallExpr f && f.Arguments.Count >= 2)
+		{
+			var offsetVal = evaluator.Evaluate(f.Arguments[1], partitionRows[i]);
+			if (offsetVal != null) offset = Convert.ToInt32(offsetVal);
+		}
+		var targetIdx = i - offset;
+		if (targetIdx >= 0 && targetIdx < partitionRows.Count)
+			return GetWindowFuncArg(func, partitionRows[targetIdx], evaluator);
+		return GetWindowFuncDefault(func, evaluator);
+	}
+
+	private static object? EvalLead(SqlExpression func, List<Dictionary<string, object?>> partitionRows,
+		int i, ExpressionEvaluator evaluator)
+	{
+		int offset = 1;
+		if (func is FunctionCallExpr f && f.Arguments.Count >= 2)
+		{
+			var offsetVal = evaluator.Evaluate(f.Arguments[1], partitionRows[i]);
+			if (offsetVal != null) offset = Convert.ToInt32(offsetVal);
+		}
+		var targetIdx = i + offset;
+		if (targetIdx >= 0 && targetIdx < partitionRows.Count)
+			return GetWindowFuncArg(func, partitionRows[targetIdx], evaluator);
+		return GetWindowFuncDefault(func, evaluator);
+	}
+
+	private static List<Dictionary<string, object?>> GetFrameRows(
+		List<Dictionary<string, object?>> partitionRows, int currentIndex, WindowFrameClause? frame)
+	{
+		if (frame == null)
+			return partitionRows; // Default: entire partition
+
+		int start = frame.Start.Type switch
+		{
+			FrameBoundType.UnboundedPreceding => 0,
+			FrameBoundType.CurrentRow => currentIndex,
+			FrameBoundType.OffsetPreceding => Math.Max(0, currentIndex - (int)frame.Start.Offset),
+			FrameBoundType.OffsetFollowing => Math.Min(partitionRows.Count - 1, currentIndex + (int)frame.Start.Offset),
+			_ => 0
+		};
+		int end = frame.End.Type switch
+		{
+			FrameBoundType.UnboundedFollowing => partitionRows.Count - 1,
+			FrameBoundType.CurrentRow => currentIndex,
+			FrameBoundType.OffsetPreceding => Math.Max(0, currentIndex - (int)frame.End.Offset),
+			FrameBoundType.OffsetFollowing => Math.Min(partitionRows.Count - 1, currentIndex + (int)frame.End.Offset),
+			_ => partitionRows.Count - 1
+		};
+
+		if (start > end) return new List<Dictionary<string, object?>>();
+		return partitionRows.GetRange(start, end - start + 1);
 	}
 
 	private static long ComputeRank(
@@ -628,6 +972,13 @@ internal class QueryExecutor
 			}
 
 			// Evaluate SELECT columns, computing aggregates over the group
+			// First, precompute all aggregates (including nested ones) so
+			// the expression evaluator can find them in the row.
+			foreach (var col in select.Columns)
+			{
+				PrecomputeAggregatesForHaving(col.Expr, groupRows, evaluator, outputRow);
+			}
+
 			foreach (var col in select.Columns)
 			{
 				var name = col.Alias ?? InferColumnName(col.Expr);
@@ -637,15 +988,80 @@ internal class QueryExecutor
 				}
 				else if (!outputRow.ContainsKey(name))
 				{
-					// Non-aggregate columns should be group-by columns
-					outputRow[name] = evaluator.Evaluate(col.Expr, groupRows[0]);
+					// Non-aggregate columns should be group-by columns, but may contain
+					// nested aggregates (e.g., CASE WHEN SUM(x) > ... ). Merge outputRow
+					// (with precomputed aggregates) into groupRows[0] for evaluation.
+					var evalRow = MergeRows(outputRow, groupRows[0]);
+					outputRow[name] = evaluator.Evaluate(col.Expr, evalRow);
 				}
+			}
+
+			// Pre-compute aggregate expressions in HAVING clause
+			// so HAVING evaluation can look them up as row values
+			if (select.Having != null)
+			{
+				PrecomputeAggregatesForHaving(select.Having, groupRows, evaluator, outputRow);
 			}
 
 			result.Add(outputRow);
 		}
 
 		return result;
+	}
+
+	/// <summary>
+	/// Walks the HAVING expression tree, finds aggregate subexpressions, evaluates
+	/// them against the group, and stores results in the output row using their
+	/// canonical name so the expression evaluator can resolve them later.
+	/// </summary>
+	private static void PrecomputeAggregatesForHaving(
+		SqlExpression expr,
+		List<Dictionary<string, object?>> groupRows,
+		ExpressionEvaluator evaluator,
+		Dictionary<string, object?> outputRow)
+	{
+		switch (expr)
+		{
+			case CountStarExpr:
+				outputRow["COUNT(*)"] = (long)groupRows.Count;
+				break;
+			case FunctionCallExpr func when IsAggregate(func):
+				var name = InferColumnName(func);
+				if (!outputRow.ContainsKey(name))
+					outputRow[name] = EvaluateAggregate(func, groupRows, evaluator);
+				break;
+			case FunctionCallExpr func:
+				// Non-aggregate function — recurse into arguments to find nested aggregates
+				foreach (var arg in func.Arguments)
+					PrecomputeAggregatesForHaving(arg, groupRows, evaluator, outputRow);
+				break;
+			case BinaryExpr bin:
+				PrecomputeAggregatesForHaving(bin.Left, groupRows, evaluator, outputRow);
+				PrecomputeAggregatesForHaving(bin.Right, groupRows, evaluator, outputRow);
+				break;
+			case UnaryExpr un:
+				PrecomputeAggregatesForHaving(un.Operand, groupRows, evaluator, outputRow);
+				break;
+			case CaseExpr caseExpr:
+				foreach (var when in caseExpr.Whens)
+				{
+					PrecomputeAggregatesForHaving(when.Condition, groupRows, evaluator, outputRow);
+					PrecomputeAggregatesForHaving(when.Result, groupRows, evaluator, outputRow);
+				}
+				if (caseExpr.Else != null)
+					PrecomputeAggregatesForHaving(caseExpr.Else, groupRows, evaluator, outputRow);
+				break;
+			case InExpr inExpr:
+				PrecomputeAggregatesForHaving(inExpr.Value, groupRows, evaluator, outputRow);
+				foreach (var item in inExpr.List)
+					PrecomputeAggregatesForHaving(item, groupRows, evaluator, outputRow);
+				break;
+			case BetweenExpr betweenExpr:
+				PrecomputeAggregatesForHaving(betweenExpr.Value, groupRows, evaluator, outputRow);
+				PrecomputeAggregatesForHaving(betweenExpr.Low, groupRows, evaluator, outputRow);
+				PrecomputeAggregatesForHaving(betweenExpr.High, groupRows, evaluator, outputRow);
+				break;
+		}
 	}
 
 	private List<Dictionary<string, object?>> ExecuteWholeTableAggregation(
@@ -655,6 +1071,13 @@ internal class QueryExecutor
 	{
 		var outputRow = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
 
+		// Precompute all nested aggregates (e.g., ARRAY_LENGTH(ARRAY_AGG(Name)))
+		// so the expression evaluator can find them in the row.
+		foreach (var col in select.Columns)
+		{
+			PrecomputeAggregatesForHaving(col.Expr, rows, evaluator, outputRow);
+		}
+
 		foreach (var col in select.Columns)
 		{
 			var name = col.Alias ?? InferColumnName(col.Expr);
@@ -662,13 +1085,26 @@ internal class QueryExecutor
 			{
 				outputRow[name] = EvaluateAggregate(col.Expr, rows, evaluator);
 			}
-			else
+			else if (!outputRow.ContainsKey(name))
 			{
-				outputRow[name] = rows.Count > 0 ? evaluator.Evaluate(col.Expr, rows[0]) : null;
+				outputRow[name] = rows.Count > 0 ? evaluator.Evaluate(col.Expr, outputRow.Count > 0 ? MergeRows(outputRow, rows[0]) : rows[0]) : null;
 			}
 		}
 
 		return new List<Dictionary<string, object?>> { outputRow };
+	}
+
+	/// <summary>
+	/// Merges precomputed aggregate values into a source row for expression evaluation.
+	/// </summary>
+	private static Dictionary<string, object?> MergeRows(Dictionary<string, object?> precomputed, Dictionary<string, object?> source)
+	{
+		var merged = new Dictionary<string, object?>(source, StringComparer.OrdinalIgnoreCase);
+		foreach (var kvp in precomputed)
+		{
+			merged[kvp.Key] = kvp.Value;
+		}
+		return merged;
 	}
 
 	private static object? EvaluateAggregate(SqlExpression expr, List<Dictionary<string, object?>> rows, ExpressionEvaluator evaluator)
@@ -701,7 +1137,7 @@ internal class QueryExecutor
 				"MAX" => values.Count == 0 ? null : values.Aggregate((a, b) =>
 					ExpressionEvaluator.CompareValues(a, b) >= 0 ? a : b),
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
-				"ARRAY_AGG" => values.ToList(),
+				"ARRAY_AGG" => ArrayAggOrdered(func, rows, evaluator, values),
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#string_agg
 				"STRING_AGG" => StringAgg(func, rows, evaluator, values),
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#countif
@@ -742,7 +1178,7 @@ internal class QueryExecutor
 		return values.Sum(v => Convert.ToDouble(v)) / values.Count;
 	}
 
-	// STRING_AGG(expr, delimiter): concatenates string values with a delimiter.
+	// STRING_AGG(expr, delimiter [ORDER BY ...]): concatenates string values with a delimiter.
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#string_agg
 	private static object? StringAgg(FunctionCallExpr func, List<Dictionary<string, object?>> rows,
 		ExpressionEvaluator evaluator, List<object?> values)
@@ -751,7 +1187,38 @@ internal class QueryExecutor
 		var delimiter = func.Arguments.Count > 1
 			? evaluator.Evaluate(func.Arguments[1], rows[0])?.ToString() ?? ","
 			: ",";
+
+		// Apply ORDER BY within the aggregate if specified
+		if (func.AggregateOrderBy != null && func.AggregateOrderBy.Count > 0)
+		{
+			var sortedRows = OrderRows(func.AggregateOrderBy, rows, evaluator);
+			var sortedValues = sortedRows
+				.Select(r => evaluator.Evaluate(func.Arguments[0], r))
+				.Where(v => v != null);
+			if (func.IsDistinct)
+				sortedValues = sortedValues.Distinct(new ObjectValueComparer());
+			return string.Join(delimiter, sortedValues.Select(v => v?.ToString()));
+		}
+
 		return string.Join(delimiter, values.Select(v => v?.ToString()));
+	}
+
+	// ARRAY_AGG(expr [ORDER BY ...]): collects values into an array.
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
+	private static object? ArrayAggOrdered(FunctionCallExpr func, List<Dictionary<string, object?>> rows,
+		ExpressionEvaluator evaluator, List<object?> values)
+	{
+		if (func.AggregateOrderBy != null && func.AggregateOrderBy.Count > 0)
+		{
+			var sortedRows = OrderRows(func.AggregateOrderBy, rows, evaluator);
+			var sortedValues = sortedRows
+				.Select(r => evaluator.Evaluate(func.Arguments[0], r))
+				.Where(v => v != null);
+			if (func.IsDistinct)
+				sortedValues = sortedValues.Distinct(new ObjectValueComparer());
+			return sortedValues.ToList();
+		}
+		return values.ToList();
 	}
 
 	// COUNTIF(expr): counts rows where the boolean expression is true.
@@ -836,9 +1303,10 @@ internal class QueryExecutor
 
 	/// <summary>Executes a subquery and returns its rows as dictionaries.</summary>
 	internal List<Dictionary<string, object?>> ExecuteSubquery(SelectStatement subquery,
-		IDictionary<string, object?>? parameters, Dictionary<string, SelectStatement>? cteMap = null)
+		IDictionary<string, object?>? parameters, Dictionary<string, SelectStatement>? cteMap = null,
+		Dictionary<string, object?>? outerRow = null)
 	{
-		var result = Execute(subquery, parameters, cteMap);
+		var result = Execute(subquery, parameters, cteMap, outerRow);
 		return ResultSetToRows(result);
 	}
 
@@ -947,22 +1415,95 @@ internal class QueryExecutor
 	private List<Dictionary<string, object?>> ExecuteJoin(
 		List<Dictionary<string, object?>> leftRows,
 		JoinClause join,
-		ExpressionEvaluator evaluator)
+		ExpressionEvaluator evaluator,
+		Dictionary<string, SelectStatement>? cteMap = null)
 	{
-		if (!_database.Schema.TryGetTable(join.Table, out var rightTable) || rightTable == null)
-			throw new InvalidOperationException($"Table '{join.Table}' not found.");
-
+		List<Dictionary<string, object?>> rightRows;
+		TableDefinition? rightTable = null;
 		var rightAlias = join.Alias ?? join.Table;
-		var rightRows = rightTable.Rows.Values
-			.Select(r => PrefixRow(r.Columns, rightAlias))
-			.ToList();
+
+		if (join.UnnestExpr != null)
+		{
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#comma_cross_join
+			//   "FROM table, UNNEST(array_col) AS alias" — implicit CROSS JOIN with UNNEST.
+			//   The UNNEST expression is evaluated per left row (it can reference left columns).
+			var result = new List<Dictionary<string, object?>>();
+			var alias = join.Alias ?? "unnest";
+			foreach (var leftRow in leftRows)
+			{
+				var arrayValue = evaluator.Evaluate(join.UnnestExpr, leftRow);
+				if (arrayValue is IList<object?> list)
+				{
+					for (var i = 0; i < list.Count; i++)
+					{
+						var combined = new Dictionary<string, object?>(leftRow, StringComparer.OrdinalIgnoreCase)
+						{
+							[alias] = list[i]
+						};
+						if (join.UnnestWithOffset)
+						{
+							combined[join.UnnestOffsetAlias ?? "offset"] = (long)i;
+						}
+						result.Add(combined);
+					}
+				}
+			}
+			return result;
+		}
+		else if (join.Subquery != null)
+		{
+			// Subquery join: JOIN (SELECT ...) alias ON ...
+			var subResult = Execute(join.Subquery, null, cteMap);
+			rightRows = ResultSetToRows(subResult)
+				.Select(r => PrefixRow(r, rightAlias))
+				.ToList();
+		}
+		else if (cteMap != null && cteMap.TryGetValue(join.Table, out var cteQuery))
+		{
+			// CTE join: JOIN CteAlias ON ...
+			var cteResult = Execute(cteQuery, null, cteMap);
+			rightRows = ResultSetToRows(cteResult)
+				.Select(r => PrefixRow(r, rightAlias))
+				.ToList();
+		}
+		else
+		{
+			if (!_database.Schema.TryGetTable(join.Table, out rightTable) || rightTable == null)
+				throw new InvalidOperationException($"Table '{join.Table}' not found.");
+
+			rightRows = rightTable.Rows.Values
+				.Select(r => PrefixRow(r.Columns, rightAlias))
+				.ToList();
+		}
+
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#using_clause
+		//   "JOIN ... USING (col)" is equivalent to "JOIN ... ON left.col = right.col"
+		var onExpr = join.On;
+		if (onExpr == null && join.UsingColumns is { Count: > 0 })
+		{
+			// Determine left table prefix from existing row keys
+			var leftPrefix = leftRows.Count > 0
+				? leftRows[0].Keys.FirstOrDefault(k => k.Contains('.'))?.Split('.')[0]
+				: null;
+			SqlExpression? combined = null;
+			foreach (var col in join.UsingColumns)
+			{
+					SqlExpression leftRef = leftPrefix != null
+					? new ColumnRefExpr(leftPrefix, col)
+					: new ColumnRefExpr(null, col);
+				SqlExpression rightRef = new ColumnRefExpr(rightAlias, col);
+				var eq = new BinaryExpr(leftRef, BinaryOp.Equal, rightRef);
+				combined = combined == null ? eq : new BinaryExpr(combined, BinaryOp.And, eq);
+			}
+			onExpr = combined;
+		}
 
 		return join.Type switch
 		{
-			JoinType.Inner => InnerJoin(leftRows, rightRows, join.On, evaluator),
-			JoinType.Left => LeftJoin(leftRows, rightRows, join.On, evaluator, rightTable, rightAlias),
-			JoinType.Right => RightJoin(leftRows, rightRows, join.On, evaluator),
-			JoinType.Full => FullJoin(leftRows, rightRows, join.On, evaluator, rightTable, rightAlias),
+			JoinType.Inner => InnerJoin(leftRows, rightRows, onExpr, evaluator),
+			JoinType.Left => LeftJoin(leftRows, rightRows, onExpr, evaluator, rightTable, rightAlias),
+			JoinType.Right => RightJoin(leftRows, rightRows, onExpr, evaluator),
+			JoinType.Full => FullJoin(leftRows, rightRows, onExpr, evaluator, rightTable, rightAlias),
 			JoinType.Cross => CrossJoin(leftRows, rightRows),
 			_ => throw new NotSupportedException($"Join type '{join.Type}' is not supported.")
 		};
@@ -979,13 +1520,24 @@ internal class QueryExecutor
 		return combined;
 	}
 
-	private static Dictionary<string, object?> NullRow(TableDefinition table, string alias)
+	private static Dictionary<string, object?> NullRow(TableDefinition? table, string alias,
+		List<Dictionary<string, object?>>? sampleRows = null)
 	{
 		var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-		foreach (var col in table.Columns)
+		if (table != null)
 		{
-			row[col.Name] = null;
-			row[$"{alias}.{col.Name}"] = null;
+			foreach (var col in table.Columns)
+			{
+				row[col.Name] = null;
+				row[$"{alias}.{col.Name}"] = null;
+			}
+		}
+		else if (sampleRows is { Count: > 0 })
+		{
+			foreach (var key in sampleRows[0].Keys)
+			{
+				row[key] = null;
+			}
 		}
 		return row;
 	}
@@ -1019,7 +1571,7 @@ internal class QueryExecutor
 		List<Dictionary<string, object?>> rightRows,
 		SqlExpression? on,
 		ExpressionEvaluator evaluator,
-		TableDefinition rightTable,
+		TableDefinition? rightTable,
 		string rightAlias)
 	{
 		var result = new List<Dictionary<string, object?>>();
@@ -1037,7 +1589,7 @@ internal class QueryExecutor
 			}
 			if (!matched)
 			{
-				var nullRight = NullRow(rightTable, rightAlias);
+				var nullRight = NullRow(rightTable, rightAlias, rightRows);
 				result.Add(CombineRows(left, nullRight));
 			}
 		}
@@ -1084,7 +1636,7 @@ internal class QueryExecutor
 		List<Dictionary<string, object?>> rightRows,
 		SqlExpression? on,
 		ExpressionEvaluator evaluator,
-		TableDefinition rightTable,
+		TableDefinition? rightTable,
 		string rightAlias)
 	{
 		var result = new List<Dictionary<string, object?>>();
@@ -1105,7 +1657,7 @@ internal class QueryExecutor
 			}
 			if (!matched)
 			{
-				var nullRight = NullRow(rightTable, rightAlias);
+				var nullRight = NullRow(rightTable, rightAlias, rightRows);
 				result.Add(CombineRows(left, nullRight));
 			}
 		}

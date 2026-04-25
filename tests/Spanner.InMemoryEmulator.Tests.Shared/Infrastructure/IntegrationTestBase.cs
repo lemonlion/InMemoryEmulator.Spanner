@@ -64,7 +64,7 @@ public abstract class IntegrationTestBase
 		using var cmd = connection.CreateInsertCommand(table);
 		foreach (var col in columns)
 		{
-			if (col.Value == null)
+			if (col.Value == null || col.Value is DBNull)
 			{
 				// For null values, we skip the column — it defaults to NULL for nullable columns.
 				continue;

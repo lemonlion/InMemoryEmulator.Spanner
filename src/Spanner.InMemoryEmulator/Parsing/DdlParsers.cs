@@ -36,6 +36,15 @@ internal static class DdlParsers
 		.Or(Token.EqualTo(GoogleSqlToken.DateType).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.TimestampType).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.JsonType).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Parent).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Replace).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Left).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Right).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Avg).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Sum).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Min).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Max).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Row).Select(t => t.ToStringValue()))
 		.Named("identifier");
 
 	// ──────────────────────────────────────────

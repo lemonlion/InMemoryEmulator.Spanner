@@ -20,6 +20,9 @@ internal enum GoogleSqlToken
 	[Token(Example = "'hello'")]
 	StringLiteral,
 
+	[Token(Example = "b'\\xff'")]
+	ByteLiteral,
+
 	[Token(Example = "@param")]
 	Parameter,
 
@@ -343,6 +346,12 @@ internal enum GoogleSqlToken
 
 	[Token(Example = "CURRENT")]
 	Current,
+
+	[Token(Example = "ROW")]
+	Row,
+
+	[Token(Example = "USING")]
+	Using,
 
 	// ── Operators ──
 	[Token(Example = "+")]

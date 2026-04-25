@@ -14,11 +14,11 @@ internal class SqlEngine
 	private readonly QueryExecutor _queryExecutor;
 	private readonly DmlExecutor _dmlExecutor;
 
-	public SqlEngine(InMemorySpannerDatabase database)
+	public SqlEngine(InMemorySpannerDatabase database, List<DmlUndoEntry>? undoLog = null)
 	{
 		_database = database ?? throw new ArgumentNullException(nameof(database));
 		_queryExecutor = new QueryExecutor(database);
-		_dmlExecutor = new DmlExecutor(database);
+		_dmlExecutor = new DmlExecutor(database, undoLog);
 	}
 
 	/// <summary>

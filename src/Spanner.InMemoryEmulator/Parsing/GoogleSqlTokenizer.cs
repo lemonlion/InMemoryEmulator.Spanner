@@ -129,6 +129,8 @@ internal static class GoogleSqlTokenizer
 		["FOLLOWING"] = GoogleSqlToken.Following,
 		["UNBOUNDED"] = GoogleSqlToken.Unbounded,
 		["CURRENT"] = GoogleSqlToken.Current,
+		["ROW"] = GoogleSqlToken.Row,
+		["USING"] = GoogleSqlToken.Using,
 	};
 
 	// Note: Instance MUST be declared AFTER all parser properties to ensure
@@ -173,6 +175,10 @@ internal static class GoogleSqlTokenizer
 			// String literals: 'text' (with '' escape)
 			.Match(StringLiteralToken, GoogleSqlToken.StringLiteral)
 
+			// Byte literals: b'bytes' or B'bytes'
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#string_and_bytes_literals
+			.Match(ByteLiteralToken, GoogleSqlToken.ByteLiteral)
+
 			// Quoted identifiers: `name`
 			.Match(QuotedIdentifierToken, GoogleSqlToken.QuotedIdentifier)
 
@@ -190,10 +196,22 @@ internal static class GoogleSqlTokenizer
 	private static TextParser<string> StringLiteralToken { get; } =
 		from open in Character.EqualTo('\'')
 		from content in Span.EqualTo("''").Value('\'').Try()
+			.Or(Character.EqualTo('\\').Then(_ => Character.AnyChar))
 			.Or(Character.Except('\''))
 			.Many()
 		from close in Character.EqualTo('\'')
 		select new string(content);
+
+	// Byte literals: b'...' or B'...'
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#string_and_bytes_literals
+	private static TextParser<string> ByteLiteralToken { get; } =
+		from prefix in Character.EqualTo('b').Or(Character.EqualTo('B'))
+		from open in Character.EqualTo('\'')
+		from content in Character.EqualTo('\\').Then(_ => Character.AnyChar).Try()
+			.Or(Character.Except('\''))
+			.Many()
+		from close in Character.EqualTo('\'')
+		select "b'" + new string(content) + "'";
 
 	// Backtick-quoted identifiers
 	private static TextParser<string> QuotedIdentifierToken { get; } =
@@ -208,9 +226,18 @@ internal static class GoogleSqlTokenizer
 		from name in Character.LetterOrDigit.Or(Character.EqualTo('_')).AtLeastOnce()
 		select "@" + new string(name);
 
-	// Numbers: integer or decimal
+	// Numbers: integer, decimal, or scientific notation (e.g. 1e10, 1.5e-2)
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#floating_point_literals
 	private static TextParser<TextSpan> NumberToken { get; } =
-		Numerics.Decimal;
+		Span.MatchedBy(
+			from dec in Numerics.Decimal
+			from _ in (
+				from e in Character.EqualTo('e').Or(Character.EqualTo('E'))
+				from sign in Character.EqualTo('+').Or(Character.EqualTo('-')).OptionalOrDefault('\0')
+				from digits in Character.Digit.AtLeastOnce()
+				select true
+			).Try().OptionalOrDefault(false)
+			select dec);
 
 	// Identifiers (including those containing underscores) — keywords detected post-match
 	private static TextParser<string> IdentifierOrKeyword { get; } =

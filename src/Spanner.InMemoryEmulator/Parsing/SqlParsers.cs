@@ -23,9 +23,12 @@ internal static class SqlParsers
 		Token.EqualTo(GoogleSqlToken.Number).Select(t =>
 		{
 			var text = t.ToStringValue();
-			if (text.Contains('.'))
-				return (SqlExpression)new LiteralExpr(double.Parse(text));
-			return (SqlExpression)new LiteralExpr(long.Parse(text));
+			if (text.Contains('.') || text.Contains('e', StringComparison.OrdinalIgnoreCase))
+				return (SqlExpression)new LiteralExpr(double.Parse(text, System.Globalization.CultureInfo.InvariantCulture));
+			if (long.TryParse(text, out var l))
+				return (SqlExpression)new LiteralExpr(l);
+			// Overflow — parse as double (e.g. 9223372036854775808 used with unary minus)
+			return (SqlExpression)new LiteralExpr(double.Parse(text, System.Globalization.CultureInfo.InvariantCulture));
 		});
 
 	private static TokenListParser<GoogleSqlToken, SqlExpression> StringLiteral { get; } =
@@ -43,6 +46,42 @@ internal static class SqlParsers
 
 	private static TokenListParser<GoogleSqlToken, SqlExpression> NullLiteral { get; } =
 		Token.EqualTo(GoogleSqlToken.Null).Value((SqlExpression)new LiteralExpr(null));
+
+	// Byte literal: b'...' — parsed as a byte array
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#string_and_bytes_literals
+	private static TokenListParser<GoogleSqlToken, SqlExpression> ByteLiteral { get; } =
+		Token.EqualTo(GoogleSqlToken.ByteLiteral).Select(t =>
+		{
+			var raw = t.ToStringValue(); // e.g. b'\xff' or b'abc'
+			var content = raw[2..^1]; // remove b' and trailing '
+			return (SqlExpression)new LiteralExpr(ParseByteString(content));
+		});
+
+	private static byte[] ParseByteString(string content)
+	{
+		var bytes = new List<byte>();
+		for (var i = 0; i < content.Length; i++)
+		{
+			if (content[i] == '\\' && i + 1 < content.Length)
+			{
+				if (content[i + 1] == 'x' && i + 3 < content.Length)
+				{
+					bytes.Add(Convert.ToByte(content.Substring(i + 2, 2), 16));
+					i += 3;
+				}
+				else
+				{
+					bytes.Add((byte)content[i + 1]);
+					i++;
+				}
+			}
+			else
+			{
+				bytes.Add((byte)content[i]);
+			}
+		}
+		return bytes.ToArray();
+	}
 
 	private static TokenListParser<GoogleSqlToken, SqlExpression> Parameter { get; } =
 		Token.EqualTo(GoogleSqlToken.Parameter).Select(t =>
@@ -75,9 +114,44 @@ internal static class SqlParsers
 		.Or(Token.EqualTo(GoogleSqlToken.JsonType).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.Replace).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.Left).Select(t => t.ToStringValue()))
-		.Or(Token.EqualTo(GoogleSqlToken.Right).Select(t => t.ToStringValue()));
+		.Or(Token.EqualTo(GoogleSqlToken.Right).Select(t => t.ToStringValue()))
+		// Allow aggregate keywords as identifiers (e.g., column aliases, column names)
+		.Or(Token.EqualTo(GoogleSqlToken.Avg).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Sum).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Min).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Max).Select(t => t.ToStringValue()))
+		// Other keywords used as column/table names
+		.Or(Token.EqualTo(GoogleSqlToken.Parent).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Row).Select(t => t.ToStringValue()));
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls#def_window_frame
+	private static TokenListParser<GoogleSqlToken, WindowFrame> FrameBound { get; } =
+		// .Try() needed on alternatives that share a common prefix (UNBOUNDED, Number)
+		(from _ in Token.EqualTo(GoogleSqlToken.Unbounded)
+		 from __ in Token.EqualTo(GoogleSqlToken.Preceding)
+		 select new WindowFrame(FrameBoundType.UnboundedPreceding, 0)).Try()
+		.Or(from _ in Token.EqualTo(GoogleSqlToken.Unbounded)
+			from __ in Token.EqualTo(GoogleSqlToken.Following)
+			select new WindowFrame(FrameBoundType.UnboundedFollowing, 0))
+		.Or(from _ in Token.EqualTo(GoogleSqlToken.Current)
+			from __ in Token.EqualTo(GoogleSqlToken.Row)
+			select new WindowFrame(FrameBoundType.CurrentRow, 0))
+		.Or((from n in Token.EqualTo(GoogleSqlToken.Number)
+			from _ in Token.EqualTo(GoogleSqlToken.Preceding)
+			select new WindowFrame(FrameBoundType.OffsetPreceding, long.Parse(n.ToStringValue()))).Try())
+		.Or(from n in Token.EqualTo(GoogleSqlToken.Number)
+			from _ in Token.EqualTo(GoogleSqlToken.Following)
+			select new WindowFrame(FrameBoundType.OffsetFollowing, long.Parse(n.ToStringValue())));
+
+	private static TokenListParser<GoogleSqlToken, WindowFrameClause> FrameClause { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.Rows)
+		from __ in Token.EqualTo(GoogleSqlToken.Between)
+		from start in FrameBound
+		from ___ in Token.EqualTo(GoogleSqlToken.And)
+		from end in FrameBound
+		select new WindowFrameClause(start, end);
+
 	private static TokenListParser<GoogleSqlToken, WindowExpr> OverClause { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.Over)
 		from open in Token.EqualTo(GoogleSqlToken.OpenParen)
@@ -99,21 +173,41 @@ internal static class SqlParsers
 			).AtLeastOnceDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
 			select items.ToList()
 		).AsNullable().OptionalOrDefault()
+		// ROWS BETWEEN ... AND ... (parse and store for frame-aware evaluation)
+		from frame in FrameClause.AsNullable().OptionalOrDefault()
 		from close in Token.EqualTo(GoogleSqlToken.CloseParen)
-		select new WindowExpr(null!, partitionBy, orderBy); // Function filled in by caller
+		select new WindowExpr(null!, partitionBy, orderBy, frame); // Function filled in by caller
 
 	private static TokenListParser<GoogleSqlToken, SqlExpression> ColumnRefOrFunction { get; } =
 		from name in AnyIdentifier
 		from result in
 			// Function call: name(args...)
+			// Supports optional ORDER BY for aggregate functions like ARRAY_AGG, STRING_AGG
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
 			(from open in Token.EqualTo(GoogleSqlToken.OpenParen)
 			 from distinct in Token.EqualTo(GoogleSqlToken.Distinct).Value(true).OptionalOrDefault(false)
 			 from args in ExpressionRef.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
+			 from orderBy in (
+				from __ in Token.EqualTo(GoogleSqlToken.Order)
+				from ___ in Token.EqualTo(GoogleSqlToken.By)
+				from items in (
+					from expr in ExpressionRef
+					from order in Token.EqualTo(GoogleSqlToken.Asc).Value(SortOrder.Asc)
+						.Or(Token.EqualTo(GoogleSqlToken.Desc).Value(SortOrder.Desc))
+						.OptionalOrDefault(SortOrder.Asc)
+					select new OrderByColumn(expr, order)
+				).AtLeastOnceDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
+				select items.ToList()
+			 ).AsNullable().OptionalOrDefault()
 			 from close in Token.EqualTo(GoogleSqlToken.CloseParen)
 			 from window in OverClause.AsNullable().OptionalOrDefault()
 			 select window != null
-				? (SqlExpression)new WindowExpr(new FunctionCallExpr(name, args.ToList(), distinct), window.PartitionBy, window.OrderBy)
-				: (SqlExpression)new FunctionCallExpr(name, args.ToList(), distinct))
+				? (SqlExpression)new WindowExpr(new FunctionCallExpr(name, args.ToList(), distinct, orderBy), window.PartitionBy, window.OrderBy, window.Frame)
+				: (SqlExpression)new FunctionCallExpr(name, args.ToList(), distinct, orderBy))
+			// Qualified star: alias.* (Try needed so dot is backtracked when next token is not *)
+			.Or((from dot in Token.EqualTo(GoogleSqlToken.Dot)
+				from _ in Token.EqualTo(GoogleSqlToken.Star)
+				select (SqlExpression)new ColumnRefExpr(name, "*")).Try())
 			// Qualified column: alias.column
 			.Or(from dot in Token.EqualTo(GoogleSqlToken.Dot)
 				from col in AnyIdentifier
@@ -133,7 +227,7 @@ internal static class SqlParsers
 		from close in Token.EqualTo(GoogleSqlToken.CloseParen)
 		from window in OverClause.AsNullable().OptionalOrDefault()
 		select window != null
-			? (SqlExpression)new WindowExpr(result, window.PartitionBy, window.OrderBy)
+			? (SqlExpression)new WindowExpr(result, window.PartitionBy, window.OrderBy, window.Frame)
 			: result;
 
 	private static TokenListParser<GoogleSqlToken, SqlExpression> AggregateKeywordFunction(GoogleSqlToken keyword, string name) =>
@@ -144,13 +238,20 @@ internal static class SqlParsers
 		from close in Token.EqualTo(GoogleSqlToken.CloseParen)
 		from window in OverClause.AsNullable().OptionalOrDefault()
 		select window != null
-			? (SqlExpression)new WindowExpr(new FunctionCallExpr(name, new List<SqlExpression> { arg }, distinct), window.PartitionBy, window.OrderBy)
+			? (SqlExpression)new WindowExpr(new FunctionCallExpr(name, new List<SqlExpression> { arg }, distinct), window.PartitionBy, window.OrderBy, window.Frame)
 			: (SqlExpression)new FunctionCallExpr(name, new List<SqlExpression> { arg }, distinct);
 
 	// CAST(expr AS type) — supports bare type names without length specifiers
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
 	private static TokenListParser<GoogleSqlToken, TypeCode> CastTargetType { get; } =
-		Token.EqualTo(GoogleSqlToken.Int64Type).Value(TypeCode.Int64)
+		// ARRAY<element_type> — treat as TypeCode.Array
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#array_type
+		(from _ in Token.EqualTo(GoogleSqlToken.Array)
+		 from open in Token.EqualTo(GoogleSqlToken.LessThan)
+		 from elemType in Parse.Ref(() => CastTargetType!)
+		 from close in Token.EqualTo(GoogleSqlToken.GreaterThan)
+		 select TypeCode.Array)
+		.Or(Token.EqualTo(GoogleSqlToken.Int64Type).Value(TypeCode.Int64))
 		.Or(Token.EqualTo(GoogleSqlToken.Float64Type).Value(TypeCode.Float64))
 		.Or(Token.EqualTo(GoogleSqlToken.Float32Type).Value(TypeCode.Float32))
 		.Or(Token.EqualTo(GoogleSqlToken.BoolType).Value(TypeCode.Bool))
@@ -198,6 +299,104 @@ internal static class SqlParsers
 		from args in ExpressionRef.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
 		from close in Token.EqualTo(GoogleSqlToken.CloseParen)
 		select (SqlExpression)new FunctionCallExpr("COALESCE", args.ToList());
+
+	// ── Date/Time typed literals and special syntax ──
+
+	// DATE 'value' — typed date literal
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#date_literals
+	private static TokenListParser<GoogleSqlToken, SqlExpression> DateTypedLiteral { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.DateType)
+		from str in Token.EqualTo(GoogleSqlToken.StringLiteral)
+		select (SqlExpression)new FunctionCallExpr("DATE", new List<SqlExpression>
+			{ new LiteralExpr(str.ToStringValue()[1..^1].Replace("''", "'")) });
+
+	// TIMESTAMP 'value' — typed timestamp literal
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#timestamp_literals
+	private static TokenListParser<GoogleSqlToken, SqlExpression> TimestampTypedLiteral { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.TimestampType)
+		from str in Token.EqualTo(GoogleSqlToken.StringLiteral)
+		select (SqlExpression)new FunctionCallExpr("TIMESTAMP", new List<SqlExpression>
+			{ new LiteralExpr(str.ToStringValue()[1..^1].Replace("''", "'")) });
+
+	// JSON 'value' — typed JSON literal
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#json_literals
+	private static TokenListParser<GoogleSqlToken, SqlExpression> JsonTypedLiteral { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.JsonType)
+		from str in Token.EqualTo(GoogleSqlToken.StringLiteral)
+		select (SqlExpression)new LiteralExpr(str.ToStringValue()[1..^1].Replace("''", "'"));
+
+	// EXTRACT(part FROM expr)
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#extract
+	private static TokenListParser<GoogleSqlToken, SqlExpression> ExtractFunction { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.Extract)
+		from open in Token.EqualTo(GoogleSqlToken.OpenParen)
+		from part in AnyIdentifier
+		from __ in Token.EqualTo(GoogleSqlToken.From)
+		from expr in ExpressionRef
+		from close in Token.EqualTo(GoogleSqlToken.CloseParen)
+		select (SqlExpression)new FunctionCallExpr("EXTRACT", new List<SqlExpression>
+			{ new LiteralExpr(part.ToUpperInvariant()), expr });
+
+	// Helper: parse a bare date-part identifier as a string literal
+	// Used in DATE_DIFF, DATE_TRUNC, TIMESTAMP_DIFF, TIMESTAMP_TRUNC
+	private static TokenListParser<GoogleSqlToken, SqlExpression> DatePartKeyword { get; } =
+		AnyIdentifier.Select(name => (SqlExpression)new LiteralExpr(name.ToUpperInvariant()));
+
+	// DATE_ADD/DATE_SUB/TIMESTAMP_ADD/TIMESTAMP_SUB with INTERVAL syntax
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date_add
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_add
+	private static readonly HashSet<string> IntervalFunctionNames = new(StringComparer.OrdinalIgnoreCase)
+		{ "DATE_ADD", "DATE_SUB", "TIMESTAMP_ADD", "TIMESTAMP_SUB" };
+
+	private static TokenListParser<GoogleSqlToken, SqlExpression> IntervalFunction { get; } =
+		from name in Token.EqualTo(GoogleSqlToken.Identifier)
+			.Where(t => IntervalFunctionNames.Contains(t.ToStringValue()))
+		from open in Token.EqualTo(GoogleSqlToken.OpenParen)
+		from expr in ExpressionRef
+		from c in Token.EqualTo(GoogleSqlToken.Comma)
+		from __ in Token.EqualTo(GoogleSqlToken.Identifier)
+			.Where(t => t.ToStringValue().Equals("INTERVAL", StringComparison.OrdinalIgnoreCase))
+		from amount in ExpressionRef
+		from part in DatePartKeyword
+		from close in Token.EqualTo(GoogleSqlToken.CloseParen)
+		select (SqlExpression)new FunctionCallExpr(name.ToStringValue().ToUpperInvariant(),
+			new List<SqlExpression> { expr, amount, part });
+
+	// DATE_DIFF/TIMESTAMP_DIFF(expr, expr, part)
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date_diff
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_diff
+	private static readonly HashSet<string> DiffFunctionNames = new(StringComparer.OrdinalIgnoreCase)
+		{ "DATE_DIFF", "TIMESTAMP_DIFF" };
+
+	private static TokenListParser<GoogleSqlToken, SqlExpression> DiffFunction { get; } =
+		from name in Token.EqualTo(GoogleSqlToken.Identifier)
+			.Where(t => DiffFunctionNames.Contains(t.ToStringValue()))
+		from open in Token.EqualTo(GoogleSqlToken.OpenParen)
+		from expr1 in ExpressionRef
+		from c1 in Token.EqualTo(GoogleSqlToken.Comma)
+		from expr2 in ExpressionRef
+		from c2 in Token.EqualTo(GoogleSqlToken.Comma)
+		from part in DatePartKeyword
+		from close in Token.EqualTo(GoogleSqlToken.CloseParen)
+		select (SqlExpression)new FunctionCallExpr(name.ToStringValue().ToUpperInvariant(),
+			new List<SqlExpression> { expr1, expr2, part });
+
+	// DATE_TRUNC/TIMESTAMP_TRUNC(expr, part)
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date_trunc
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_trunc
+	private static readonly HashSet<string> TruncFunctionNames = new(StringComparer.OrdinalIgnoreCase)
+		{ "DATE_TRUNC", "TIMESTAMP_TRUNC" };
+
+	private static TokenListParser<GoogleSqlToken, SqlExpression> TruncFunction { get; } =
+		from name in Token.EqualTo(GoogleSqlToken.Identifier)
+			.Where(t => TruncFunctionNames.Contains(t.ToStringValue()))
+		from open in Token.EqualTo(GoogleSqlToken.OpenParen)
+		from expr in ExpressionRef
+		from c in Token.EqualTo(GoogleSqlToken.Comma)
+		from part in DatePartKeyword
+		from close in Token.EqualTo(GoogleSqlToken.CloseParen)
+		select (SqlExpression)new FunctionCallExpr(name.ToStringValue().ToUpperInvariant(),
+			new List<SqlExpression> { expr, part });
 
 	// NULLIF(expr, expr)
 	private static TokenListParser<GoogleSqlToken, SqlExpression> NullIfFunction { get; } =
@@ -312,7 +511,14 @@ internal static class SqlParsers
 		select (SqlExpression)new StructExpr(fields.Select(f => ((string?)f.Name, f.Value)).ToList());
 
 	private static TokenListParser<GoogleSqlToken, SqlExpression> Atom { get; } =
-		CastFunction
+		ExtractFunction
+		.Or(DateTypedLiteral.Try())
+		.Or(TimestampTypedLiteral.Try())
+		.Or(JsonTypedLiteral.Try())
+		.Or(IntervalFunction.Try())
+		.Or(DiffFunction.Try())
+		.Or(TruncFunction.Try())
+		.Or(CastFunction)
 		.Or(SafeCastFunction)
 		.Or(IfFunction)
 		.Or(CoalesceFunction)
@@ -330,6 +536,7 @@ internal static class SqlParsers
 		.Or(SequenceRef)
 		.Or(BoolLiteral)
 		.Or(NullLiteral)
+		.Or(ByteLiteral)
 		.Or(StringLiteral)
 		.Or(NumberLiteral)
 		.Or(Parameter)
@@ -398,9 +605,44 @@ internal static class SqlParsers
 			(from _ in Token.EqualTo(GoogleSqlToken.Is)
 			 from not in Token.EqualTo(GoogleSqlToken.Not).Value(true).OptionalOrDefault(false)
 			 from __ in Token.EqualTo(GoogleSqlToken.Null)
-			 select (Func<SqlExpression, SqlExpression>)(l => new IsNullExpr(l, not)))
+			 select (Func<SqlExpression, SqlExpression>)(l => new IsNullExpr(l, not))).Try()
+			// IS [NOT] TRUE / IS [NOT] FALSE
+			.Or(from _ in Token.EqualTo(GoogleSqlToken.Is)
+				from not in Token.EqualTo(GoogleSqlToken.Not).Value(true).OptionalOrDefault(false)
+				from boolVal in Token.EqualTo(GoogleSqlToken.True).Value(true)
+					.Or(Token.EqualTo(GoogleSqlToken.False).Value(false))
+				select (Func<SqlExpression, SqlExpression>)(l =>
+				{
+					// IS TRUE → l = TRUE, IS NOT TRUE → NOT(l = TRUE)
+					// IS FALSE → l = FALSE, IS NOT FALSE → NOT(l = FALSE)
+					SqlExpression cmp = new BinaryExpr(l, BinaryOp.Equal, new LiteralExpr(boolVal));
+					// Also handle NULL: IS TRUE on NULL = FALSE, IS NOT TRUE on NULL = TRUE
+					SqlExpression isNullCheck = new IsNullExpr(l, false);
+					SqlExpression result;
+					if (boolVal && !not) // IS TRUE
+						result = new BinaryExpr(new UnaryExpr(UnaryOp.Not, isNullCheck), BinaryOp.And, cmp);
+					else if (!boolVal && !not) // IS FALSE
+						result = new BinaryExpr(new UnaryExpr(UnaryOp.Not, isNullCheck), BinaryOp.And, cmp);
+					else if (boolVal && not) // IS NOT TRUE → IS NULL OR IS FALSE
+						result = new BinaryExpr(isNullCheck, BinaryOp.Or,
+							new BinaryExpr(l, BinaryOp.Equal, new LiteralExpr(false)));
+					else // IS NOT FALSE → IS NULL OR IS TRUE
+						result = new BinaryExpr(isNullCheck, BinaryOp.Or,
+							new BinaryExpr(l, BinaryOp.Equal, new LiteralExpr(true)));
+					return result;
+				}))
+			// [NOT] IN UNNEST(array_expression)
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#in_operators
+			.Or((from not in Token.EqualTo(GoogleSqlToken.Not).Value(true).OptionalOrDefault(false)
+				from _ in Token.EqualTo(GoogleSqlToken.In)
+				from __ in Token.EqualTo(GoogleSqlToken.Unnest)
+				from open in Token.EqualTo(GoogleSqlToken.OpenParen)
+				from arrExpr in ExpressionRef
+				from close in Token.EqualTo(GoogleSqlToken.CloseParen)
+				select (Func<SqlExpression, SqlExpression>)(l =>
+					new InUnnestExpr(l, arrExpr, not))).Try())
 			// [NOT] IN (SELECT ...) or [NOT] IN (list)
-			.Or(from not in Token.EqualTo(GoogleSqlToken.Not).Value(true).OptionalOrDefault(false)
+			.Or((from not in Token.EqualTo(GoogleSqlToken.Not).Value(true).OptionalOrDefault(false)
 				from _ in Token.EqualTo(GoogleSqlToken.In)
 				from open in Token.EqualTo(GoogleSqlToken.OpenParen)
 				from inBody in
@@ -412,7 +654,7 @@ internal static class SqlParsers
 				select (Func<SqlExpression, SqlExpression>)(l =>
 					inBody is SelectStatement subq
 						? new InSubqueryExpr(l, subq, not)
-						: new InExpr(l, (List<SqlExpression>)inBody, not)))
+						: new InExpr(l, (List<SqlExpression>)inBody, not))).Try())
 			// [NOT] BETWEEN low AND high
 			.Or(from not in Token.EqualTo(GoogleSqlToken.Not).Value(true).OptionalOrDefault(false)
 				from _ in Token.EqualTo(GoogleSqlToken.Between)
@@ -498,15 +740,31 @@ internal static class SqlParsers
 			.Or(from _ in Token.EqualTo(GoogleSqlToken.Cross) select JoinType.Cross)
 			.OptionalOrDefault(JoinType.Inner)
 		from _ in Token.EqualTo(GoogleSqlToken.Join)
-		from table in AnyIdentifier
-		from alias in (from __ in Token.EqualTo(GoogleSqlToken.As) from name in AnyIdentifier select name)
-			.Or(AnyIdentifier)
-			.AsNullable()
-			.OptionalOrDefault()
-		from onExpr in (from __ in Token.EqualTo(GoogleSqlToken.On) from expr in Expression select expr)
-			.AsNullable()
-			.OptionalOrDefault()
-		select new JoinClause(joinType, table, alias, onExpr);
+		from source in
+			// Subquery join: JOIN (SELECT ...) alias ON ...
+			(from open in Token.EqualTo(GoogleSqlToken.OpenParen)
+			 from sub in Parse.Ref(() => SelectStatement!)
+			 from close in Token.EqualTo(GoogleSqlToken.CloseParen)
+			 from subAlias in (from __ in Token.EqualTo(GoogleSqlToken.As) from name in AnyIdentifier select name)
+				.Or(AnyIdentifier)
+			 select (Table: subAlias, Alias: (string?)subAlias, Subquery: (SelectStatement?)sub)).Try()
+			// Regular table reference
+			.Or(from table in AnyIdentifier
+				from tableAlias in (from __ in Token.EqualTo(GoogleSqlToken.As) from name in AnyIdentifier select name)
+					.Or(AnyIdentifier)
+					.AsNullable()
+					.OptionalOrDefault()
+				select (Table: table, Alias: tableAlias, Subquery: (SelectStatement?)null))
+		from condition in
+			(from __ in Token.EqualTo(GoogleSqlToken.On) from expr in Expression
+			 select (OnExpr: (SqlExpression?)expr, UsingCols: (List<string>?)null))
+			.Or(from __ in Token.EqualTo(GoogleSqlToken.Using)
+				from open in Token.EqualTo(GoogleSqlToken.OpenParen)
+				from cols in AnyIdentifier.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
+				from close in Token.EqualTo(GoogleSqlToken.CloseParen)
+				select (OnExpr: (SqlExpression?)null, UsingCols: (List<string>?)cols.ToList()))
+			.OptionalOrDefault((OnExpr: (SqlExpression?)null, UsingCols: (List<string>?)null))
+		select new JoinClause(joinType, source.Table, source.Alias, condition.OnExpr, condition.UsingCols, source.Subquery);
 
 	public static TokenListParser<GoogleSqlToken, SelectStatement> SelectStatement { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.Select)
@@ -515,14 +773,16 @@ internal static class SqlParsers
 		from fromClause in (
 			from __ in Token.EqualTo(GoogleSqlToken.From)
 			from source in
-				// Subquery in FROM: FROM (SELECT ...) AS alias
+				// Subquery in FROM: FROM (SELECT ...) [AS] alias
 				(from open in Token.EqualTo(GoogleSqlToken.OpenParen)
 				 from sub in Parse.Ref(() => SelectStatement!)
 				 from close in Token.EqualTo(GoogleSqlToken.CloseParen)
 				 from alias in (from ___ in Token.EqualTo(GoogleSqlToken.As) from name in AnyIdentifier select name)
 					.Or(AnyIdentifier)
+					.AsNullable()
+					.OptionalOrDefault()
 				 from joins in JoinItem.Many()
-				 select (FromClause)new SubqueryFromClause(sub, alias, joins.Length > 0 ? joins.ToList() : null)).Try()
+				 select (FromClause)new SubqueryFromClause(sub, alias ?? "__subq__", joins.Length > 0 ? joins.ToList() : null)).Try()
 				// UNNEST(array_expression) [AS alias] [WITH OFFSET [AS offset_alias]]
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#unnest_operator
 				.Or(from ___ in Token.EqualTo(GoogleSqlToken.Unnest)
@@ -554,7 +814,34 @@ internal static class SqlParsers
 						.AsNullable()
 						.OptionalOrDefault()
 					from joins in JoinItem.Many()
-					select new FromClause(schema + table, alias, joins.Length > 0 ? joins.ToList() : null))
+					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#comma_cross_join
+					//   "FROM table, UNNEST(array_col) AS alias" is an implicit CROSS JOIN with UNNEST
+					from commaUnnests in (
+						from comma in Token.EqualTo(GoogleSqlToken.Comma)
+						from ____ in Token.EqualTo(GoogleSqlToken.Unnest)
+						from open in Token.EqualTo(GoogleSqlToken.OpenParen)
+						from arrExpr in ExpressionRef
+						from close in Token.EqualTo(GoogleSqlToken.CloseParen)
+						from unnAlias in (from _____ in Token.EqualTo(GoogleSqlToken.As) from name in AnyIdentifier select name)
+							.Or(AnyIdentifier)
+							.AsNullable()
+							.OptionalOrDefault()
+						from withOffset in (
+							from _____ in Token.EqualTo(GoogleSqlToken.With)
+							from ______ in Token.EqualTo(GoogleSqlToken.Offset)
+							from offsetAlias in (from _______ in Token.EqualTo(GoogleSqlToken.As) from name in AnyIdentifier select name)
+								.Or(AnyIdentifier)
+								.AsNullable()
+								.OptionalOrDefault()
+							select (WithOffset: true, OffsetAlias: offsetAlias)
+						).OptionalOrDefault((WithOffset: false, OffsetAlias: (string?)null))
+						select new JoinClause(JoinType.Cross, "__unnest__", unnAlias, null,
+							UnnestExpr: arrExpr, UnnestWithOffset: withOffset.WithOffset, UnnestOffsetAlias: withOffset.OffsetAlias)
+					).Many()
+					select new FromClause(schema + table, alias,
+						joins.Length > 0 || commaUnnests.Length > 0
+							? joins.Concat(commaUnnests).ToList()
+							: null))
 			select source
 		).AsNullable().OptionalOrDefault()
 		from whereExpr in (from __ in Token.EqualTo(GoogleSqlToken.Where) from expr in Expression select expr)

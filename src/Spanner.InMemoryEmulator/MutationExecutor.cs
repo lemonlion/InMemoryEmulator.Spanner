@@ -97,6 +97,13 @@ internal class MutationExecutor
 				rowValues[colDef.Name] = value;
 			}
 
+			// Populate omitted columns with null so they appear in queries
+			foreach (var colDef in table.Columns)
+			{
+				if (!rowValues.ContainsKey(colDef.Name))
+					rowValues[colDef.Name] = null;
+			}
+
 			// Build the row key from PK columns
 			var pkValues = table.PrimaryKeyColumns
 				.Select(pk =>

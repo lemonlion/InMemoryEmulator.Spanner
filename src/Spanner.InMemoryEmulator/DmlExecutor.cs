@@ -8,10 +8,20 @@ namespace Spanner.InMemoryEmulator;
 internal class DmlExecutor
 {
 	private readonly InMemorySpannerDatabase _database;
+	private readonly List<DmlUndoEntry>? _undoLog;
 
-	public DmlExecutor(InMemorySpannerDatabase database)
+	public DmlExecutor(InMemorySpannerDatabase database, List<DmlUndoEntry>? undoLog = null)
 	{
 		_database = database ?? throw new ArgumentNullException(nameof(database));
+		_undoLog = undoLog;
+	}
+
+	/// <summary>
+	/// Records a before-image for rollback support.
+	/// </summary>
+	private void RecordUndo(string tableName, RowKey key, RowData? originalRow)
+	{
+		_undoLog?.Add(new DmlUndoEntry(tableName, key, originalRow));
 	}
 
 	/// <summary>
@@ -24,7 +34,8 @@ internal class DmlExecutor
 		if (!_database.Schema.TryGetTable(insert.Table, out var table) || table == null)
 			throw new InvalidOperationException($"Table '{insert.Table}' not found.");
 
-		var evaluator = new ExpressionEvaluator(parameters);
+		var queryExecutor = new QueryExecutor(_database);
+		var evaluator = new ExpressionEvaluator(parameters, queryExecutor);
 		int count = 0;
 
 		// Build value rows from VALUES clause or SELECT source
@@ -34,7 +45,6 @@ internal class DmlExecutor
 		if (allValueExprs == null && insert.SelectSource != null)
 		{
 			// INSERT INTO ... SELECT ...
-			var queryExecutor = new QueryExecutor(_database);
 			selectRows = queryExecutor.ExecuteSubquery(insert.SelectSource, parameters);
 		}
 
@@ -74,6 +84,13 @@ internal class DmlExecutor
 				}
 			}
 
+			// Populate omitted columns with null so they appear in queries (IS NULL etc.)
+			foreach (var colDef in table.Columns)
+			{
+				if (!rowValues.ContainsKey(colDef.Name))
+					rowValues[colDef.Name] = null;
+			}
+
 			var pkValues = table.PrimaryKeyColumns
 				.Select(pk =>
 				{
@@ -90,6 +107,7 @@ internal class DmlExecutor
 				if (insert.Mode == InsertMode.InsertOrUpdate)
 				{
 					// Update existing row
+					RecordUndo(insert.Table, rowKey, table.Rows[rowKey]);
 					var existing = table.Rows[rowKey].Columns;
 					foreach (var kvp in rowValues)
 						existing[kvp.Key] = kvp.Value;
@@ -117,6 +135,7 @@ internal class DmlExecutor
 			}
 
 			_database.Schema.ValidateWriteConstraints(insert.Table, rowValues);
+			RecordUndo(insert.Table, rowKey, null); // INSERT → undo = delete
 			table.Rows[rowKey] = new RowData(rowValues, DateTimeOffset.UtcNow);
 			count++;
 		}
@@ -134,7 +153,7 @@ internal class DmlExecutor
 		if (!_database.Schema.TryGetTable(update.Table, out var table) || table == null)
 			throw new InvalidOperationException($"Table '{update.Table}' not found.");
 
-		var evaluator = new ExpressionEvaluator(parameters);
+		var evaluator = new ExpressionEvaluator(parameters, new QueryExecutor(_database));
 		int count = 0;
 
 		foreach (var kvp in table.Rows.ToList())
@@ -162,6 +181,7 @@ internal class DmlExecutor
 			}
 
 			_database.Schema.ValidateWriteConstraints(update.Table, row, kvp.Key);
+			RecordUndo(update.Table, kvp.Key, kvp.Value); // UPDATE → undo = restore original
 			table.Rows[kvp.Key] = new RowData(row, DateTimeOffset.UtcNow);
 			count++;
 		}
@@ -179,9 +199,12 @@ internal class DmlExecutor
 		if (!_database.Schema.TryGetTable(delete.Table, out var table) || table == null)
 			throw new InvalidOperationException($"Table '{delete.Table}' not found.");
 
-		var evaluator = new ExpressionEvaluator(parameters);
-		int count = 0;
+		var evaluator = new ExpressionEvaluator(parameters, new QueryExecutor(_database));
 
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#delete_statement
+		//   Subqueries in WHERE are evaluated once against the initial table state.
+		//   Collect matching keys first, then delete, to avoid re-evaluation against modified data.
+		var keysToDelete = new List<RowKey>();
 		foreach (var kvp in table.Rows.ToList())
 		{
 			var row = new Dictionary<string, object?>(kvp.Value.Columns, StringComparer.OrdinalIgnoreCase);
@@ -189,9 +212,18 @@ internal class DmlExecutor
 			if (delete.Where != null && !evaluator.EvaluateAsBool(delete.Where, row))
 				continue;
 
-			_database.Schema.HandleInterleavedDelete(delete.Table, kvp.Key);
-			if (table.Rows.TryRemove(kvp.Key, out _))
+			keysToDelete.Add(kvp.Key);
+		}
+
+		int count = 0;
+		foreach (var key in keysToDelete)
+		{
+			_database.Schema.HandleInterleavedDelete(delete.Table, key);
+			if (table.Rows.TryRemove(key, out var removedRow))
+			{
+				RecordUndo(delete.Table, key, removedRow); // DELETE → undo = restore
 				count++;
+			}
 		}
 
 		return count;

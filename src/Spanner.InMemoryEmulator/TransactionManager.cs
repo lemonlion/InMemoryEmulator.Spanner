@@ -68,6 +68,12 @@ internal class TransactionManager
 	}
 }
 
+/// <summary>
+/// Represents a before-image of a row that was modified by DML within a transaction.
+/// Used to undo DML changes on rollback.
+/// </summary>
+internal record DmlUndoEntry(string TableName, RowKey Key, RowData? OriginalRow);
+
 internal class TransactionState
 {
 	public string Id { get; }
@@ -75,7 +81,9 @@ internal class TransactionState
 	public TransactionOptions Options { get; }
 	public DateTimeOffset CreatedAt { get; }
 	public List<Mutation> BufferedMutations { get; } = new();
+	public List<DmlUndoEntry> DmlUndoLog { get; } = new();
 	public DateTimeOffset? ReadTimestamp { get; set; }
+	public Transaction? ProtoTransaction { get; set; }
 	public bool IsCommitted { get; set; }
 	public bool IsRolledBack { get; set; }
 

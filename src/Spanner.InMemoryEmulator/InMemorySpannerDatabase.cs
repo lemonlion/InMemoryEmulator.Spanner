@@ -225,7 +225,12 @@ public class InMemorySpannerDatabase : IDisposable
 	private void MutateRow(string table, IDictionary<string, object?> columns, MutateMode mode)
 	{
 		var tableDef = _schema.GetTableDefinition(table);
-		var rowValues = new Dictionary<string, object?>(columns, StringComparer.OrdinalIgnoreCase);
+		var rowValues = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+		foreach (var kvp in columns)
+		{
+			// Convert DBNull.Value to null for consistent storage
+			rowValues[kvp.Key] = kvp.Value is DBNull ? null : kvp.Value;
+		}
 
 		// Build the row key from PK columns
 		var pkValues = tableDef.PrimaryKeyColumns
@@ -313,9 +318,17 @@ public class InMemorySpannerDatabase : IDisposable
 	{
 		foreach (var col in table.Columns)
 		{
-			if (!col.IsNullable && values.TryGetValue(col.Name, out var val) && val == null)
-				throw new InvalidOperationException(
-					$"Column '{col.Name}' in table '{table.Name}' is NOT NULL but got NULL value.");
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1
+			//   NOT NULL columns must be provided and cannot have NULL values.
+			if (!col.IsNullable)
+			{
+				if (!values.ContainsKey(col.Name))
+					throw new InvalidOperationException(
+						$"Column '{col.Name}' in table '{table.Name}' is NOT NULL but was not provided.");
+				if (values[col.Name] == null)
+					throw new InvalidOperationException(
+						$"Column '{col.Name}' in table '{table.Name}' is NOT NULL but got NULL value.");
+			}
 		}
 	}
 

@@ -116,7 +116,12 @@ internal record JoinClause(
 	JoinType Type,
 	string Table,
 	string? Alias,
-	SqlExpression? On);
+	SqlExpression? On,
+	List<string>? UsingColumns = null,
+	SelectStatement? Subquery = null,
+	SqlExpression? UnnestExpr = null,
+	bool UnnestWithOffset = false,
+	string? UnnestOffsetAlias = null);
 
 internal enum JoinType
 {
@@ -145,7 +150,8 @@ internal record BinaryExpr(SqlExpression Left, BinaryOp Op, SqlExpression Right)
 
 internal record UnaryExpr(UnaryOp Op, SqlExpression Operand) : SqlExpression;
 
-internal record FunctionCallExpr(string Name, List<SqlExpression> Arguments, bool IsDistinct = false) : SqlExpression;
+internal record FunctionCallExpr(string Name, List<SqlExpression> Arguments, bool IsDistinct = false,
+	List<OrderByColumn>? AggregateOrderBy = null) : SqlExpression;
 
 internal record CastExpr(SqlExpression Value, TypeCode TargetType, bool Safe = false) : SqlExpression;
 
@@ -175,6 +181,10 @@ internal record ExistsExpr(SelectStatement Subquery, bool IsNegated) : SqlExpres
 /// <summary>expr [NOT] IN (SELECT ...)</summary>
 internal record InSubqueryExpr(SqlExpression Value, SelectStatement Subquery, bool IsNegated) : SqlExpression;
 
+// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#in_operators
+//   "value [NOT] IN UNNEST(array_expression)"
+internal record InUnnestExpr(SqlExpression Value, SqlExpression ArrayExpr, bool IsNegated) : SqlExpression;
+
 /// <summary>ARRAY(SELECT ...)</summary>
 internal record ArraySubqueryExpr(SelectStatement Subquery) : SqlExpression;
 internal record ArrayLiteralExpr(List<SqlExpression> Elements) : SqlExpression;
@@ -184,10 +194,19 @@ internal record ArrayLiteralExpr(List<SqlExpression> Elements) : SqlExpression;
 // ──────────────────────────────────────────────
 // Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls
 
+internal enum FrameBoundType
+{
+	UnboundedPreceding, UnboundedFollowing, CurrentRow, OffsetPreceding, OffsetFollowing
+}
+
+internal record WindowFrame(FrameBoundType Type, long Offset);
+internal record WindowFrameClause(WindowFrame Start, WindowFrame End);
+
 internal record WindowExpr(
 	SqlExpression Function,
 	List<SqlExpression>? PartitionBy,
-	List<OrderByColumn>? OrderBy) : SqlExpression;
+	List<OrderByColumn>? OrderBy,
+	WindowFrameClause? Frame = null) : SqlExpression;
 
 // ──────────────────────────────────────────────
 // UNNEST

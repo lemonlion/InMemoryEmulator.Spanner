@@ -200,6 +200,21 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 		if (_transactionManager.TryGetByBytes(request.TransactionId, out var txnState) && txnState != null)
 		{
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.Rollback
+			//   "Rolls back a transaction, releasing any locks it holds."
+			// Undo DML changes applied during this transaction (in reverse order).
+			for (int i = txnState.DmlUndoLog.Count - 1; i >= 0; i--)
+			{
+				var entry = txnState.DmlUndoLog[i];
+				if (_database.Schema.TryGetTable(entry.TableName, out var table) && table != null)
+				{
+					if (entry.OriginalRow == null)
+						table.Rows.TryRemove(entry.Key, out _); // Was INSERT → undo = delete
+					else
+						table.Rows[entry.Key] = entry.OriginalRow; // Was UPDATE/DELETE → undo = restore
+				}
+			}
+
 			_transactionManager.MarkRolledBack(txnState.Id);
 		}
 
@@ -217,13 +232,12 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 		try
 		{
-			var engine = new SqlEngine(_database);
+			var txnState = ResolveTransactionState(request.Session, request.Transaction);
+			var engine = new SqlEngine(_database, txnState?.DmlUndoLog);
 			var parameters = SqlEngine.ExtractParameters(request);
 			var resultSet = engine.ExecuteSql(request.Sql, parameters);
 
-			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.TransactionSelector
-			//   "begin: Begin a new transaction and execute this read or SQL query in it."
-			HandleTransactionSelector(request.Session, request.Transaction, resultSet);
+			SetTransactionMetadata(request.Transaction, txnState, resultSet);
 
 			return Task.FromResult(resultSet);
 		}
@@ -248,12 +262,12 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 		try
 		{
-			var engine = new SqlEngine(_database);
+			var txnState = ResolveTransactionState(request.Session, request.Transaction);
+			var engine = new SqlEngine(_database, txnState?.DmlUndoLog);
 			var parameters = SqlEngine.ExtractParameters(request);
 			var resultSet = engine.ExecuteSql(request.Sql, parameters);
 
-			// Handle transaction selector (begin as side-effect)
-			HandleTransactionSelector(request.Session, request.Transaction, resultSet);
+			SetTransactionMetadata(request.Transaction, txnState, resultSet);
 
 			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.PartialResultSet
 			//   "Stream the entire result set as a single PartialResultSet (simplification)."
@@ -285,31 +299,43 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 	}
 
 	/// <summary>
-	/// Handles the TransactionSelector in SQL requests.
-	/// If 'begin' is specified, starts a new transaction and returns its ID in the result metadata.
+	/// Resolves the active transaction state from a TransactionSelector.
+	/// For Begin: creates a new transaction. For Id: looks up existing.
 	/// </summary>
-	private void HandleTransactionSelector(string sessionName, TransactionSelector? selector, ResultSet resultSet)
+	private TransactionState? ResolveTransactionState(string sessionName, TransactionSelector? selector)
 	{
-		if (selector == null) return;
+		if (selector == null) return null;
 
 		switch (selector.SelectorCase)
 		{
 			case TransactionSelector.SelectorOneofCase.Begin:
-				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ResultSetMetadata
-				//   "If the read or SQL query began a transaction as a side-effect, the information
-				//    about the new transaction is yielded here."
-				var transaction = _transactionManager.BeginTransaction(sessionName, selector.Begin);
-				resultSet.Metadata ??= new ResultSetMetadata();
-				resultSet.Metadata.Transaction = transaction;
-				break;
+				var txn = _transactionManager.BeginTransaction(sessionName, selector.Begin);
+				_transactionManager.TryGetByBytes(txn.Id, out var newState);
+				// Store the proto Transaction so we can set it in metadata later
+				if (newState != null) newState.ProtoTransaction = txn;
+				return newState;
 
 			case TransactionSelector.SelectorOneofCase.Id:
-				// Existing transaction — nothing to do (DML is applied immediately in our implementation)
-				break;
+				_transactionManager.TryGetByBytes(selector.Id, out var existingState);
+				return existingState;
 
-			case TransactionSelector.SelectorOneofCase.SingleUse:
-				// Single-use read-only — nothing to do (we don't enforce isolation)
-				break;
+			default:
+				return null;
+		}
+	}
+
+	/// <summary>
+	/// Sets transaction metadata on the result set for Begin transactions.
+	/// </summary>
+	private static void SetTransactionMetadata(TransactionSelector? selector, TransactionState? txnState, ResultSet resultSet)
+	{
+		if (selector?.SelectorCase == TransactionSelector.SelectorOneofCase.Begin && txnState?.ProtoTransaction != null)
+		{
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ResultSetMetadata
+			//   "If the read or SQL query began a transaction as a side-effect, the information
+			//    about the new transaction is yielded here."
+			resultSet.Metadata ??= new ResultSetMetadata();
+			resultSet.Metadata.Transaction = txnState.ProtoTransaction;
 		}
 	}
 
@@ -323,7 +349,8 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 		ValidateSession(request.Session);
 
 		var response = new ExecuteBatchDmlResponse();
-		var engine = new SqlEngine(_database);
+		var txnState = ResolveTransactionState(request.Session, request.Transaction);
+		var engine = new SqlEngine(_database, txnState?.DmlUndoLog);
 
 		foreach (var statement in request.Statements)
 		{

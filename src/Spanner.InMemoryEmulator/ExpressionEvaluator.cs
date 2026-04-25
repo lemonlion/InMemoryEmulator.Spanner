@@ -15,14 +15,17 @@ internal class ExpressionEvaluator
 	private readonly IDictionary<string, object?>? _parameters;
 	private readonly QueryExecutor? _queryExecutor;
 	private readonly Dictionary<string, SelectStatement>? _cteMap;
+	private readonly Dictionary<string, object?>? _outerRow;
 
 	public ExpressionEvaluator(IDictionary<string, object?>? parameters = null,
 		QueryExecutor? queryExecutor = null,
-		Dictionary<string, SelectStatement>? cteMap = null)
+		Dictionary<string, SelectStatement>? cteMap = null,
+		Dictionary<string, object?>? outerRow = null)
 	{
 		_parameters = parameters;
 		_queryExecutor = queryExecutor;
 		_cteMap = cteMap;
+		_outerRow = outerRow;
 	}
 
 	/// <summary>
@@ -43,16 +46,18 @@ internal class ExpressionEvaluator
 			FunctionCallExpr func => EvalFunction(func, row),
 			CastExpr cast => EvalCast(cast, row),
 			CaseExpr caseExpr => EvalCase(caseExpr, row),
-			ScalarSubqueryExpr sub => EvalScalarSubquery(sub),
-			ExistsExpr exists => EvalExists(exists),
+			ScalarSubqueryExpr sub => EvalScalarSubquery(sub, row),
+			ExistsExpr exists => EvalExists(exists, row),
 			InSubqueryExpr inSub => EvalInSubquery(inSub, row),
-			ArraySubqueryExpr arraySub => EvalArraySubquery(arraySub),
+			InUnnestExpr inUnnest => EvalInUnnest(inUnnest, row),
+			ArraySubqueryExpr arraySub => EvalArraySubquery(arraySub, row),
 			ArrayLiteralExpr arrayLit => arrayLit.Elements.Select(e => Evaluate(e, row)).ToList(),
 			ArrayAccessExpr access => EvalArrayAccess(access, row),
 			WindowExpr win => EvalWindowExpr(win, row),
 			StructExpr structExpr => structExpr.Fields.ToDictionary(f => f.Name ?? "", f => Evaluate(f.Value, row)),
 			StarExpr => throw new InvalidOperationException("Star expression cannot be evaluated as a value."),
-			CountStarExpr => throw new InvalidOperationException("COUNT(*) should be evaluated in aggregate context."),
+			CountStarExpr => row.TryGetValue("COUNT(*)", out var countVal) ? countVal
+				: throw new InvalidOperationException("COUNT(*) should be evaluated in aggregate context."),
 			_ => throw new NotSupportedException($"Expression type not supported: {expr.GetType().Name}")
 		};
 	}
@@ -75,6 +80,9 @@ internal class ExpressionEvaluator
 			var qualifiedName = $"{col.TableAlias}.{col.Column}";
 			if (row.TryGetValue(qualifiedName, out var qualifiedValue))
 				return qualifiedValue;
+			// Check outer row for correlated subqueries
+			if (_outerRow != null && _outerRow.TryGetValue(qualifiedName, out qualifiedValue))
+				return qualifiedValue;
 		}
 
 		// Try unqualified name
@@ -85,6 +93,16 @@ internal class ExpressionEvaluator
 		var key = row.Keys.FirstOrDefault(k => string.Equals(k, col.Column, StringComparison.OrdinalIgnoreCase));
 		if (key != null)
 			return row[key];
+
+		// Fallback to outer row for correlated subqueries
+		if (_outerRow != null)
+		{
+			if (_outerRow.TryGetValue(col.Column, out value))
+				return value;
+			key = _outerRow.Keys.FirstOrDefault(k => string.Equals(k, col.Column, StringComparison.OrdinalIgnoreCase));
+			if (key != null)
+				return _outerRow[key];
+		}
 
 		throw new InvalidOperationException($"Column '{col.Column}' not found.");
 	}
@@ -112,20 +130,25 @@ internal class ExpressionEvaluator
 
 	private object? EvalBinary(BinaryExpr bin, Dictionary<string, object?> row)
 	{
-		// Short-circuit AND/OR
+		// Three-valued logic for AND/OR
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#logical_operators
 		if (bin.Op == BinaryOp.And)
 		{
 			var left = Evaluate(bin.Left, row);
-			if (left is not true) return false;
+			if (left is false) return false;
 			var right = Evaluate(bin.Right, row);
-			return right is true;
+			if (right is false) return false;
+			if (left is null || right is null) return null;
+			return true;
 		}
 		if (bin.Op == BinaryOp.Or)
 		{
 			var left = Evaluate(bin.Left, row);
 			if (left is true) return true;
 			var right = Evaluate(bin.Right, row);
-			return right is true;
+			if (right is true) return true;
+			if (left is null || right is null) return null;
+			return false;
 		}
 
 		var lval = Evaluate(bin.Left, row);
@@ -168,6 +191,7 @@ internal class ExpressionEvaluator
 			{
 				null => null,
 				long l => -l,
+				double d when d == -(double)long.MinValue => (object)long.MinValue,
 				double d => -d,
 				float f => -f,
 				decimal dec => -dec,
@@ -214,6 +238,21 @@ internal class ExpressionEvaluator
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/functions-and-operators
 		var funcName = func.Name.ToUpperInvariant();
 
+		// Aggregate functions may have been pre-computed and stored in the row
+		// (e.g., during GROUP BY processing or HAVING evaluation).
+		if (funcName is "SUM" or "AVG" or "COUNT" or "MIN" or "MAX"
+			or "ARRAY_AGG" or "STRING_AGG" or "COUNTIF" or "ANY_VALUE"
+			or "LOGICAL_AND" or "LOGICAL_OR"
+			or "BIT_AND" or "BIT_OR" or "BIT_XOR")
+		{
+			if (row.TryGetValue(funcName, out var precomputed))
+				return precomputed;
+			// Also try full canonical name like "SUM(col)"
+			var canonName = QueryExecutor.InferColumnNameStatic(func);
+			if (canonName != funcName && row.TryGetValue(canonName, out precomputed))
+				return precomputed;
+		}
+
 		return funcName switch
 		{
 			// Conditional
@@ -228,9 +267,10 @@ internal class ExpressionEvaluator
 			"LENGTH" or "CHAR_LENGTH" or "CHARACTER_LENGTH" => EvalStringFunc1(func, row, s => (long)s.Length),
 			"LOWER" or "LCASE" => EvalStringFunc1(func, row, s => s.ToLowerInvariant()),
 			"UPPER" or "UCASE" => EvalStringFunc1(func, row, s => s.ToUpperInvariant()),
-			"TRIM" => EvalStringFunc1(func, row, s => s.Trim()),
-			"LTRIM" => EvalStringFunc1(func, row, s => s.TrimStart()),
-			"RTRIM" => EvalStringFunc1(func, row, s => s.TrimEnd()),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#trim
+			"TRIM" => EvalTrim(func, row, TrimMode.Both),
+			"LTRIM" => EvalTrim(func, row, TrimMode.Start),
+			"RTRIM" => EvalTrim(func, row, TrimMode.End),
 			"CONCAT" => EvalConcat(func, row),
 			"STARTS_WITH" => EvalStringFunc2Bool(func, row, (s, prefix) => s.StartsWith(prefix, StringComparison.Ordinal)),
 			"ENDS_WITH" => EvalStringFunc2Bool(func, row, (s, suffix) => s.EndsWith(suffix, StringComparison.Ordinal)),
@@ -280,12 +320,21 @@ internal class ExpressionEvaluator
 			"SAFE_ADD" => EvalSafeArith(func, row, "ADD"),
 			"SAFE_SUBTRACT" => EvalSafeArith(func, row, "SUB"),
 			"SAFE_MULTIPLY" => EvalSafeArith(func, row, "MUL"),
-			"SQRT" => EvalMathFunc1Double(func, row, Math.Sqrt),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#sqrt
+			//   "Generates an error if X is less than 0."
+			"SQRT" => EvalMathFunc1Checked(func, row, Math.Sqrt,
+				v => v < 0, "SQRT of negative number"),
 			"POW" or "POWER" => EvalPow(func, row),
 			"EXP" => EvalMathFunc1Double(func, row, Math.Exp),
-			"LN" => EvalMathFunc1Double(func, row, Math.Log),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#ln
+			//   "Generates an error if X is less than or equal to zero."
+			"LN" => EvalMathFunc1Checked(func, row, Math.Log,
+				v => v <= 0, "LN of non-positive number"),
 			"LOG" => EvalLog(func, row),
-			"LOG10" => EvalMathFunc1Double(func, row, Math.Log10),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#log10
+			//   "Similar to LOG. X <= 0 → Error."
+			"LOG10" => EvalMathFunc1Checked(func, row, Math.Log10,
+				v => v <= 0, "LOG10 of non-positive number"),
 			"IS_NAN" => EvalIsNan(func, row),
 			"IS_INF" => EvalIsInf(func, row),
 			"RAND" => new Random().NextDouble(),
@@ -372,6 +421,36 @@ internal class ExpressionEvaluator
 		return fn((string)val);
 	}
 
+	private enum TrimMode { Both, Start, End }
+
+	private object? EvalTrim(FunctionCallExpr func, Dictionary<string, object?> row, TrimMode mode)
+	{
+		var val = Evaluate(func.Arguments[0], row);
+		if (val is null) return null;
+		var str = (string)val;
+		if (func.Arguments.Count > 1)
+		{
+			// 2-arg form: trim characters from the second argument
+			var charsVal = Evaluate(func.Arguments[1], row);
+			if (charsVal is null) return null;
+			var chars = Convert.ToString(charsVal)!.ToCharArray();
+			return mode switch
+			{
+				TrimMode.Both => str.Trim(chars),
+				TrimMode.Start => str.TrimStart(chars),
+				TrimMode.End => str.TrimEnd(chars),
+				_ => str
+			};
+		}
+		return mode switch
+		{
+			TrimMode.Both => str.Trim(),
+			TrimMode.Start => str.TrimStart(),
+			TrimMode.End => str.TrimEnd(),
+			_ => str
+		};
+	}
+
 	private object? EvalStringFunc2Bool(FunctionCallExpr func, Dictionary<string, object?> row, Func<string, string, bool> fn)
 	{
 		var a = Evaluate(func.Arguments[0], row);
@@ -395,10 +474,9 @@ internal class ExpressionEvaluator
 
 		var str = (string)s;
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#substr
-		//   "Position is 1-based."
-		var startIndex = Convert.ToInt32(pos) - 1;
-		if (startIndex < 0) startIndex = 0;
-		if (startIndex >= str.Length) return "";
+		//   "Position is 1-based. If pos is negative, the function counts from the end."
+		var position = Convert.ToInt32(pos);
+		int startIndex;
 
 		if (func.Arguments.Count > 2)
 		{
@@ -406,9 +484,23 @@ internal class ExpressionEvaluator
 			if (len is null) return null;
 			var length = Convert.ToInt32(len);
 			if (length < 0) throw new InvalidOperationException("SUBSTR length must be non-negative.");
+
+			// Negative position: count from end of string
+			startIndex = position < 0 ? str.Length + position : position - 1;
+			// Adjust length if startIndex is before string start
+			if (startIndex < 0)
+			{
+				length += startIndex;
+				startIndex = 0;
+			}
+			if (length <= 0 || startIndex >= str.Length) return "";
 			return str.Substring(startIndex, Math.Min(length, str.Length - startIndex));
 		}
 
+		// No length argument — return from position to end
+		startIndex = position < 0 ? str.Length + position : position - 1;
+		if (startIndex < 0) startIndex = 0;
+		if (startIndex >= str.Length) return "";
 		return str[startIndex..];
 	}
 
@@ -418,7 +510,11 @@ internal class ExpressionEvaluator
 		var from = Evaluate(func.Arguments[1], row);
 		var to = Evaluate(func.Arguments[2], row);
 		if (s is null || from is null || to is null) return null;
-		return ((string)s).Replace((string)from, (string)to);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#replace
+		//   REPLACE with empty from_str returns the original string.
+		var fromStr = (string)from;
+		if (fromStr.Length == 0) return s;
+		return ((string)s).Replace(fromStr, (string)to);
 	}
 
 	private object? EvalStrPos(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -451,13 +547,18 @@ internal class ExpressionEvaluator
 	{
 		var val = Evaluate(func.Arguments[0], row);
 		if (val is null) return null;
-		return val switch
-		{
-			long l => (long)fn(l),
-			double d => fn(d),
-			float f => (float)fn(f),
-			_ => throw new InvalidOperationException($"Cannot apply math function to {val.GetType().Name}")
-		};
+		return fn(Convert.ToDouble(val));
+	}
+
+	private object? EvalMathFunc1Checked(FunctionCallExpr func, Dictionary<string, object?> row,
+		Func<double, double> fn, Func<double, bool> errorCheck, string errorMsg)
+	{
+		var val = Evaluate(func.Arguments[0], row);
+		if (val is null) return null;
+		var d = Convert.ToDouble(val);
+		if (errorCheck(d))
+			throw new InvalidOperationException(errorMsg);
+		return fn(d);
 	}
 
 	private object? EvalMod(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -475,6 +576,8 @@ internal class ExpressionEvaluator
 
 	private object? EvalRound(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#round
+		//   "Rounds halfway cases away from zero. If N is negative, rounds off digits to the left of the decimal point."
 		var val = Evaluate(func.Arguments[0], row);
 		if (val is null) return null;
 
@@ -482,22 +585,33 @@ internal class ExpressionEvaluator
 		if (func.Arguments.Count > 1)
 		{
 			var d = Evaluate(func.Arguments[1], row);
-			if (d != null) digits = Convert.ToInt32(d);
+			if (d == null) return null;
+			digits = Convert.ToInt32(d);
+		}
+
+		var dv = Convert.ToDouble(val);
+		if (digits < 0)
+		{
+			var factor = Math.Pow(10, -digits);
+			return Math.Round(dv / factor, MidpointRounding.AwayFromZero) * factor;
 		}
 
 		return val switch
 		{
-			double dv => Math.Round(dv, digits, MidpointRounding.AwayFromZero),
-			float fv => (float)Math.Round(fv, digits, MidpointRounding.AwayFromZero),
-			decimal dec => Math.Round(dec, digits, MidpointRounding.AwayFromZero),
-			long l => l,
+			double d2 => Math.Round(d2, digits, MidpointRounding.AwayFromZero),
+			float fv => (double)Math.Round((double)fv, digits, MidpointRounding.AwayFromZero),
+			decimal dec => (double)Math.Round(dec, digits, MidpointRounding.AwayFromZero),
+			long l => (double)l,
 			_ => throw new InvalidOperationException($"Cannot round {val.GetType().Name}")
 		};
 	}
 
 	private object? EvalGreatestLeast(FunctionCallExpr func, Dictionary<string, object?> row, bool greatest)
 	{
-		var values = func.Arguments.Select(a => Evaluate(a, row)).Where(v => v != null).ToList();
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#greatest
+		//   "Returns NULL if any of the inputs is NULL."
+		var values = func.Arguments.Select(a => Evaluate(a, row)).ToList();
+		if (values.Any(v => v is null)) return null;
 		if (values.Count == 0) return null;
 
 		return values.Aggregate((a, b) =>
@@ -519,13 +633,28 @@ internal class ExpressionEvaluator
 			return cast.TargetType switch
 			{
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
-				// "When casting from floating point to integer, [CAST] truncates."
-				TypeCode.Int64 => value is double d ? (long)d : value is float f ? (long)f : Convert.ToInt64(value),
+				// "When casting from floating point to integer, [CAST] rounds to the nearest integer."
+				TypeCode.Int64 => value is double d ? (long)Math.Round(d, MidpointRounding.AwayFromZero) : value is float f ? (long)Math.Round(f, MidpointRounding.AwayFromZero) : Convert.ToInt64(value),
 				TypeCode.Float64 => Convert.ToDouble(value),
 				TypeCode.Float32 => Convert.ToSingle(value),
 				TypeCode.Bool => Convert.ToBoolean(value),
-				TypeCode.String => value.ToString(),
+				TypeCode.String => value switch
+				{
+					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
+					//   CAST(bool AS STRING) returns lowercase "true" / "false"
+					bool bv => bv ? "true" : "false",
+					DateTime dt => dt.Date == dt ? dt.ToString("yyyy-MM-dd") : dt.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+					_ => value.ToString()
+				},
 				TypeCode.Numeric => Convert.ToDecimal(value),
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
+				TypeCode.Date => value is DateTime dt2 ? dt2.Date
+					: DateTime.Parse(Convert.ToString(value)!, System.Globalization.CultureInfo.InvariantCulture).Date,
+				TypeCode.Timestamp => value is DateTime dt3 ? dt3
+					: DateTime.Parse(Convert.ToString(value)!, System.Globalization.CultureInfo.InvariantCulture,
+						System.Globalization.DateTimeStyles.AdjustToUniversal),
+				TypeCode.Bytes => value is byte[] b ? b : System.Text.Encoding.UTF8.GetBytes(Convert.ToString(value)!),
+				TypeCode.Array => value is IList<object?> ? value : new List<object?> { value },
 				_ => throw new NotSupportedException($"CAST to {cast.TargetType} not supported.")
 			};
 		}
@@ -612,18 +741,19 @@ internal class ExpressionEvaluator
 
 	// ── Subquery evaluation ──
 
-	private List<Dictionary<string, object?>> RunSubquery(SelectStatement subquery)
+	private List<Dictionary<string, object?>> RunSubquery(SelectStatement subquery,
+		Dictionary<string, object?>? outerRow = null)
 	{
 		if (_queryExecutor == null)
 			throw new InvalidOperationException("Subqueries require a QueryExecutor context.");
-		return _queryExecutor.ExecuteSubquery(subquery, _parameters, _cteMap);
+		return _queryExecutor.ExecuteSubquery(subquery, _parameters, _cteMap, outerRow);
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/subqueries#scalar_subquery_concepts
 	//   "A scalar subquery produces at most one row. If the subquery returns zero rows, the result is NULL."
-	private object? EvalScalarSubquery(ScalarSubqueryExpr sub)
+	private object? EvalScalarSubquery(ScalarSubqueryExpr sub, Dictionary<string, object?> row)
 	{
-		var rows = RunSubquery(sub.Subquery);
+		var rows = RunSubquery(sub.Subquery, row);
 		if (rows.Count == 0) return null;
 		if (rows.Count > 1)
 			throw new InvalidOperationException("Scalar subquery returned more than one row.");
@@ -631,9 +761,9 @@ internal class ExpressionEvaluator
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/subqueries#exists_subquery_concepts
-	private object? EvalExists(ExistsExpr exists)
+	private object? EvalExists(ExistsExpr exists, Dictionary<string, object?> row)
 	{
-		var rows = RunSubquery(exists.Subquery);
+		var rows = RunSubquery(exists.Subquery, row);
 		var result = rows.Count > 0;
 		return exists.IsNegated ? !result : result;
 	}
@@ -642,7 +772,7 @@ internal class ExpressionEvaluator
 	private object? EvalInSubquery(InSubqueryExpr inSub, Dictionary<string, object?> row)
 	{
 		var value = Evaluate(inSub.Value, row);
-		var subRows = RunSubquery(inSub.Subquery);
+		var subRows = RunSubquery(inSub.Subquery, row);
 		var found = subRows.Any(r =>
 		{
 			var subVal = r.Values.FirstOrDefault();
@@ -651,14 +781,49 @@ internal class ExpressionEvaluator
 		return inSub.IsNegated ? !found : found;
 	}
 
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/subqueries#array_subquery_concepts
-	private object? EvalArraySubquery(ArraySubqueryExpr arraySub)
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#in_operators
+	//   "value [NOT] IN UNNEST(array_expression)"
+	private object? EvalInUnnest(InUnnestExpr inUnnest, Dictionary<string, object?> row)
 	{
-		var rows = RunSubquery(arraySub.Subquery);
+		var value = Evaluate(inUnnest.Value, row);
+		var array = Evaluate(inUnnest.ArrayExpr, row);
+		if (array == null || value == null) return inUnnest.IsNegated ? true : false;
+
+		bool found = false;
+		if (array is System.Collections.IEnumerable enumerable)
+		{
+			foreach (var item in enumerable)
+			{
+				if (item != null && CompareValues(value, item) == 0)
+				{
+					found = true;
+					break;
+				}
+			}
+		}
+		return inUnnest.IsNegated ? !found : found;
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/subqueries#array_subquery_concepts
+	private object? EvalArraySubquery(ArraySubqueryExpr arraySub, Dictionary<string, object?> row)
+	{
+		var rows = RunSubquery(arraySub.Subquery, row);
 		return rows.Select(r => r.Values.FirstOrDefault()).ToList();
 	}
 
 	// ── Comparison helper ──
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#extract
+	//   WEEK: range [0,53]. Weeks begin with Sunday; dates before the first Sunday are week 0.
+	private static long ComputeSpannerWeek(DateTime dt)
+	{
+		// Find first Sunday of the year
+		var jan1 = new DateTime(dt.Year, 1, 1);
+		var daysUntilFirstSunday = ((int)DayOfWeek.Sunday - (int)jan1.DayOfWeek + 7) % 7;
+		var firstSunday = jan1.AddDays(daysUntilFirstSunday);
+		if (dt < firstSunday) return 0L;
+		return (long)((dt - firstSunday).Days / 7 + 1);
+	}
 
 	internal static int CompareValues(object? a, object? b)
 	{
@@ -752,6 +917,15 @@ internal class ExpressionEvaluator
 		if (s == null) return null;
 		var str = Convert.ToString(s) ?? "";
 		var delimiter = func.Arguments.Count > 1 ? Convert.ToString(Evaluate(func.Arguments[1], row)) ?? "," : ",";
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#split
+		//   Empty delimiter splits the string into individual characters (no leading empty string).
+		if (delimiter.Length == 0)
+		{
+			var result = new List<object?>();
+			foreach (var ch in str)
+				result.Add(ch.ToString());
+			return result;
+		}
 		return str.Split(delimiter).Cast<object?>().ToList();
 	}
 
@@ -760,12 +934,25 @@ internal class ExpressionEvaluator
 		var s = Evaluate(func.Arguments[0], row);
 		if (s == null) return null;
 		var str = Convert.ToString(s) ?? "";
-		var len = Convert.ToInt32(Evaluate(func.Arguments[1], row));
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#lpad
+		var lenVal = Evaluate(func.Arguments[1], row);
+		if (lenVal == null) return null;
+		var len = Convert.ToInt32(lenVal);
+		// Truncate if length is less than the string length
+		if (len <= 0) return "";
+		if (len <= str.Length) return str[..len];
 		var pad = func.Arguments.Count > 2 ? Convert.ToString(Evaluate(func.Arguments[2], row)) ?? " " : " ";
 		if (pad.Length == 0) return str;
-		while (str.Length < len)
-			str = padLeft ? pad[..(Math.Min(pad.Length, len - str.Length))] + str : str + pad[..(Math.Min(pad.Length, len - str.Length))];
-		return str;
+		var sb = new System.Text.StringBuilder(len);
+		if (!padLeft) sb.Append(str);
+		var needed = len - str.Length;
+		while (sb.Length < (padLeft ? needed : len))
+		{
+			var remaining = (padLeft ? needed : len) - sb.Length;
+			sb.Append(pad[..Math.Min(pad.Length, remaining)]);
+		}
+		if (padLeft) sb.Append(str);
+		return sb.ToString();
 	}
 
 	private object? EvalRepeat(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -773,22 +960,92 @@ internal class ExpressionEvaluator
 		var s = Evaluate(func.Arguments[0], row);
 		if (s == null) return null;
 		var str = Convert.ToString(s) ?? "";
-		var count = Convert.ToInt32(Evaluate(func.Arguments[1], row));
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#repeat
+		var countVal = Evaluate(func.Arguments[1], row);
+		if (countVal == null) return null;
+		var count = Convert.ToInt32(countVal);
 		return string.Concat(Enumerable.Repeat(str, Math.Max(0, count)));
 	}
 
 	private object? EvalFormat(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
-		// Simplified FORMAT: just concatenate the format string with args via string.Format
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#format_string
 		var fmt = Evaluate(func.Arguments[0], row);
 		if (fmt == null) return null;
 		var fmtStr = Convert.ToString(fmt) ?? "";
-		// Spanner FORMAT uses %s, %d, etc. — simplified: replace %s/%d/%f with {0},{1},...
-		int idx = 0;
-		var converted = Regex.Replace(fmtStr, @"%(s|d|f|i|t|T)", _ => $"{{{idx++}}}");
+		// Check if any argument is NULL — return NULL
 		var args = func.Arguments.Skip(1).Select(a => Evaluate(a, row)).ToArray();
-		try { return string.Format(converted, args); }
+		if (args.Any(a => a == null)) return null;
+		try { return SpannerFormat(fmtStr, args); }
 		catch { return fmtStr; }
+	}
+
+	private static string SpannerFormat(string fmt, object?[] args)
+	{
+		var sb = new System.Text.StringBuilder();
+		int argIdx = 0;
+		int i = 0;
+		while (i < fmt.Length)
+		{
+			if (fmt[i] == '%' && i + 1 < fmt.Length)
+			{
+				i++;
+				if (fmt[i] == '%') { sb.Append('%'); i++; continue; }
+				var flags = "";
+				while (i < fmt.Length && "-+ 0#".Contains(fmt[i]))
+					flags += fmt[i++];
+				var widthStr = "";
+				while (i < fmt.Length && char.IsDigit(fmt[i]))
+					widthStr += fmt[i++];
+				string? precision = null;
+				if (i < fmt.Length && fmt[i] == '.')
+				{
+					i++;
+					precision = "";
+					while (i < fmt.Length && char.IsDigit(fmt[i]))
+						precision += fmt[i++];
+				}
+				if (i >= fmt.Length) break;
+				char conv = fmt[i++];
+				if (argIdx >= args.Length) break;
+				var arg = args[argIdx++];
+				var width = widthStr.Length > 0 ? int.Parse(widthStr) : 0;
+				switch (conv)
+				{
+					case 'd' or 'i':
+						var lv = Convert.ToInt64(arg);
+						var ds = lv.ToString();
+						if (flags.Contains('0') && width > 0)
+							ds = (lv < 0 ? "-" + (-lv).ToString().PadLeft(width - 1, '0') : ds.PadLeft(width, '0'));
+						else if (width > 0)
+							ds = ds.PadLeft(width);
+						sb.Append(ds);
+						break;
+					case 'f':
+						var dv = Convert.ToDouble(arg);
+						var prec = precision != null && precision.Length > 0 ? int.Parse(precision) : 6;
+						sb.Append(dv.ToString("F" + prec));
+						break;
+					case 'e':
+						sb.Append(Convert.ToDouble(arg).ToString("E" + (precision ?? "6")));
+						break;
+					case 'g':
+						sb.Append(Convert.ToDouble(arg).ToString("G" + (precision ?? "")));
+						break;
+					case 's':
+						sb.Append(arg?.ToString());
+						break;
+					default:
+						sb.Append(arg?.ToString());
+						break;
+				}
+			}
+			else
+			{
+				sb.Append(fmt[i++]);
+			}
+		}
+		return sb.ToString();
 	}
 
 	private object? EvalRegexpContains(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -814,8 +1071,9 @@ internal class ExpressionEvaluator
 		var s = Evaluate(func.Arguments[0], row);
 		var pattern = Evaluate(func.Arguments[1], row);
 		var replacement = Evaluate(func.Arguments[2], row);
-		if (s == null) return null;
-		return Regex.Replace(Convert.ToString(s)!, Convert.ToString(pattern)!, Convert.ToString(replacement) ?? "");
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_replace
+		if (s == null || pattern == null || replacement == null) return null;
+		return Regex.Replace(Convert.ToString(s)!, Convert.ToString(pattern)!, Convert.ToString(replacement)!);
 	}
 
 	private object? EvalLeft(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -823,7 +1081,9 @@ internal class ExpressionEvaluator
 		var s = Evaluate(func.Arguments[0], row);
 		if (s == null) return null;
 		var str = Convert.ToString(s) ?? "";
-		var len = Convert.ToInt32(Evaluate(func.Arguments[1], row));
+		var lenVal = Evaluate(func.Arguments[1], row);
+		if (lenVal == null) return null;
+		var len = Convert.ToInt32(lenVal);
 		return str[..Math.Min(len, str.Length)];
 	}
 
@@ -832,7 +1092,9 @@ internal class ExpressionEvaluator
 		var s = Evaluate(func.Arguments[0], row);
 		if (s == null) return null;
 		var str = Convert.ToString(s) ?? "";
-		var len = Convert.ToInt32(Evaluate(func.Arguments[1], row));
+		var lenVal = Evaluate(func.Arguments[1], row);
+		if (lenVal == null) return null;
+		var len = Convert.ToInt32(lenVal);
 		return str.Length <= len ? str : str[(str.Length - len)..];
 	}
 
@@ -934,7 +1196,9 @@ internal class ExpressionEvaluator
 		var d = Convert.ToDouble(v);
 		if (func.Arguments.Count > 1)
 		{
-			var n = Convert.ToInt32(Evaluate(func.Arguments[1], row));
+			var nVal = Evaluate(func.Arguments[1], row);
+			if (nVal == null) return null;
+			var n = Convert.ToInt32(nVal);
 			var factor = Math.Pow(10, n);
 			return Math.Truncate(d * factor) / factor;
 		}
@@ -1026,13 +1290,22 @@ internal class ExpressionEvaluator
 	{
 		var v = Evaluate(func.Arguments[0], row);
 		if (v == null) return null;
+		var dv = Convert.ToDouble(v);
+		if (dv <= 0)
+			throw new InvalidOperationException("LOG of non-positive number");
 		if (func.Arguments.Count > 1)
 		{
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#log
+			//   "LOG(X, Y) — computes the logarithm of X to base Y."
+			//   i.e., log_Y(X) = Math.Log(X, Y)
 			var b = Evaluate(func.Arguments[1], row);
 			if (b == null) return null;
-			return Math.Log(Convert.ToDouble(v), Convert.ToDouble(b));
+			var db = Convert.ToDouble(b);
+			if (db <= 0 || db == 1.0)
+				throw new InvalidOperationException("LOG base must be positive and not equal to 1");
+			return Math.Log(dv, db);
 		}
-		return Math.Log(Convert.ToDouble(v));
+		return Math.Log(dv);
 	}
 
 	private object? EvalIsNan(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -1078,6 +1351,16 @@ internal class ExpressionEvaluator
 
 	private object? EvalDateCtor(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date
+		//   DATE(year, month, day) or DATE(timestamp_expression)
+		if (func.Arguments.Count >= 3)
+		{
+			var year = Evaluate(func.Arguments[0], row);
+			var month = Evaluate(func.Arguments[1], row);
+			var day = Evaluate(func.Arguments[2], row);
+			if (year == null || month == null || day == null) return null;
+			return new DateTime(Convert.ToInt32(year), Convert.ToInt32(month), Convert.ToInt32(day));
+		}
 		var v = Evaluate(func.Arguments[0], row);
 		if (v == null) return null;
 		if (v is DateTime dt) return dt.Date;
@@ -1106,7 +1389,9 @@ internal class ExpressionEvaluator
 			"MILLISECOND" => (long)dt.Millisecond,
 			"DAYOFWEEK" => (long)(dt.DayOfWeek == DayOfWeek.Sunday ? 1 : (int)dt.DayOfWeek + 1),
 			"DAYOFYEAR" => (long)dt.DayOfYear,
-			"WEEK" => (long)System.Globalization.ISOWeek.GetWeekOfYear(dt),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#extract
+			//   WEEK: range [0,53]. Weeks begin with Sunday; dates before the first Sunday are week 0.
+			"WEEK" => ComputeSpannerWeek(dt),
 			"ISOWEEK" => (long)System.Globalization.ISOWeek.GetWeekOfYear(dt),
 			"ISOYEAR" => (long)System.Globalization.ISOWeek.GetYear(dt),
 			"QUARTER" => (long)((dt.Month - 1) / 3 + 1),
@@ -1156,6 +1441,7 @@ internal class ExpressionEvaluator
 		if (ts1 == null || ts2 == null) return null;
 		var dt1 = ts1 is DateTime d1 ? d1 : DateTime.Parse(Convert.ToString(ts1)!);
 		var dt2 = ts2 is DateTime d2 ? d2 : DateTime.Parse(Convert.ToString(ts2)!);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_diff
 		var diff = dt1 - dt2;
 		return part switch
 		{
@@ -1165,6 +1451,8 @@ internal class ExpressionEvaluator
 			"MINUTE" => (long)diff.TotalMinutes,
 			"HOUR" => (long)diff.TotalHours,
 			"DAY" => (long)diff.TotalDays,
+			"MONTH" => (dt1.Year - dt2.Year) * 12 + dt1.Month - dt2.Month,
+			"YEAR" => (long)(dt1.Year - dt2.Year),
 			_ => throw new InvalidOperationException($"TIMESTAMP_DIFF: unsupported part '{part}'.")
 		};
 	}
@@ -1306,6 +1594,8 @@ internal class ExpressionEvaluator
 	private object? EvalToJson(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		var v = Evaluate(func.Arguments[0], row);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json_string
+		//   TO_JSON_STRING returns the JSON-formatted STRING representation, including "null" for SQL NULL.
 		if (v == null) return "null";
 		return JsonSerializer.Serialize(v);
 	}
@@ -1349,7 +1639,17 @@ internal class ExpressionEvaluator
 		var v = Evaluate(func.Arguments[0], row);
 		if (v == null) return null;
 		var sep = func.Arguments.Count > 1 ? Convert.ToString(Evaluate(func.Arguments[1], row)) ?? "," : ",";
-		if (v is IList<object?> list) return string.Join(sep, list.Select(x => x?.ToString() ?? ""));
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#array_to_string
+		//   With 2 args: NULL elements are omitted. With 3 args: NULL elements are replaced.
+		if (v is IList<object?> list)
+		{
+			if (func.Arguments.Count > 2)
+			{
+				var nullText = Convert.ToString(Evaluate(func.Arguments[2], row)) ?? "";
+				return string.Join(sep, list.Select(x => x != null ? x.ToString() : nullText));
+			}
+			return string.Join(sep, list.Where(x => x != null).Select(x => x!.ToString()));
+		}
 		return null;
 	}
 
@@ -1416,7 +1716,15 @@ internal class ExpressionEvaluator
 		var path = Convert.ToString(Evaluate(func.Arguments[1], row));
 		if (json == null || path == null) return null;
 		var elem = NavigateJsonPath(json, path);
-		if (elem is JsonElement je) return je.GetRawText();
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_query
+		// Spanner returns compact JSON without extra whitespace.
+		if (elem is JsonElement je)
+		{
+			using var ms = new System.IO.MemoryStream();
+			using (var writer = new Utf8JsonWriter(ms))
+				je.WriteTo(writer);
+			return System.Text.Encoding.UTF8.GetString(ms.ToArray());
+		}
 		return elem?.ToString();
 	}
 

@@ -30,7 +30,7 @@ internal static class TypeConverter
 			TypeCode.Int64 => Google.Protobuf.WellKnownTypes.Value.ForString(Convert.ToInt64(value).ToString()),
 			TypeCode.Float32 => Google.Protobuf.WellKnownTypes.Value.ForNumber(Convert.ToSingle(value)),
 			TypeCode.Float64 => Google.Protobuf.WellKnownTypes.Value.ForNumber(Convert.ToDouble(value)),
-			TypeCode.String => Google.Protobuf.WellKnownTypes.Value.ForString(value.ToString()!),
+			TypeCode.String => Google.Protobuf.WellKnownTypes.Value.ForString(FormatAsString(value)),
 			TypeCode.Timestamp => Google.Protobuf.WellKnownTypes.Value.ForString(FormatTimestamp(value)),
 			TypeCode.Date => Google.Protobuf.WellKnownTypes.Value.ForString(FormatDate(value)),
 			TypeCode.Bytes => Google.Protobuf.WellKnownTypes.Value.ForString(Convert.ToBase64String((byte[])value)),
@@ -84,6 +84,14 @@ internal static class TypeConverter
 		}
 		return type;
 	}
+
+	private static string FormatAsString(object value) => value switch
+	{
+		DateTime dt when dt.Date == dt => dt.ToString("yyyy-MM-dd"),
+		DateTime dt => dt.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.FFFFFFFZ"),
+		DateTimeOffset dto => dto.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.FFFFFFFZ"),
+		_ => value.ToString()!
+	};
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#timestamp_type
 	//   "TIMESTAMP values are expressed as an RFC 3339 datetime."

@@ -327,6 +327,7 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 		foreach (var statement in request.Statements)
 		{
+			_sqlLog.Add(new SqlLogEntry(statement.Sql, null, null, DateTimeOffset.UtcNow));
 			try
 			{
 				var parameters = SqlEngine.ExtractParameters(statement.Sql, statement.Params, statement.ParamTypes);
@@ -515,33 +516,78 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.PartitionQuery
+	//   "Creates a set of partition tokens that can be used to execute a query operation in parallel."
+	//   In-memory emulator: returns a single partition covering the entire result.
 	public override Task<PartitionResponse> PartitionQuery(PartitionQueryRequest request, ServerCallContext context)
 	{
 		LogRequest(nameof(PartitionQuery), request);
 		CheckFault(nameof(PartitionQuery), request);
 
-		// TODO: Return partition tokens
-		throw new RpcException(new Status(StatusCode.Unimplemented, "PartitionQuery is not yet implemented."));
+		ValidateSession(request.Session);
+
+		var response = new PartitionResponse();
+		response.Partitions.Add(new Partition
+		{
+			PartitionToken = Google.Protobuf.ByteString.CopyFromUtf8("partition-0")
+		});
+		return Task.FromResult(response);
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.PartitionRead
+	//   "Creates a set of partition tokens that can be used to execute a read operation in parallel."
+	//   In-memory emulator: returns a single partition covering the entire result.
 	public override Task<PartitionResponse> PartitionRead(PartitionReadRequest request, ServerCallContext context)
 	{
 		LogRequest(nameof(PartitionRead), request);
 		CheckFault(nameof(PartitionRead), request);
 
-		// TODO: Return partition tokens
-		throw new RpcException(new Status(StatusCode.Unimplemented, "PartitionRead is not yet implemented."));
+		ValidateSession(request.Session);
+
+		var response = new PartitionResponse();
+		response.Partitions.Add(new Partition
+		{
+			PartitionToken = Google.Protobuf.ByteString.CopyFromUtf8("partition-0")
+		});
+		return Task.FromResult(response);
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.BatchWrite
+	//   "Batches the supplied mutation groups in a collection of efficient transactions."
+	//   "Each mutation group is applied atomically. The mutation groups may be applied out of order."
 	public override async Task BatchWrite(BatchWriteRequest request, Grpc.Core.IServerStreamWriter<BatchWriteResponse> responseStream, ServerCallContext context)
 	{
 		LogRequest(nameof(BatchWrite), request);
 		CheckFault(nameof(BatchWrite), request);
 
-		// TODO: Write mutation groups
-		throw new RpcException(new Status(StatusCode.Unimplemented, "BatchWrite is not yet implemented."));
+		ValidateSession(request.Session);
+
+		var mutationExecutor = new MutationExecutor(_database);
+
+		for (var i = 0; i < request.MutationGroups.Count; i++)
+		{
+			var group = request.MutationGroups[i];
+			var commitTimestamp = DateTimeOffset.UtcNow;
+
+			var response = new BatchWriteResponse();
+			response.Indexes.Add(i);
+
+			try
+			{
+				mutationExecutor.ApplyMutations(group.Mutations, commitTimestamp);
+				response.Status = new Google.Rpc.Status { Code = (int)Google.Rpc.Code.Ok };
+				response.CommitTimestamp = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(commitTimestamp);
+			}
+			catch (Exception ex)
+			{
+				response.Status = new Google.Rpc.Status
+				{
+					Code = (int)Google.Rpc.Code.InvalidArgument,
+					Message = ex.Message
+				};
+			}
+
+			await responseStream.WriteAsync(response);
+		}
 	}
 
 	private void ValidateSession(string sessionName)

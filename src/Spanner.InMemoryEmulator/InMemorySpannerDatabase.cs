@@ -180,14 +180,14 @@ public class InMemorySpannerDatabase : IDisposable
 	public string ExportState()
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
-		throw new NotImplementedException("State export is not yet implemented.");
+		return StatePersistence.Export(_schema);
 	}
 
 	/// <summary>Imports database state (schema + data) from JSON. Replaces all existing state.</summary>
 	public void ImportState(string json)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
-		throw new NotImplementedException("State import is not yet implemented.");
+		StatePersistence.Import(json, _schema);
 	}
 
 	/// <summary>Exports the database state to a file.</summary>

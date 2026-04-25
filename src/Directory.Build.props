@@ -5,7 +5,7 @@
 	<!-- Shared NuGet package metadata for all source (packable) projects -->
 	<PropertyGroup>
 		<IsPackable>true</IsPackable>
-		<Version>0.1.1</Version>
+		<Version>0.1.2</Version>
 		<Authors>lemonlion</Authors>
 		<Copyright>Copyright (c) 2026 Aryeh Citron</Copyright>
 		<Description>In-process fake for Google Cloud Spanner .NET SDK</Description>
@@ -15,6 +15,7 @@
 		<RepositoryType>git</RepositoryType>
 		<PackageTags>spanner;google-cloud;testing;emulator;fake;in-memory</PackageTags>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<NoWarn>$(NoWarn);CS1591</NoWarn>
 	</PropertyGroup>
 
 	<!-- Source Link: let consumers step into our source while debugging -->

@@ -10,25 +10,19 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 /// Each test uses a dummy table with one row to satisfy the FROM clause requirement.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public class FunctionIntegrationTests
+public class FunctionIntegrationTests : IntegrationTestBase
 {
-	private readonly ITestDatabaseFixture _fixture;
-	private bool _initialized;
+private bool _initialized;
 
-	public FunctionIntegrationTests(EmulatorSession session)
-	{
-		_fixture = TestFixtureFactory.Create(session);
-		EnsureTable();
-	}
+public FunctionIntegrationTests(EmulatorSession session) : base(session) { }
 
-	private void EnsureTable()
+	private async Task EnsureTableAsync()
 	{
 		if (_initialized) return;
-		var db = _fixture.Database!;
 		try
 		{
-			db.ExecuteDdl("CREATE TABLE FnDummy (Id INT64 NOT NULL) PRIMARY KEY (Id)");
-			db.Insert("FnDummy", new Dictionary<string, object?> { ["Id"] = 1L });
+			await ExecuteDdlAsync("CREATE TABLE FnDummy (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+			await InsertAsync("FnDummy", new Dictionary<string, object?> { ["Id"] = 1L });
 		}
 		catch { /* table may already exist from another test run */ }
 		_initialized = true;
@@ -36,7 +30,8 @@ public class FunctionIntegrationTests
 
 	private async Task<object?> ScalarAsync(string selectExpr)
 	{
-		using var conn = _fixture.CreateConnection();
+		await EnsureTableAsync();
+		using var conn = Fixture.CreateConnection();
 		using var cmd = conn.CreateSelectCommand($"SELECT {selectExpr} AS R FROM FnDummy WHERE Id=1");
 		using var reader = await cmd.ExecuteReaderAsync();
 		await reader.ReadAsync();

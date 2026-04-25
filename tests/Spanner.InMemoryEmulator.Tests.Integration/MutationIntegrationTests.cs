@@ -10,19 +10,14 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 /// SpannerConnection → gRPC → FakeSpannerService → Commit → MutationExecutor
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public class MutationIntegrationTests
+public class MutationIntegrationTests : IntegrationTestBase
 {
-	private readonly ITestDatabaseFixture _fixture;
+public MutationIntegrationTests(EmulatorSession session) : base(session) { }
 
-	public MutationIntegrationTests(EmulatorSession session)
-	{
-		_fixture = TestFixtureFactory.Create(session);
-	}
-
-	private string CreateTable(string suffix)
+	private async Task<string> CreateTable(string suffix)
 	{
 		var table = $"M_{suffix}";
-		_fixture.Database!.ExecuteDdl(
+		await ExecuteDdlAsync(
 			$"CREATE TABLE {table} (SingerId INT64 NOT NULL, Name STRING(MAX), Age INT64) PRIMARY KEY (SingerId)");
 		return table;
 	}
@@ -33,9 +28,9 @@ public class MutationIntegrationTests
 	[Trait(TestTraits.Category, "Mutation")]
 	public async Task InsertCommand_InsertsRow()
 	{
-		var table = CreateTable("Insert");
+		var table = await CreateTable("Insert");
 
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		using var cmd = connection.CreateInsertCommand(table);
 		cmd.Parameters.Add("SingerId", SpannerDbType.Int64, 1L);
 		cmd.Parameters.Add("Name", SpannerDbType.String, "Alice");
@@ -44,7 +39,7 @@ public class MutationIntegrationTests
 		var rowsAffected = await cmd.ExecuteNonQueryAsync();
 
 		// Verify the row was inserted
-		var rows = _fixture.Database!.ExecuteQuery($"SELECT Name, Age FROM {table} WHERE SingerId = 1");
+		var rows = await QueryAsync($"SELECT Name, Age FROM {table} WHERE SingerId = 1");
 		rows.Should().HaveCount(1);
 		rows[0]["Name"].Should().Be("Alice");
 	}
@@ -53,10 +48,10 @@ public class MutationIntegrationTests
 	[Trait(TestTraits.Category, "Mutation")]
 	public async Task InsertDuplicateKey_ThrowsException()
 	{
-		var table = CreateTable("InsertDup");
-		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["SingerId"] = 1L, ["Name"] = "Alice" });
+		var table = await CreateTable("InsertDup");
+		await InsertAsync(table, new Dictionary<string, object?> { ["SingerId"] = 1L, ["Name"] = "Alice" });
 
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		using var cmd = connection.CreateInsertCommand(table);
 		cmd.Parameters.Add("SingerId", SpannerDbType.Int64, 1L);
 		cmd.Parameters.Add("Name", SpannerDbType.String, "Bob");
@@ -71,17 +66,17 @@ public class MutationIntegrationTests
 	[Trait(TestTraits.Category, "Mutation")]
 	public async Task UpdateCommand_UpdatesExistingRow()
 	{
-		var table = CreateTable("Update");
-		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["SingerId"] = 1L, ["Name"] = "Alice", ["Age"] = 30L });
+		var table = await CreateTable("Update");
+		await InsertAsync(table, new Dictionary<string, object?> { ["SingerId"] = 1L, ["Name"] = "Alice", ["Age"] = 30L });
 
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		using var cmd = connection.CreateUpdateCommand(table);
 		cmd.Parameters.Add("SingerId", SpannerDbType.Int64, 1L);
 		cmd.Parameters.Add("Name", SpannerDbType.String, "Updated Alice");
 
 		await cmd.ExecuteNonQueryAsync();
 
-		var rows = _fixture.Database!.ExecuteQuery($"SELECT Name FROM {table} WHERE SingerId = 1");
+		var rows = await QueryAsync($"SELECT Name FROM {table} WHERE SingerId = 1");
 		rows[0]["Name"].Should().Be("Updated Alice");
 	}
 
@@ -91,16 +86,16 @@ public class MutationIntegrationTests
 	[Trait(TestTraits.Category, "Mutation")]
 	public async Task DeleteCommand_RemovesRow()
 	{
-		var table = CreateTable("Delete");
-		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["SingerId"] = 1L, ["Name"] = "Alice" });
+		var table = await CreateTable("Delete");
+		await InsertAsync(table, new Dictionary<string, object?> { ["SingerId"] = 1L, ["Name"] = "Alice" });
 
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		using var cmd = connection.CreateDeleteCommand(table);
 		cmd.Parameters.Add("SingerId", SpannerDbType.Int64, 1L);
 
 		await cmd.ExecuteNonQueryAsync();
 
-		var rows = _fixture.Database!.ExecuteQuery($"SELECT * FROM {table}");
+		var rows = await QueryAsync($"SELECT * FROM {table}");
 		rows.Should().BeEmpty();
 	}
 
@@ -110,9 +105,9 @@ public class MutationIntegrationTests
 	[Trait(TestTraits.Category, "Mutation")]
 	public async Task InsertOrUpdateCommand_InsertsNewRow()
 	{
-		var table = CreateTable("Upsert1");
+		var table = await CreateTable("Upsert1");
 
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		using var cmd = connection.CreateInsertOrUpdateCommand(table);
 		cmd.Parameters.Add("SingerId", SpannerDbType.Int64, 1L);
 		cmd.Parameters.Add("Name", SpannerDbType.String, "Alice");
@@ -120,7 +115,7 @@ public class MutationIntegrationTests
 
 		await cmd.ExecuteNonQueryAsync();
 
-		var rows = _fixture.Database!.ExecuteQuery($"SELECT Name FROM {table} WHERE SingerId = 1");
+		var rows = await QueryAsync($"SELECT Name FROM {table} WHERE SingerId = 1");
 		rows.Should().HaveCount(1);
 		rows[0]["Name"].Should().Be("Alice");
 	}
@@ -129,17 +124,17 @@ public class MutationIntegrationTests
 	[Trait(TestTraits.Category, "Mutation")]
 	public async Task InsertOrUpdateCommand_UpdatesExistingRow()
 	{
-		var table = CreateTable("Upsert2");
-		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["SingerId"] = 1L, ["Name"] = "Alice", ["Age"] = 30L });
+		var table = await CreateTable("Upsert2");
+		await InsertAsync(table, new Dictionary<string, object?> { ["SingerId"] = 1L, ["Name"] = "Alice", ["Age"] = 30L });
 
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		using var cmd = connection.CreateInsertOrUpdateCommand(table);
 		cmd.Parameters.Add("SingerId", SpannerDbType.Int64, 1L);
 		cmd.Parameters.Add("Name", SpannerDbType.String, "Bob");
 
 		await cmd.ExecuteNonQueryAsync();
 
-		var rows = _fixture.Database!.ExecuteQuery($"SELECT Name FROM {table} WHERE SingerId = 1");
+		var rows = await QueryAsync($"SELECT Name FROM {table} WHERE SingerId = 1");
 		rows[0]["Name"].Should().Be("Bob");
 	}
 
@@ -149,10 +144,10 @@ public class MutationIntegrationTests
 	[Trait(TestTraits.Category, "Mutation")]
 	public async Task InsertThenQuery_EndToEndPipeline()
 	{
-		var table = CreateTable("E2E");
+		var table = await CreateTable("E2E");
 
 		// Insert via SDK mutation
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		using var insertCmd = connection.CreateInsertCommand(table);
 		insertCmd.Parameters.Add("SingerId", SpannerDbType.Int64, 1L);
 		insertCmd.Parameters.Add("Name", SpannerDbType.String, "Alice");

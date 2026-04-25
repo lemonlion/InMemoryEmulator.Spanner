@@ -9,32 +9,26 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 /// Tests flow through the full gRPC pipeline: SpannerConnection → gRPC → FakeSpannerService.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public class WindowAndUnnestIntegrationTests
+public class WindowAndUnnestIntegrationTests : IntegrationTestBase
 {
-	private readonly ITestDatabaseFixture _fixture;
-	private bool _initialized;
+private bool _initialized;
 
-	public WindowAndUnnestIntegrationTests(EmulatorSession session)
-	{
-		_fixture = TestFixtureFactory.Create(session);
-		EnsureTable();
-	}
+public WindowAndUnnestIntegrationTests(EmulatorSession session) : base(session) { }
 
-	private void EnsureTable()
+	private async Task EnsureTableAsync()
 	{
 		if (_initialized) return;
-		var db = _fixture.Database!;
 		try
 		{
-			db.ExecuteDdl("CREATE TABLE WinEmp (Id INT64 NOT NULL, Name STRING(MAX), Dept STRING(MAX), Salary INT64) PRIMARY KEY (Id)");
-			db.Insert("WinEmp", new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Dept"] = "Eng", ["Salary"] = 100000L });
-			db.Insert("WinEmp", new Dictionary<string, object?> { ["Id"] = 2L, ["Name"] = "Bob", ["Dept"] = "Eng", ["Salary"] = 90000L });
-			db.Insert("WinEmp", new Dictionary<string, object?> { ["Id"] = 3L, ["Name"] = "Charlie", ["Dept"] = "Sales", ["Salary"] = 80000L });
-			db.Insert("WinEmp", new Dictionary<string, object?> { ["Id"] = 4L, ["Name"] = "Diana", ["Dept"] = "Sales", ["Salary"] = 80000L });
-			db.Insert("WinEmp", new Dictionary<string, object?> { ["Id"] = 5L, ["Name"] = "Eve", ["Dept"] = "Eng", ["Salary"] = 110000L });
+			await ExecuteDdlAsync("CREATE TABLE WinEmp (Id INT64 NOT NULL, Name STRING(MAX), Dept STRING(MAX), Salary INT64) PRIMARY KEY (Id)");
+			await InsertAsync("WinEmp", new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Dept"] = "Eng", ["Salary"] = 100000L });
+			await InsertAsync("WinEmp", new Dictionary<string, object?> { ["Id"] = 2L, ["Name"] = "Bob", ["Dept"] = "Eng", ["Salary"] = 90000L });
+			await InsertAsync("WinEmp", new Dictionary<string, object?> { ["Id"] = 3L, ["Name"] = "Charlie", ["Dept"] = "Sales", ["Salary"] = 80000L });
+			await InsertAsync("WinEmp", new Dictionary<string, object?> { ["Id"] = 4L, ["Name"] = "Diana", ["Dept"] = "Sales", ["Salary"] = 80000L });
+			await InsertAsync("WinEmp", new Dictionary<string, object?> { ["Id"] = 5L, ["Name"] = "Eve", ["Dept"] = "Eng", ["Salary"] = 110000L });
 
-			db.ExecuteDdl("CREATE TABLE WinDummy (Id INT64 NOT NULL) PRIMARY KEY (Id)");
-			db.Insert("WinDummy", new Dictionary<string, object?> { ["Id"] = 1L });
+			await ExecuteDdlAsync("CREATE TABLE WinDummy (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+			await InsertAsync("WinDummy", new Dictionary<string, object?> { ["Id"] = 1L });
 		}
 		catch { /* table may already exist */ }
 		_initialized = true;
@@ -42,7 +36,8 @@ public class WindowAndUnnestIntegrationTests
 
 	private async Task<List<Dictionary<string, object?>>> QueryAsync(string sql)
 	{
-		using var conn = _fixture.CreateConnection();
+		await EnsureTableAsync();
+		using var conn = Fixture.CreateConnection();
 		using var cmd = conn.CreateSelectCommand(sql);
 		using var reader = await cmd.ExecuteReaderAsync();
 		var rows = new List<Dictionary<string, object?>>();

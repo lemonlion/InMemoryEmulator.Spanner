@@ -10,28 +10,22 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 /// Tests flow through the full gRPC pipeline: SpannerConnection → gRPC → FakeSpannerService.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public class ConstraintIntegrationTests
+public class ConstraintIntegrationTests : IntegrationTestBase
 {
-	private readonly ITestDatabaseFixture _fixture;
-
-	public ConstraintIntegrationTests(EmulatorSession session)
-	{
-		_fixture = TestFixtureFactory.Create(session);
-	}
+public ConstraintIntegrationTests(EmulatorSession session) : base(session) { }
 
 	// ─── UNIQUE INDEX ───
 
 	[Fact]
 	public async Task UniqueIndex_EnforcedViaSdk()
 	{
-		var db = _fixture.Database!;
-		db.ExecuteDdl(
+		await ExecuteDdlAsync(
 			"CREATE TABLE CI_UniqueT (Id INT64 NOT NULL, Email STRING(MAX)) PRIMARY KEY (Id)");
-		db.ExecuteDdl(
+		await ExecuteDdlAsync(
 			"CREATE UNIQUE INDEX IX_CI_Email ON CI_UniqueT (Email)");
-		db.Insert("CI_UniqueT", new Dictionary<string, object?> { ["Id"] = 1L, ["Email"] = "a@b.com" });
+		await InsertAsync("CI_UniqueT", new Dictionary<string, object?> { ["Id"] = 1L, ["Email"] = "a@b.com" });
 
-		using var conn = _fixture.CreateConnection();
+		using var conn = Fixture.CreateConnection();
 		await conn.OpenAsync();
 
 		var cmd = conn.CreateInsertCommand("CI_UniqueT");
@@ -47,20 +41,22 @@ public class ConstraintIntegrationTests
 	[Fact]
 	public async Task InterleavedCascade_DeletesChildRows_ViaSdk()
 	{
-		var db = _fixture.Database!;
-		db.ExecuteDdl(
+		await ExecuteDdlAsync(
 			"CREATE TABLE CI_Parents (PId INT64 NOT NULL, Name STRING(MAX)) PRIMARY KEY (PId)");
-		db.ExecuteDdl(
+		await ExecuteDdlAsync(
 			"CREATE TABLE CI_Children (PId INT64 NOT NULL, CId INT64 NOT NULL, Val STRING(MAX)) PRIMARY KEY (PId, CId), INTERLEAVE IN PARENT CI_Parents ON DELETE CASCADE");
 
-		db.Insert("CI_Parents", new Dictionary<string, object?> { ["PId"] = 1L, ["Name"] = "P1" });
-		db.Insert("CI_Children", new Dictionary<string, object?> { ["PId"] = 1L, ["CId"] = 10L, ["Val"] = "C1" });
-		db.Insert("CI_Children", new Dictionary<string, object?> { ["PId"] = 1L, ["CId"] = 20L, ["Val"] = "C2" });
+		await InsertAsync("CI_Parents", new Dictionary<string, object?> { ["PId"] = 1L, ["Name"] = "P1" });
+		await InsertAsync("CI_Children", new Dictionary<string, object?> { ["PId"] = 1L, ["CId"] = 10L, ["Val"] = "C1" });
+		await InsertAsync("CI_Children", new Dictionary<string, object?> { ["PId"] = 1L, ["CId"] = 20L, ["Val"] = "C2" });
 
-		db.Delete("CI_Parents", 1L);
-
-		using var conn = _fixture.CreateConnection();
+		// Delete parent through SDK delete command
+		using var conn = Fixture.CreateConnection();
 		await conn.OpenAsync();
+
+		var deleteCmd = conn.CreateDeleteCommand("CI_Parents");
+		deleteCmd.Parameters.Add("PId", SpannerDbType.Int64, 1L);
+		await deleteCmd.ExecuteNonQueryAsync();
 
 		var cmd = conn.CreateSelectCommand("SELECT COUNT(*) FROM CI_Children");
 		var count = (long)(await cmd.ExecuteScalarAsync())!;
@@ -72,11 +68,10 @@ public class ConstraintIntegrationTests
 	[Fact]
 	public async Task CheckConstraint_EnforcedViaSdk()
 	{
-		var db = _fixture.Database!;
-		db.ExecuteDdl(
+		await ExecuteDdlAsync(
 			"CREATE TABLE CI_CheckT (Id INT64 NOT NULL, Age INT64, CONSTRAINT CK_CI_Age CHECK (Age > 0)) PRIMARY KEY (Id)");
 
-		using var conn = _fixture.CreateConnection();
+		using var conn = Fixture.CreateConnection();
 		await conn.OpenAsync();
 
 		var cmd = conn.CreateInsertCommand("CI_CheckT");
@@ -92,14 +87,13 @@ public class ConstraintIntegrationTests
 	[Fact]
 	public async Task ForeignKey_EnforcedViaSdk()
 	{
-		var db = _fixture.Database!;
-		db.ExecuteDdl(
+		await ExecuteDdlAsync(
 			"CREATE TABLE CI_Depts (DeptId INT64 NOT NULL) PRIMARY KEY (DeptId)");
-		db.ExecuteDdl(
+		await ExecuteDdlAsync(
 			"CREATE TABLE CI_Emps (EmpId INT64 NOT NULL, DeptId INT64, CONSTRAINT FK_CI_Dept FOREIGN KEY (DeptId) REFERENCES CI_Depts (DeptId)) PRIMARY KEY (EmpId)");
-		db.Insert("CI_Depts", new Dictionary<string, object?> { ["DeptId"] = 1L });
+		await InsertAsync("CI_Depts", new Dictionary<string, object?> { ["DeptId"] = 1L });
 
-		using var conn = _fixture.CreateConnection();
+		using var conn = Fixture.CreateConnection();
 		await conn.OpenAsync();
 
 		// Valid FK
@@ -122,11 +116,10 @@ public class ConstraintIntegrationTests
 	[Fact]
 	public async Task StringLength_EnforcedViaSdk()
 	{
-		var db = _fixture.Database!;
-		db.ExecuteDdl(
+		await ExecuteDdlAsync(
 			"CREATE TABLE CI_LenT (Id INT64 NOT NULL, Code STRING(5)) PRIMARY KEY (Id)");
 
-		using var conn = _fixture.CreateConnection();
+		using var conn = Fixture.CreateConnection();
 		await conn.OpenAsync();
 
 		var cmd = conn.CreateInsertCommand("CI_LenT");

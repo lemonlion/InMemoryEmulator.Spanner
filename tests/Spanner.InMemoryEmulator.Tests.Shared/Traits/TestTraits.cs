@@ -16,4 +16,8 @@ public static class TestTraits
 
 	/// <summary>Trait value: test only runs against Docker emulator or Cloud Spanner.</summary>
 	public const string EmulatorOnly = "EmulatorOnly";
+
+	/// <summary>Trait value: test only runs against real GCP Spanner (not Docker emulator).
+	/// Used for features the Go emulator doesn't support correctly.</summary>
+	public const string GcpOnly = "GcpOnly";
 }

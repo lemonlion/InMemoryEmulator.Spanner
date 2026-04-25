@@ -8,24 +8,18 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 /// Integration tests for Phase 13: INFORMATION_SCHEMA, Views, Sequences.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public class SchemaIntrospectionIntegrationTests
+public class SchemaIntrospectionIntegrationTests : IntegrationTestBase
 {
-	private readonly ITestDatabaseFixture _fixture;
-
-	public SchemaIntrospectionIntegrationTests(EmulatorSession session)
-	{
-		_fixture = TestFixtureFactory.Create(session);
-	}
+public SchemaIntrospectionIntegrationTests(EmulatorSession session) : base(session) { }
 
 	// ─── INFORMATION_SCHEMA.TABLES ───
 
 	[Fact]
 	public async Task InformationSchema_Tables_ReturnsTables()
 	{
-		var db = _fixture.Database!;
-		db.ExecuteDdl("CREATE TABLE IS_TestT (Id INT64 NOT NULL, Name STRING(MAX)) PRIMARY KEY (Id)");
+		await ExecuteDdlAsync("CREATE TABLE IS_TestT (Id INT64 NOT NULL, Name STRING(MAX)) PRIMARY KEY (Id)");
 
-		using var conn = _fixture.CreateConnection();
+		using var conn = Fixture.CreateConnection();
 		using var cmd = conn.CreateSelectCommand(
 			"SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'IS_TestT'");
 		using var reader = await cmd.ExecuteReaderAsync();
@@ -38,10 +32,9 @@ public class SchemaIntrospectionIntegrationTests
 	[Fact]
 	public async Task InformationSchema_Columns_ReturnsColumnMetadata()
 	{
-		var db = _fixture.Database!;
-		db.ExecuteDdl("CREATE TABLE IS_ColT (Id INT64 NOT NULL, Val STRING(100)) PRIMARY KEY (Id)");
+		await ExecuteDdlAsync("CREATE TABLE IS_ColT (Id INT64 NOT NULL, Val STRING(100)) PRIMARY KEY (Id)");
 
-		using var conn = _fixture.CreateConnection();
+		using var conn = Fixture.CreateConnection();
 		using var cmd = conn.CreateSelectCommand(
 			"SELECT COLUMN_NAME, SPANNER_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'IS_ColT' AND COLUMN_NAME = 'Val'");
 		using var reader = await cmd.ExecuteReaderAsync();
@@ -55,10 +48,9 @@ public class SchemaIntrospectionIntegrationTests
 	[Fact]
 	public async Task InformationSchema_Indexes_ShowsPrimaryKey()
 	{
-		var db = _fixture.Database!;
-		db.ExecuteDdl("CREATE TABLE IS_IdxT (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+		await ExecuteDdlAsync("CREATE TABLE IS_IdxT (Id INT64 NOT NULL) PRIMARY KEY (Id)");
 
-		using var conn = _fixture.CreateConnection();
+		using var conn = Fixture.CreateConnection();
 		using var cmd = conn.CreateSelectCommand(
 			"SELECT INDEX_NAME FROM INFORMATION_SCHEMA.INDEXES WHERE TABLE_NAME = 'IS_IdxT' AND INDEX_NAME = 'PRIMARY_KEY'");
 		using var reader = await cmd.ExecuteReaderAsync();
@@ -71,13 +63,12 @@ public class SchemaIntrospectionIntegrationTests
 	[Fact]
 	public async Task View_QueryViaSdk()
 	{
-		var db = _fixture.Database!;
-		db.ExecuteDdl("CREATE TABLE IS_ViewT (Id INT64 NOT NULL, Name STRING(MAX)) PRIMARY KEY (Id)");
-		db.Insert("IS_ViewT", new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice" });
-		db.Insert("IS_ViewT", new Dictionary<string, object?> { ["Id"] = 2L, ["Name"] = "Bob" });
-		db.ExecuteDdl("CREATE VIEW IS_ViewV SQL SECURITY INVOKER AS SELECT Name FROM IS_ViewT WHERE Id = 1");
+		await ExecuteDdlAsync("CREATE TABLE IS_ViewT (Id INT64 NOT NULL, Name STRING(MAX)) PRIMARY KEY (Id)");
+		await InsertAsync("IS_ViewT", new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice" });
+		await InsertAsync("IS_ViewT", new Dictionary<string, object?> { ["Id"] = 2L, ["Name"] = "Bob" });
+		await ExecuteDdlAsync("CREATE VIEW IS_ViewV SQL SECURITY INVOKER AS SELECT Name FROM IS_ViewT WHERE Id = 1");
 
-		using var conn = _fixture.CreateConnection();
+		using var conn = Fixture.CreateConnection();
 		using var cmd = conn.CreateSelectCommand("SELECT Name FROM IS_ViewV");
 		using var reader = await cmd.ExecuteReaderAsync();
 		(await reader.ReadAsync()).Should().BeTrue();
@@ -90,12 +81,11 @@ public class SchemaIntrospectionIntegrationTests
 	[Fact]
 	public async Task Sequence_GetNextValueViaSdk()
 	{
-		var db = _fixture.Database!;
-		db.ExecuteDdl("CREATE TABLE IS_SeqT (Id INT64 NOT NULL) PRIMARY KEY (Id)");
-		db.Insert("IS_SeqT", new Dictionary<string, object?> { ["Id"] = 1L });
-		db.ExecuteDdl("CREATE SEQUENCE IS_TestSeq OPTIONS (sequence_kind='bit_reversed_positive')");
+		await ExecuteDdlAsync("CREATE TABLE IS_SeqT (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+		await InsertAsync("IS_SeqT", new Dictionary<string, object?> { ["Id"] = 1L });
+		await ExecuteDdlAsync("CREATE SEQUENCE IS_TestSeq OPTIONS (sequence_kind='bit_reversed_positive')");
 
-		using var conn = _fixture.CreateConnection();
+		using var conn = Fixture.CreateConnection();
 		using var cmd = conn.CreateSelectCommand(
 			"SELECT GET_NEXT_SEQUENCE_VALUE(SEQUENCE IS_TestSeq) FROM IS_SeqT WHERE Id=1");
 		var result = (long)(await cmd.ExecuteScalarAsync())!;

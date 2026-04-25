@@ -11,19 +11,14 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 /// and the RunInTransactionAsync retry pattern.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public class TransactionIntegrationTests
+public class TransactionIntegrationTests : IntegrationTestBase
 {
-	private readonly ITestDatabaseFixture _fixture;
+public TransactionIntegrationTests(EmulatorSession session) : base(session) { }
 
-	public TransactionIntegrationTests(EmulatorSession session)
-	{
-		_fixture = TestFixtureFactory.Create(session);
-	}
-
-	private string CreateTable(string suffix)
+	private async Task<string> CreateTable(string suffix)
 	{
 		var table = $"T_{suffix}";
-		_fixture.Database!.ExecuteDdl(
+		await ExecuteDdlAsync(
 			$"CREATE TABLE {table} (Id INT64 NOT NULL, Name STRING(MAX), Value INT64) PRIMARY KEY (Id)");
 		return table;
 	}
@@ -34,10 +29,10 @@ public class TransactionIntegrationTests
 	[Trait(TestTraits.Category, "Transaction")]
 	public async Task RunInTransactionAsync_CommitsSuccessfully()
 	{
-		var table = CreateTable("Commit");
-		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Value"] = 100L });
+		var table = await CreateTable("Commit");
+		await InsertAsync(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Value"] = 100L });
 
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		await connection.OpenAsync();
 
 		await connection.RunWithRetriableTransactionAsync(async transaction =>
@@ -48,7 +43,7 @@ public class TransactionIntegrationTests
 		});
 
 		// Verify the update was committed
-		var rows = _fixture.Database!.ExecuteQuery($"SELECT Value FROM {table} WHERE Id = 1");
+		var rows = await QueryAsync($"SELECT Value FROM {table} WHERE Id = 1");
 		Convert.ToInt64(rows[0]["Value"]).Should().Be(200L);
 	}
 
@@ -58,9 +53,9 @@ public class TransactionIntegrationTests
 	[Trait(TestTraits.Category, "Transaction")]
 	public async Task DmlInsert_WithinTransaction_Succeeds()
 	{
-		var table = CreateTable("DmlIns");
+		var table = await CreateTable("DmlIns");
 
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		await connection.OpenAsync();
 
 		await connection.RunWithRetriableTransactionAsync(async transaction =>
@@ -70,7 +65,7 @@ public class TransactionIntegrationTests
 			await cmd.ExecuteNonQueryAsync();
 		});
 
-		var rows = _fixture.Database!.ExecuteQuery($"SELECT Name FROM {table} WHERE Id = 1");
+		var rows = await QueryAsync($"SELECT Name FROM {table} WHERE Id = 1");
 		rows.Should().HaveCount(1);
 		rows[0]["Name"].Should().Be("Alice");
 	}
@@ -79,10 +74,10 @@ public class TransactionIntegrationTests
 	[Trait(TestTraits.Category, "Transaction")]
 	public async Task DmlUpdate_WithinTransaction_Succeeds()
 	{
-		var table = CreateTable("DmlUpd");
-		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Value"] = 100L });
+		var table = await CreateTable("DmlUpd");
+		await InsertAsync(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Value"] = 100L });
 
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		await connection.OpenAsync();
 
 		await connection.RunWithRetriableTransactionAsync(async transaction =>
@@ -92,7 +87,7 @@ public class TransactionIntegrationTests
 			await cmd.ExecuteNonQueryAsync();
 		});
 
-		var rows = _fixture.Database!.ExecuteQuery($"SELECT Name FROM {table} WHERE Id = 1");
+		var rows = await QueryAsync($"SELECT Name FROM {table} WHERE Id = 1");
 		rows[0]["Name"].Should().Be("Bob");
 	}
 
@@ -100,10 +95,10 @@ public class TransactionIntegrationTests
 	[Trait(TestTraits.Category, "Transaction")]
 	public async Task DmlDelete_WithinTransaction_Succeeds()
 	{
-		var table = CreateTable("DmlDel");
-		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice" });
+		var table = await CreateTable("DmlDel");
+		await InsertAsync(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice" });
 
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		await connection.OpenAsync();
 
 		await connection.RunWithRetriableTransactionAsync(async transaction =>
@@ -113,7 +108,7 @@ public class TransactionIntegrationTests
 			await cmd.ExecuteNonQueryAsync();
 		});
 
-		var rows = _fixture.Database!.ExecuteQuery($"SELECT * FROM {table}");
+		var rows = await QueryAsync($"SELECT * FROM {table}");
 		rows.Should().BeEmpty();
 	}
 
@@ -123,9 +118,9 @@ public class TransactionIntegrationTests
 	[Trait(TestTraits.Category, "Transaction")]
 	public async Task MutationInsert_WithinTransaction_CommitsOnSuccess()
 	{
-		var table = CreateTable("MutTxn");
+		var table = await CreateTable("MutTxn");
 
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		await connection.OpenAsync();
 
 		await connection.RunWithRetriableTransactionAsync(async transaction =>
@@ -138,7 +133,7 @@ public class TransactionIntegrationTests
 			await cmd.ExecuteNonQueryAsync();
 		});
 
-		var rows = _fixture.Database!.ExecuteQuery($"SELECT Name FROM {table} WHERE Id = 1");
+		var rows = await QueryAsync($"SELECT Name FROM {table} WHERE Id = 1");
 		rows.Should().HaveCount(1);
 		rows[0]["Name"].Should().Be("Alice");
 	}
@@ -149,10 +144,10 @@ public class TransactionIntegrationTests
 	[Trait(TestTraits.Category, "Transaction")]
 	public async Task SelectWithinTransaction_ReadsData()
 	{
-		var table = CreateTable("SelTxn");
-		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Value"] = 100L });
+		var table = await CreateTable("SelTxn");
+		await InsertAsync(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Value"] = 100L });
 
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		await connection.OpenAsync();
 
 		string? name = null;
@@ -176,11 +171,11 @@ public class TransactionIntegrationTests
 	[Trait(TestTraits.Category, "Transaction")]
 	public async Task DmlReturnsRowCount()
 	{
-		var table = CreateTable("DmlCnt");
-		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Value"] = 100L });
-		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["Id"] = 2L, ["Name"] = "Bob", ["Value"] = 200L });
+		var table = await CreateTable("DmlCnt");
+		await InsertAsync(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Value"] = 100L });
+		await InsertAsync(table, new Dictionary<string, object?> { ["Id"] = 2L, ["Name"] = "Bob", ["Value"] = 200L });
 
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		await connection.OpenAsync();
 
 		long rowCount = 0;

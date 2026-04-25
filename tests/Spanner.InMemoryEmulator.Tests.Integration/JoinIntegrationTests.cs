@@ -10,29 +10,23 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 /// SpannerConnection → gRPC → FakeSpannerService → SqlEngine → QueryExecutor
 /// </summary>
 [Collection(IntegrationCollection.Name)]
-public class JoinIntegrationTests
+public class JoinIntegrationTests : IntegrationTestBase
 {
-	private readonly ITestDatabaseFixture _fixture;
+public JoinIntegrationTests(EmulatorSession session) : base(session) { }
 
-	public JoinIntegrationTests(EmulatorSession session)
+	private async Task SetupSingersAndAlbums(string prefix)
 	{
-		_fixture = TestFixtureFactory.Create(session);
-	}
-
-	private void SetupSingersAndAlbums(string prefix)
-	{
-		var db = _fixture.Database!;
-		db.ExecuteDdl(
+		await ExecuteDdlAsync(
 			$"CREATE TABLE {prefix}_Singers (SingerId INT64 NOT NULL, Name STRING(MAX)) PRIMARY KEY (SingerId)",
 			$"CREATE TABLE {prefix}_Albums (AlbumId INT64 NOT NULL, SingerId INT64 NOT NULL, Title STRING(MAX)) PRIMARY KEY (AlbumId)");
 
-		db.Insert($"{prefix}_Singers", new Dictionary<string, object?> { ["SingerId"] = 1L, ["Name"] = "Alice" });
-		db.Insert($"{prefix}_Singers", new Dictionary<string, object?> { ["SingerId"] = 2L, ["Name"] = "Bob" });
-		db.Insert($"{prefix}_Singers", new Dictionary<string, object?> { ["SingerId"] = 3L, ["Name"] = "Charlie" });
+		await InsertAsync($"{prefix}_Singers", new Dictionary<string, object?> { ["SingerId"] = 1L, ["Name"] = "Alice" });
+		await InsertAsync($"{prefix}_Singers", new Dictionary<string, object?> { ["SingerId"] = 2L, ["Name"] = "Bob" });
+		await InsertAsync($"{prefix}_Singers", new Dictionary<string, object?> { ["SingerId"] = 3L, ["Name"] = "Charlie" });
 
-		db.Insert($"{prefix}_Albums", new Dictionary<string, object?> { ["AlbumId"] = 10L, ["SingerId"] = 1L, ["Title"] = "Album A" });
-		db.Insert($"{prefix}_Albums", new Dictionary<string, object?> { ["AlbumId"] = 20L, ["SingerId"] = 1L, ["Title"] = "Album B" });
-		db.Insert($"{prefix}_Albums", new Dictionary<string, object?> { ["AlbumId"] = 30L, ["SingerId"] = 2L, ["Title"] = "Album C" });
+		await InsertAsync($"{prefix}_Albums", new Dictionary<string, object?> { ["AlbumId"] = 10L, ["SingerId"] = 1L, ["Title"] = "Album A" });
+		await InsertAsync($"{prefix}_Albums", new Dictionary<string, object?> { ["AlbumId"] = 20L, ["SingerId"] = 1L, ["Title"] = "Album B" });
+		await InsertAsync($"{prefix}_Albums", new Dictionary<string, object?> { ["AlbumId"] = 30L, ["SingerId"] = 2L, ["Title"] = "Album C" });
 	}
 
 	// ─── INNER JOIN ───
@@ -42,9 +36,9 @@ public class JoinIntegrationTests
 	public async Task InnerJoin_ReturnsMatchedRows()
 	{
 		var prefix = "J_Inner";
-		SetupSingersAndAlbums(prefix);
+		await SetupSingersAndAlbums(prefix);
 
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		using var cmd = connection.CreateSelectCommand(
 			$"SELECT s.Name, a.Title FROM {prefix}_Singers s JOIN {prefix}_Albums a ON s.SingerId = a.SingerId ORDER BY a.AlbumId");
 		using var reader = await cmd.ExecuteReaderAsync();
@@ -68,9 +62,9 @@ public class JoinIntegrationTests
 	public async Task LeftJoin_IncludesUnmatchedLeft()
 	{
 		var prefix = "J_Left";
-		SetupSingersAndAlbums(prefix);
+		await SetupSingersAndAlbums(prefix);
 
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		using var cmd = connection.CreateSelectCommand(
 			$"SELECT s.Name, a.Title FROM {prefix}_Singers s LEFT JOIN {prefix}_Albums a ON s.SingerId = a.SingerId ORDER BY s.SingerId, a.AlbumId");
 		using var reader = await cmd.ExecuteReaderAsync();
@@ -95,17 +89,16 @@ public class JoinIntegrationTests
 	public async Task CrossJoin_ReturnsCartesianProduct()
 	{
 		var prefix = "J_Cross";
-		var db = _fixture.Database!;
-		db.ExecuteDdl(
+		await ExecuteDdlAsync(
 			$"CREATE TABLE {prefix}_T1 (Id INT64 NOT NULL) PRIMARY KEY (Id)",
 			$"CREATE TABLE {prefix}_T2 (Id INT64 NOT NULL) PRIMARY KEY (Id)");
-		db.Insert($"{prefix}_T1", new Dictionary<string, object?> { ["Id"] = 1L });
-		db.Insert($"{prefix}_T1", new Dictionary<string, object?> { ["Id"] = 2L });
-		db.Insert($"{prefix}_T2", new Dictionary<string, object?> { ["Id"] = 10L });
-		db.Insert($"{prefix}_T2", new Dictionary<string, object?> { ["Id"] = 20L });
-		db.Insert($"{prefix}_T2", new Dictionary<string, object?> { ["Id"] = 30L });
+		await InsertAsync($"{prefix}_T1", new Dictionary<string, object?> { ["Id"] = 1L });
+		await InsertAsync($"{prefix}_T1", new Dictionary<string, object?> { ["Id"] = 2L });
+		await InsertAsync($"{prefix}_T2", new Dictionary<string, object?> { ["Id"] = 10L });
+		await InsertAsync($"{prefix}_T2", new Dictionary<string, object?> { ["Id"] = 20L });
+		await InsertAsync($"{prefix}_T2", new Dictionary<string, object?> { ["Id"] = 30L });
 
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		using var cmd = connection.CreateSelectCommand(
 			$"SELECT a.Id AS AId, b.Id AS BId FROM {prefix}_T1 a CROSS JOIN {prefix}_T2 b");
 		using var reader = await cmd.ExecuteReaderAsync();
@@ -123,9 +116,9 @@ public class JoinIntegrationTests
 	public async Task Join_WithWhere_Filters()
 	{
 		var prefix = "J_Where";
-		SetupSingersAndAlbums(prefix);
+		await SetupSingersAndAlbums(prefix);
 
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		using var cmd = connection.CreateSelectCommand(
 			$"SELECT s.Name, a.Title FROM {prefix}_Singers s JOIN {prefix}_Albums a ON s.SingerId = a.SingerId WHERE s.Name = 'Alice'");
 		using var reader = await cmd.ExecuteReaderAsync();
@@ -143,9 +136,9 @@ public class JoinIntegrationTests
 	public async Task Join_WithGroupBy_Aggregates()
 	{
 		var prefix = "J_Group";
-		SetupSingersAndAlbums(prefix);
+		await SetupSingersAndAlbums(prefix);
 
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		using var cmd = connection.CreateSelectCommand(
 			$"SELECT s.Name, COUNT(*) AS AlbumCount FROM {prefix}_Singers s JOIN {prefix}_Albums a ON s.SingerId = a.SingerId GROUP BY s.Name ORDER BY s.Name");
 		using var reader = await cmd.ExecuteReaderAsync();
@@ -168,13 +161,12 @@ public class JoinIntegrationTests
 	public async Task SelfJoin_Works()
 	{
 		var prefix = "J_Self";
-		var db = _fixture.Database!;
-		db.ExecuteDdl(
+		await ExecuteDdlAsync(
 			$"CREATE TABLE {prefix}_Employees (Id INT64 NOT NULL, Name STRING(MAX), ManagerId INT64) PRIMARY KEY (Id)");
-		db.Insert($"{prefix}_Employees", new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["ManagerId"] = null });
-		db.Insert($"{prefix}_Employees", new Dictionary<string, object?> { ["Id"] = 2L, ["Name"] = "Bob", ["ManagerId"] = 1L });
+		await InsertAsync($"{prefix}_Employees", new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["ManagerId"] = null });
+		await InsertAsync($"{prefix}_Employees", new Dictionary<string, object?> { ["Id"] = 2L, ["Name"] = "Bob", ["ManagerId"] = 1L });
 
-		using var connection = _fixture.CreateConnection();
+		using var connection = Fixture.CreateConnection();
 		using var cmd = connection.CreateSelectCommand(
 			$"SELECT e.Name AS EmpName, m.Name AS MgrName FROM {prefix}_Employees e JOIN {prefix}_Employees m ON e.ManagerId = m.Id");
 		using var reader = await cmd.ExecuteReaderAsync();

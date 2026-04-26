@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -538,6 +539,7 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("RANGE_BUCKET(-5, [0, 10, 20, 30])", 0L)]
 	[InlineData("RANGE_BUCKET(0, [0, 10, 20, 30])", 1L)]
 	[InlineData("RANGE_BUCKET(10, [0, 10, 20, 30])", 2L)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RangeBucket_ReturnsExpected(string expr, long expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
@@ -684,6 +686,7 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("NULL + 1")]
 	[InlineData("NULL * 5")]
 	[InlineData("NULL - 3")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task NullComparison_ReturnsNull(string expr)
 		=> (await Eval(expr)).Should().BeNull();
 
@@ -1047,6 +1050,7 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Rand_ReturnsBetween0And1()
 	{
 		var result = (double)(await Eval("RAND()"))!;
@@ -1055,6 +1059,7 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Rand_TwoCalls_MayDiffer()
 	{
 		// Two RAND calls in same query — just verify both return valid values

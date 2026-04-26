@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -88,6 +89,7 @@ public class DenseScalarIntegrationTests : IntegrationTestBase
 	[InlineData("SIGN(ABS(-5))", 1L)]
 	[InlineData("GREATEST(ABS(-5), ABS(-3))", 5L)]
 	[InlineData("LEAST(ABS(-5), ABS(-3))", 3L)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task IntegerExpressions(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
@@ -273,6 +275,7 @@ public class DenseScalarIntegrationTests : IntegrationTestBase
 	[InlineData("FORMAT('%s', 'hi')", "hi")]
 	[InlineData("CHR(65)", "A")]
 	[InlineData("CHR(97)", "a")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task StringExpressions(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
@@ -301,6 +304,7 @@ public class DenseScalarIntegrationTests : IntegrationTestBase
 	[InlineData("LENGTH(LPAD('x', 10, 'y'))", 10L)]
 	[InlineData("LENGTH(RPAD('x', 10, 'y'))", 10L)]
 	[InlineData("LENGTH(TRIM('  abc  '))", 3L)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task LongExpressions(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
@@ -416,6 +420,7 @@ public class DenseScalarIntegrationTests : IntegrationTestBase
 	[InlineData("DATE_ADD(CAST(NULL AS DATE), INTERVAL 1 DAY)")]
 	[InlineData("TIMESTAMP_ADD(CAST(NULL AS TIMESTAMP), INTERVAL 1 HOUR)")]
 	[InlineData("UNIX_SECONDS(CAST(NULL AS TIMESTAMP))")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task NullPropagation(string expr) =>
 		(await Eval(expr)).Should().BeNull();
 
@@ -496,6 +501,7 @@ public class DenseScalarIntegrationTests : IntegrationTestBase
 	[InlineData("TO_JSON_STRING(TRUE)", "true")]
 	[InlineData("TO_JSON_STRING(FALSE)", "false")]
 	[InlineData("TO_JSON_STRING('hello')", "\"hello\"")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ToJsonStringExpressions(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 

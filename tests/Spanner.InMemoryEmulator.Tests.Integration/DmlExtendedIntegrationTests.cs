@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -464,6 +465,7 @@ public class DmlExtendedIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Unique_MultipleNulls_Allowed()
 	{
 		await EnsureUniqueTableAsync();

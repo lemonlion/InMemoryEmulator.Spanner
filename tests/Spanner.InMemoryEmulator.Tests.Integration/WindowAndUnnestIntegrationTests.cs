@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -56,6 +57,7 @@ public WindowAndUnnestIntegrationTests(EmulatorSession session) : base(session) 
 	// ─── ROW_NUMBER ───
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RowNumber_WithOrderBy()
 	{
 		var rows = await QueryAsync("SELECT Name, ROW_NUMBER() OVER (ORDER BY Salary DESC) AS rn FROM WinEmp ORDER BY rn");
@@ -65,6 +67,7 @@ public WindowAndUnnestIntegrationTests(EmulatorSession session) : base(session) 
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RowNumber_WithPartitionBy()
 	{
 		var rows = await QueryAsync("SELECT Name, Dept, ROW_NUMBER() OVER (PARTITION BY Dept ORDER BY Salary DESC) AS rn FROM WinEmp ORDER BY Dept, rn");
@@ -76,6 +79,7 @@ public WindowAndUnnestIntegrationTests(EmulatorSession session) : base(session) 
 	// ─── RANK ───
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Rank_WithTies()
 	{
 		var rows = await QueryAsync("SELECT Name, RANK() OVER (ORDER BY Salary DESC) AS rnk FROM WinEmp ORDER BY rnk, Name");
@@ -90,6 +94,7 @@ public WindowAndUnnestIntegrationTests(EmulatorSession session) : base(session) 
 	// ─── DENSE_RANK ───
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task DenseRank_WithTies()
 	{
 		var rows = await QueryAsync("SELECT Name, DENSE_RANK() OVER (ORDER BY Salary DESC) AS drnk FROM WinEmp ORDER BY drnk, Name");
@@ -103,6 +108,7 @@ public WindowAndUnnestIntegrationTests(EmulatorSession session) : base(session) 
 	// ─── Aggregate OVER ───
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Sum_OverPartition()
 	{
 		var rows = await QueryAsync("SELECT Name, SUM(Salary) OVER (PARTITION BY Dept) AS dept_total FROM WinEmp WHERE Dept = 'Eng' ORDER BY Name");
@@ -114,6 +120,7 @@ public WindowAndUnnestIntegrationTests(EmulatorSession session) : base(session) 
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Count_OverPartition()
 	{
 		var rows = await QueryAsync("SELECT Name, COUNT(*) OVER (PARTITION BY Dept) AS dept_count FROM WinEmp WHERE Dept = 'Sales' ORDER BY Name");
@@ -125,6 +132,7 @@ public WindowAndUnnestIntegrationTests(EmulatorSession session) : base(session) 
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Avg_OverPartition()
 	{
 		var rows = await QueryAsync("SELECT Name, AVG(Salary) OVER (PARTITION BY Dept) AS avg_salary FROM WinEmp WHERE Dept = 'Eng' ORDER BY Name");
@@ -137,6 +145,7 @@ public WindowAndUnnestIntegrationTests(EmulatorSession session) : base(session) 
 	// ─── LAG / LEAD ───
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Lag_ReturnsNullForFirstRow()
 	{
 		var rows = await QueryAsync("SELECT Name, LAG(Name) OVER (ORDER BY Id) AS prev_name FROM WinEmp ORDER BY Id");
@@ -145,6 +154,7 @@ public WindowAndUnnestIntegrationTests(EmulatorSession session) : base(session) 
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Lead_ReturnsNullForLastRow()
 	{
 		var rows = await QueryAsync("SELECT Name, LEAD(Name) OVER (ORDER BY Id) AS next_name FROM WinEmp ORDER BY Id");
@@ -155,6 +165,7 @@ public WindowAndUnnestIntegrationTests(EmulatorSession session) : base(session) 
 	// ─── FIRST_VALUE / LAST_VALUE ───
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task FirstValue_ReturnsFirstInPartition()
 	{
 		var rows = await QueryAsync("SELECT Name, FIRST_VALUE(Name) OVER (PARTITION BY Dept ORDER BY Salary DESC) AS top_earner FROM WinEmp WHERE Dept = 'Eng' ORDER BY Id");
@@ -165,6 +176,7 @@ public WindowAndUnnestIntegrationTests(EmulatorSession session) : base(session) 
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task LastValue_ReturnsLastInPartition()
 	{
 		var rows = await QueryAsync("SELECT Name, LAST_VALUE(Name) OVER (PARTITION BY Dept ORDER BY Salary DESC) AS lowest_earner FROM WinEmp WHERE Dept = 'Eng' ORDER BY Id");
@@ -226,6 +238,7 @@ public WindowAndUnnestIntegrationTests(EmulatorSession session) : base(session) 
 	// ─── STRUCT ───
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Struct_Constructor()
 	{
 		// STRUCT constructor should parse and evaluate — result type may be serialized as JSON/string
@@ -237,6 +250,7 @@ public WindowAndUnnestIntegrationTests(EmulatorSession session) : base(session) 
 	// ─── Window function without PARTITION BY ───
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RowNumber_WithoutPartition()
 	{
 		var rows = await QueryAsync("SELECT Name, ROW_NUMBER() OVER (ORDER BY Id) AS rn FROM WinEmp ORDER BY rn");
@@ -250,6 +264,7 @@ public WindowAndUnnestIntegrationTests(EmulatorSession session) : base(session) 
 	// ─── Multiple window functions in same query ───
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task MultipleWindowFunctions_InSameQuery()
 	{
 		var rows = await QueryAsync("SELECT Name, ROW_NUMBER() OVER (ORDER BY Salary DESC) AS rn, RANK() OVER (ORDER BY Salary DESC) AS rnk FROM WinEmp ORDER BY rn");

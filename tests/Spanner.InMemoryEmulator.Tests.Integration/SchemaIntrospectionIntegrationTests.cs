@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -61,6 +62,7 @@ public SchemaIntrospectionIntegrationTests(EmulatorSession session) : base(sessi
 	// ─── VIEWS ───
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task View_QueryViaSdk()
 	{
 		await ExecuteDdlAsync("CREATE TABLE IS_ViewT (Id INT64 NOT NULL, Name STRING(MAX)) PRIMARY KEY (Id)");
@@ -79,6 +81,7 @@ public SchemaIntrospectionIntegrationTests(EmulatorSession session) : base(sessi
 	// ─── SEQUENCES ───
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Sequence_GetNextValueViaSdk()
 	{
 		await ExecuteDdlAsync("CREATE TABLE IS_SeqT (Id INT64 NOT NULL) PRIMARY KEY (Id)");

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -339,6 +340,7 @@ public class ComplexQueryIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Window_RowNumber_WithJoin()
 	{
 		await EnsureTablesAsync();
@@ -352,6 +354,7 @@ public class ComplexQueryIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Window_Rank_DeptSalary()
 	{
 		await EnsureTablesAsync();
@@ -366,6 +369,7 @@ public class ComplexQueryIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Window_RunningTotal()
 	{
 		await EnsureTablesAsync();
@@ -380,6 +384,7 @@ public class ComplexQueryIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Window_DeptAvg_Comparison()
 	{
 		await EnsureTablesAsync();
@@ -497,6 +502,7 @@ public class ComplexQueryIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Complex_SubqueryWithWindow()
 	{
 		await EnsureTablesAsync();
@@ -513,6 +519,7 @@ public class ComplexQueryIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Complex_CteWithWindowAndFilter()
 	{
 		await EnsureTablesAsync();

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -251,6 +252,7 @@ public class CastAndTypeIntegrationTests : IntegrationTestBase
 	[InlineData("TO_JSON_STRING(true)", "true")]
 	[InlineData("TO_JSON_STRING(false)", "false")]
 	[InlineData("TO_JSON_STRING(NULL)", "null")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ToJsonString_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 

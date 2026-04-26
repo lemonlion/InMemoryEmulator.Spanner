@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -77,6 +78,7 @@ public class ArrayFunctionIntegrationTests : IntegrationTestBase
 	[InlineData("ARRAY_TO_STRING(['a', NULL, 'c'], ',', 'N')", "a,N,c")]
 	[InlineData("ARRAY_TO_STRING(['a', NULL, 'c'], ',')", "a,c")]
 	[InlineData("ARRAY_TO_STRING([NULL, NULL], ',', 'X')", "X,X")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArrayToString_WithNulls(string expr, string expected)
 	{
 		(await Eval(expr)).Should().Be(expected);
@@ -104,6 +106,7 @@ public class ArrayFunctionIntegrationTests : IntegrationTestBase
 	[InlineData("ARRAY_TO_STRING(CAST(GENERATE_ARRAY(1, 5) AS ARRAY<STRING>), ',')", "1,2,3,4,5")]
 	[InlineData("ARRAY_TO_STRING(CAST(GENERATE_ARRAY(1, 3) AS ARRAY<STRING>), '-')", "1-2-3")]
 	[InlineData("ARRAY_TO_STRING(CAST(GENERATE_ARRAY(0, 0) AS ARRAY<STRING>), ',')", "0")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task GenerateArray_Content(string expr, string expected)
 	{
 		(await Eval(expr)).Should().Be(expected);

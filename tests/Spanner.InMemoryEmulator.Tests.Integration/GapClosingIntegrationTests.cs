@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -389,6 +390,7 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task MultiRow_WindowRowNumber()
 	{
 		var t = $"WRN_{Guid.NewGuid():N}";
@@ -403,6 +405,7 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task MultiRow_WindowRank()
 	{
 		var t = $"WR_{Guid.NewGuid():N}";
@@ -417,6 +420,7 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task MultiRow_WindowDenseRank()
 	{
 		var t = $"WDR_{Guid.NewGuid():N}";
@@ -431,6 +435,7 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task MultiRow_WindowSumOver()
 	{
 		var t = $"WSO_{Guid.NewGuid():N}";
@@ -468,6 +473,7 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task MultiRow_ExceptDistinct()
 	{
 		var rows = await QueryAsync("SELECT 1 AS V UNION ALL SELECT 2 UNION ALL SELECT 3 EXCEPT DISTINCT SELECT 2 AS V ORDER BY V");

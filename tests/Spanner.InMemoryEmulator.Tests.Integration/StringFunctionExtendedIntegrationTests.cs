@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -39,6 +40,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("CONCAT(' ', ' ')", "  ")]
 	[InlineData("CONCAT('a', 'b', 'c', 'd', 'e', 'f', 'g')", "abcdefg")]
 	[InlineData("CONCAT('line1\\n', 'line2')", "line1\\nline2")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Concat_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
@@ -134,6 +136,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("TRIM('  hello world  ')", "hello world")]
 	[InlineData("TRIM(' x ')", "x")]
 	[InlineData("TRIM('  multiple  words  ')", "multiple  words")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Trim_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
@@ -416,6 +419,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("LEFT('', 3)", "")]
 	[InlineData("LEFT('a', 1)", "a")]
 	[InlineData("LEFT('abcdef', 4)", "abcd")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Left_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
@@ -428,12 +432,15 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("RIGHT('', 3)", "")]
 	[InlineData("RIGHT('a', 1)", "a")]
 	[InlineData("RIGHT('abcdef', 4)", "cdef")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Right_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Left_Null_ReturnsNull() => (await Eval("LEFT(NULL, 3)")).Should().BeNull();
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Right_Null_ReturnsNull() => (await Eval("RIGHT(NULL, 3)")).Should().BeNull();
 
 	// ═══════════════════════════════════════════════════════════════
@@ -450,10 +457,12 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("INITCAP('hello-world')", "Hello-World")]
 	[InlineData("INITCAP('one two three')", "One Two Three")]
 	[InlineData("INITCAP('already Capitalized')", "Already Capitalized")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Initcap_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Initcap_Null_ReturnsNull()
 		=> (await Eval("INITCAP(NULL)")).Should().BeNull();
 
@@ -572,6 +581,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("ASCII('Z')", 90L)]
 	[InlineData("ASCII('z')", 122L)]
 	[InlineData("ASCII('!')", 33L)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Ascii_ReturnsExpected(string expr, long expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
@@ -588,6 +598,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("CHR(90)", "Z")]
 	[InlineData("CHR(122)", "z")]
 	[InlineData("CHR(33)", "!")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Chr_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
@@ -630,6 +641,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("INSTR('hello', 'hello')", 1L)]
 	[InlineData("INSTR('abcabc', 'abc')", 1L)]
 	[InlineData("INSTR('', 'a')", 0L)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Instr_ReturnsExpected(string expr, long expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
@@ -661,6 +673,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("CONTAINS_SUBSTR('Hello World', 'hello')", true)]
 	[InlineData("CONTAINS_SUBSTR('ABC', 'abc')", true)]
 	[InlineData("CONTAINS_SUBSTR('abc', 'ABC')", true)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ContainsSubstr_ReturnsExpected(string expr, bool expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
@@ -673,6 +686,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("TRANSLATE('abc', 'abc', 'xyz')", "xyz")]
 	[InlineData("TRANSLATE('hello', '', '')", "hello")]
 	[InlineData("TRANSLATE('', 'a', 'b')", "")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Translate_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
@@ -696,6 +710,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("NULL || 'a'")]
 	[InlineData("'a' || NULL")]
 	[InlineData("NULL || NULL")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task StringConcat_Operator_Null_ReturnsNull(string expr)
 		=> (await Eval(expr)).Should().BeNull();
 
@@ -718,6 +733,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("CONCAT(LEFT('hello', 2), RIGHT('world', 3))", "herld")]
 	[InlineData("SUBSTR(CONCAT('abc', 'def'), 2, 4)", "bcde")]
 	[InlineData("REPLACE(UPPER('hello'), 'LL', 'rr')", "HErrO")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task NestedStringFunctions_ReturnsExpected(string expr, object expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
@@ -750,6 +766,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("LENGTH(NULL)")]
 	[InlineData("BYTE_LENGTH(NULL)")]
 	[InlineData("CONCAT(NULL, 'a')")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task StringFunction_NullPropagation(string expr)
 		=> (await Eval(expr)).Should().BeNull();
 

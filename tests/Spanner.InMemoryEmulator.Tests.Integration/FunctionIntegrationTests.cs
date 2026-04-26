@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -80,10 +81,13 @@ public FunctionIntegrationTests(EmulatorSession session) : base(session) { }
 
 	[Fact] public async Task RegexpReplace() => (await ScalarAsync("REGEXP_REPLACE('abc123', '[0-9]+', 'X')")).Should().Be("abcX");
 
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	[Fact] public async Task Left() => (await ScalarAsync("LEFT('hello', 3)")).Should().Be("hel");
 
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	[Fact] public async Task Right() => (await ScalarAsync("RIGHT('hello', 3)")).Should().Be("llo");
 
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	[Fact] public async Task Initcap() => (await ScalarAsync("INITCAP('hello world')")).Should().Be("Hello World");
 
 	// ─── MATH FUNCTIONS ───
@@ -164,6 +168,7 @@ public FunctionIntegrationTests(EmulatorSession session) : base(session) { }
 
 	[Fact] public async Task ArrayLength() => (await ScalarAsync("ARRAY_LENGTH([1,2,3])")).Should().Be(3L);
 
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	[Fact] public async Task ArrayToString() => (await ScalarAsync("ARRAY_TO_STRING([1,2,3], ',')")).Should().Be("1,2,3");
 
 	// ─── JSON FUNCTIONS ───

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -315,6 +316,7 @@ public class OperatorIntegrationTests : IntegrationTestBase
 	[InlineData("CAST(NULL AS FLOAT64) IS NULL", true)]
 	[InlineData("1 + NULL IS NULL", true)]
 	[InlineData("CONCAT(NULL, 'a') IS NULL", true)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task IsNullOperator(string expr, bool expected)
 	{
 		(await Eval(expr)).Should().Be(expected);
@@ -589,6 +591,7 @@ public class OperatorIntegrationTests : IntegrationTestBase
 	[InlineData("5 BETWEEN 1 AND NULL")]
 	// NULL IN
 	[InlineData("NULL IN (1, 2, 3)")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task NullPropagation_ReturnsNull(string expr)
 	{
 		(await Eval(expr)).Should().BeNull();
@@ -643,6 +646,7 @@ public class OperatorIntegrationTests : IntegrationTestBase
 	[InlineData("'it''s'", "it's")]
 	[InlineData("'123'", "123")]
 	[InlineData("'true'", "true")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task StringLiterals(string expr, string expected)
 	{
 		(await Eval(expr)).Should().Be(expected);

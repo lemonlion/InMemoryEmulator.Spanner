@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -444,11 +445,13 @@ public class DateTimeCombinationIntegrationTests : IntegrationTestBase
 	[InlineData("FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', TIMESTAMP '2024-06-15T12:30:45Z')", "2024-06-15T12:30:45Z")]
 	[InlineData("FORMAT_TIMESTAMP('%Y', TIMESTAMP '2024-06-15T12:30:45Z')", "2024")]
 	[InlineData("FORMAT_TIMESTAMP('%H:%M:%S', TIMESTAMP '2024-06-15T12:30:45Z')", "12:30:45")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task FormatTimestamp_Combinations(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
 	[Theory]
 	[InlineData("PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', '2024-06-15T12:30:45Z')", "2024-06-15T12:30:45Z")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ParseTimestamp_Combinations(string expr, string expected)
 	{
 		var result = (DateTime)(await Eval(expr))!;

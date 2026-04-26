@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -380,6 +381,7 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	[InlineData("REGEXP_EXTRACT('hello world', '[a-z]+')", "hello")]
 	[InlineData("REGEXP_EXTRACT('abc', '(b)')", "b")]
 	[InlineData("REGEXP_EXTRACT('abc', '(a)(b)')", "a")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpExtract_Combinations(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
@@ -421,6 +423,7 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	[InlineData("INITCAP('  hello  world  ')", "  Hello  World  ")]
 	[InlineData("INITCAP('a')", "A")]
 	[InlineData("INITCAP('123abc')", "123Abc")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Initcap_Combinations(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
@@ -437,6 +440,7 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	[InlineData("ASCII('Z')", 90L)]
 	[InlineData("ASCII('z')", 122L)]
 	[InlineData("ASCII('abc')", 97L)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Ascii_Combinations(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
@@ -447,6 +451,7 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	[InlineData("CHR(32)", " ")]
 	[InlineData("CHR(90)", "Z")]
 	[InlineData("CHR(122)", "z")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Chr_Combinations(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
@@ -455,6 +460,7 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	[InlineData("CHR(ASCII('z'))", "z")]
 	[InlineData("ASCII(CHR(65))", 65L)]
 	[InlineData("ASCII(CHR(97))", 97L)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task AsciiChr_RoundTrip(string expr, object expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
@@ -505,6 +511,7 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	[InlineData("RIGHT('', 3)", "")]
 	[InlineData("LEFT(UPPER('hello'), 3)", "HEL")]
 	[InlineData("RIGHT(REVERSE('hello'), 3)", "leh")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task LeftRight_Combinations(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
@@ -540,6 +547,7 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	[InlineData("INITCAP(CAST(NULL AS STRING))")]
 	[InlineData("ASCII(CAST(NULL AS STRING))")]
 	[InlineData("BYTE_LENGTH(CAST(NULL AS STRING))")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task StringFunction_NullInput_ReturnsNull(string expr) =>
 		(await Eval(expr)).Should().BeNull();
 

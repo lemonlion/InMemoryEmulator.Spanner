@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -445,6 +446,7 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 	[InlineData("LEFT('hello', 5)", "hello")]
 	[InlineData("LEFT('hello', 10)", "hello")]
 	[InlineData("LEFT('', 5)", "")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Left_EdgeCases(string expr, string expected)
 	{
 		(await Eval(expr)).Should().Be(expected);
@@ -457,6 +459,7 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 	[InlineData("RIGHT('hello', 5)", "hello")]
 	[InlineData("RIGHT('hello', 10)", "hello")]
 	[InlineData("RIGHT('', 5)", "")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Right_EdgeCases(string expr, string expected)
 	{
 		(await Eval(expr)).Should().Be(expected);
@@ -522,6 +525,7 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 	[InlineData("INITCAP('a')", "A")]
 	[InlineData("INITCAP('hello-world')", "Hello-World")]
 	[InlineData("INITCAP('foo bar baz')", "Foo Bar Baz")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Initcap_EdgeCases(string expr, string expected)
 	{
 		(await Eval(expr)).Should().Be(expected);
@@ -538,6 +542,7 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 	[InlineData("ASCII('0')", 48L)]
 	[InlineData("ASCII('Z')", 90L)]
 	[InlineData("ASCII(' ')", 32L)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Ascii_EdgeCases(string expr, long expected)
 	{
 		(await Eval(expr)).Should().Be(expected);
@@ -549,6 +554,7 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 	[InlineData("CHR(48)", "0")]
 	[InlineData("CHR(90)", "Z")]
 	[InlineData("CHR(32)", " ")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Chr_EdgeCases(string expr, string expected)
 	{
 		(await Eval(expr)).Should().Be(expected);

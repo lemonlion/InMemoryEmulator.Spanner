@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -75,6 +76,7 @@ public class NullHandlingIntegrationTests : IntegrationTestBase
 	[InlineData("REGEXP_REPLACE(NULL, 'a', 'b')")]
 	[InlineData("REGEXP_REPLACE('abc', NULL, 'b')")]
 	[InlineData("REGEXP_REPLACE('abc', 'a', NULL)")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task StringFunctions_NullInput_ReturnsNull(string expr)
 	{
 		(await Eval(expr)).Should().BeNull();
@@ -246,6 +248,7 @@ public class NullHandlingIntegrationTests : IntegrationTestBase
 	[InlineData("ABS(NULL) + 1")]
 	[InlineData("1 + ABS(NULL)")]
 	[InlineData("SIGN(NULL) * 5")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArithmeticWithNull_PropagatesNull(string expr)
 	{
 		(await Eval(expr)).Should().BeNull();
@@ -281,6 +284,7 @@ public class NullHandlingIntegrationTests : IntegrationTestBase
 	[InlineData("'a' || NULL || 'b'")]
 	[InlineData("NULL || 'a' || 'b'")]
 	[InlineData("'a' || 'b' || NULL")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task StringConcat_NullPropagation(string expr)
 	{
 		(await Eval(expr)).Should().BeNull();
@@ -311,6 +315,7 @@ public class NullHandlingIntegrationTests : IntegrationTestBase
 	[InlineData("true = NULL")]
 	[InlineData("NULL = 1.0")]
 	[InlineData("1.0 = NULL")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Comparisons_WithNull_ReturnNull(string expr)
 	{
 		(await Eval(expr)).Should().BeNull();
@@ -486,6 +491,7 @@ public class NullHandlingIntegrationTests : IntegrationTestBase
 	[InlineData("LENGTH(NULL) IS NULL", true)]
 	[InlineData("ABS(NULL) IS NULL", true)]
 	[InlineData("UPPER(NULL) IS NULL", true)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task IsNull_Expressions(string expr, bool expected)
 	{
 		(await Eval(expr)).Should().Be(expected);

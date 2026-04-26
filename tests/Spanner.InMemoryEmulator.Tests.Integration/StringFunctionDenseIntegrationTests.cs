@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -193,6 +194,7 @@ public class StringFunctionDenseIntegrationTests : IntegrationTestBase
 	[InlineData("RIGHT('hello', 5)", "hello")]
 	[InlineData("RIGHT('hello', 10)", "hello")]
 	[InlineData("RIGHT('', 5)", "")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task LeftRight(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
@@ -274,6 +276,7 @@ public class StringFunctionDenseIntegrationTests : IntegrationTestBase
 	[InlineData("INITCAP('HELLO WORLD')", "Hello World")]
 	[InlineData("INITCAP('hello world test')", "Hello World Test")]
 	[InlineData("INITCAP('a b c')", "A B C")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Initcap(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
@@ -290,6 +293,7 @@ public class StringFunctionDenseIntegrationTests : IntegrationTestBase
 	[InlineData("ASCII('0')", 48L)]
 	[InlineData("ASCII('9')", 57L)]
 	[InlineData("ASCII(' ')", 32L)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task AsciiFunction(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
@@ -302,6 +306,7 @@ public class StringFunctionDenseIntegrationTests : IntegrationTestBase
 	[InlineData("CHR(48)", "0")]
 	[InlineData("CHR(57)", "9")]
 	[InlineData("CHR(32)", " ")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ChrFunction(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
@@ -401,6 +406,7 @@ public class StringFunctionDenseIntegrationTests : IntegrationTestBase
 	[InlineData("STRPOS(UPPER('hello'), 'L')", 3L)]
 	[InlineData("LEFT(REVERSE('abcde'), 2)", "ed")]
 	[InlineData("RIGHT(REVERSE('abcde'), 2)", "ba")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ChainedStringFunctions(string expr, object expected) =>
 		(await Eval(expr)).Should().Be(expected);
 

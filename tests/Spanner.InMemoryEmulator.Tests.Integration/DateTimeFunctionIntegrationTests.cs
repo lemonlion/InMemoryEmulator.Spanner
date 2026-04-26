@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -49,6 +50,7 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task CurrentDate_IsToday()
 	{
 		var result = (DateTime)(await Eval("CURRENT_DATE()"))!;
@@ -599,6 +601,7 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	[InlineData("FORMAT_TIMESTAMP('%Y', TIMESTAMP '2024-06-15T10:30:00Z')", "2024")]
 	[InlineData("FORMAT_TIMESTAMP('%m', TIMESTAMP '2024-06-15T10:30:00Z')", "06")]
 	[InlineData("FORMAT_TIMESTAMP('%d', TIMESTAMP '2024-06-15T10:30:00Z')", "15")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task FormatTimestamp_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
@@ -608,6 +611,7 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ParseTimestamp_BasicFormat()
 	{
 		var result = (DateTime)(await Eval("PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', '2024-06-15 10:30:45')"))!;
@@ -673,6 +677,7 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Extract_FromTimestampAdd()
 	{
 		var result = await Eval(

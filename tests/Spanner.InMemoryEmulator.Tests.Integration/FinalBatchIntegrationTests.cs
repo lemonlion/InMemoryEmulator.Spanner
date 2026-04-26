@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -71,6 +72,7 @@ public class FinalBatchIntegrationTests : IntegrationTestBase
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#round
 	// IEEE 754: 3.155 as double is 3.15500000000000025..., rounds up with AwayFromZero
 	[InlineData("ROUND(3.155, 2)", 3.16)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task MoreFloatExpressions(string expr, double expected) =>
 		((double)(await Eval(expr))!).Should().BeApproximately(expected, 1e-3);
 
@@ -96,6 +98,7 @@ public class FinalBatchIntegrationTests : IntegrationTestBase
 	[InlineData("'hello' || ' ' || 'world'", "hello world")]
 	[InlineData("REGEXP_REPLACE('abc-def-ghi', '-', '_')", "abc_def_ghi")]
 	[InlineData("REGEXP_EXTRACT('user@domain.com', '[^@]+')", "user")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task MoreStringExpressions(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
@@ -123,6 +126,7 @@ public class FinalBatchIntegrationTests : IntegrationTestBase
 	[InlineData("LENGTH(REVERSE('abc'))", 3L)]
 	[InlineData("ARRAY_LENGTH(SPLIT('a,b,c,d', ','))", 4L)]
 	[InlineData("ARRAY_LENGTH(SPLIT('one::two::three', '::'))", 3L)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task StringLongChains(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 

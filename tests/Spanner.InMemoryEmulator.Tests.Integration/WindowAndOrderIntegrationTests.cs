@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -52,6 +53,7 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RowNumber_OverOrderBy()
 	{
 		await SeedData();
@@ -63,6 +65,7 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RowNumber_PartitionedByDept()
 	{
 		await SeedData();
@@ -82,6 +85,7 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Rank_OverOrderBy()
 	{
 		await SeedData();
@@ -92,6 +96,7 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task DenseRank_OverOrderBy()
 	{
 		await SeedData();
@@ -102,6 +107,7 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Rank_PartitionedByDept()
 	{
 		await SeedData();
@@ -119,6 +125,7 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task SumOver_PartitionedByDept()
 	{
 		await SeedData();
@@ -129,6 +136,7 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task SumOver_RunningTotal()
 	{
 		await SeedData();
@@ -146,6 +154,7 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task CountOver_PartitionedByDept()
 	{
 		await SeedData();
@@ -160,6 +169,7 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task AvgOver_PartitionedByDept()
 	{
 		await SeedData();
@@ -174,6 +184,7 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task MinMaxOver_PartitionedByDept()
 	{
 		await SeedData();
@@ -193,6 +204,7 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Lag_Default()
 	{
 		await SeedData();
@@ -204,6 +216,7 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Lead_Default()
 	{
 		await SeedData();
@@ -215,6 +228,7 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Lag_WithOffset()
 	{
 		await SeedData();
@@ -227,6 +241,7 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Lag_WithDefault()
 	{
 		await SeedData();
@@ -242,6 +257,7 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task FirstValue_PartitionedByDept()
 	{
 		await SeedData();
@@ -252,6 +268,7 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task LastValue_UnboundedFrame()
 	{
 		await SeedData();
@@ -446,6 +463,7 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task WindowFunction_WithWhere()
 	{
 		await SeedData();
@@ -463,6 +481,7 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task WindowFunction_TopNPerGroup()
 	{
 		await SeedData();
@@ -483,6 +502,7 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task MultipleWindowFunctions()
 	{
 		await SeedData();

@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -359,6 +360,7 @@ public class MathCombinationIntegrationTests : IntegrationTestBase
 	[InlineData("(10 - 2) * 3", 24L)]
 	[InlineData("1 + 2 * 3 - 4 / 2", 5L)]
 	[InlineData("(1 + 2) * (3 - 4) / 1", -3L)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task IntArithmetic_Combinations(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 

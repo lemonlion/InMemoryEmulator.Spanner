@@ -60,6 +60,11 @@ internal class SchemaRegistry
 		_indexes.TryRemove(name, out _);
 	}
 
+	public bool TryGetIndex(string name, out IndexDefinition? index)
+	{
+		return _indexes.TryGetValue(name, out index);
+	}
+
 	/// <summary>Gets all indexes defined on the given table.</summary>
 	public IReadOnlyList<IndexDefinition> GetIndexesForTable(string tableName)
 	{

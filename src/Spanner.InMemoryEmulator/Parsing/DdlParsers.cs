@@ -13,6 +13,23 @@ internal static class DdlParsers
 	// Helper record to avoid AsNullable on value tuples
 	private record InterleaveInfo(string Parent, OnDeleteAction OnDelete);
 
+	// IF NOT EXISTS / IF EXISTS helpers
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language
+	//   "IF NOT EXISTS" — skip CREATE if object already exists
+	//   "IF EXISTS" — skip DROP if object does not exist
+	private static TokenListParser<GoogleSqlToken, bool> IfNotExists { get; } =
+		(from _if in Token.EqualTo(GoogleSqlToken.If)
+		 from _not in Token.EqualTo(GoogleSqlToken.Not)
+		 from _ex in Token.EqualTo(GoogleSqlToken.Exists)
+		 select true)
+		.OptionalOrDefault(false);
+
+	private static TokenListParser<GoogleSqlToken, bool> IfExists { get; } =
+		(from _if in Token.EqualTo(GoogleSqlToken.If)
+		 from _ex in Token.EqualTo(GoogleSqlToken.Exists)
+		 select true)
+		.OptionalOrDefault(false);
+
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language
 	//   Defines the DDL syntax for Spanner.
 
@@ -115,18 +132,40 @@ internal static class DdlParsers
 		from close in Token.EqualTo(GoogleSqlToken.CloseParen)
 		select val;
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#create_table
+	//   "DEFAULT (expression)" — default value for the column
+#pragma warning disable CS8603 // LINQ query syntax over Superpower parsers produces nullable inference
+	private static TokenListParser<GoogleSqlToken, string> DefaultExpressionClause { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.Default)
+		from expr in BalancedParenExpression
+		select expr;
+
+	// Helper for generated column parsing result
+	private record GeneratedColumnInfo(string Expression, bool IsStored);
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#create_table
+	//   "AS (expression) STORED" — generated column
+	private static TokenListParser<GoogleSqlToken, GeneratedColumnInfo> GeneratedColumnClause { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.As)
+		from expr in BalancedParenExpression
+		from stored in Token.EqualTo(GoogleSqlToken.Stored).Value(true).OptionalOrDefault(false)
+		select new GeneratedColumnInfo(expr, stored);
+#pragma warning restore CS8603
+
 	public static TokenListParser<GoogleSqlToken, ParsedColumnDef> ColumnDefinition { get; } =
 		from name in IdentifierOrKeywordAsName
 		from type in SpannerType
 		from notNull in NotNull
 		from options in AllowCommitTimestampOption.OptionalOrDefault(false)
+		from defaultExpr in DefaultExpressionClause.Select(x => (string?)x).OptionalOrDefault()
+		from generated in GeneratedColumnClause.Select(x => (GeneratedColumnInfo?)x).OptionalOrDefault()
 		select new ParsedColumnDef(
 			name,
 			type.Type,
 			!notNull,
 			type.MaxLength,
 			type.ArrayElement,
-			null, false, null,
+			generated?.Expression, generated?.IsStored ?? false, defaultExpr,
 			options);
 
 	// ──────────────────────────────────────────
@@ -273,6 +312,7 @@ internal static class DdlParsers
 	public static TokenListParser<GoogleSqlToken, CreateTableStatement> CreateTable { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.Create)
 		from __ in Token.EqualTo(GoogleSqlToken.Table)
+		from ifNotExists in IfNotExists
 		from name in IdentifierOrKeywordAsName
 		from open in Token.EqualTo(GoogleSqlToken.OpenParen)
 		from items in TableBodyItemParser.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
@@ -286,7 +326,8 @@ internal static class DdlParsers
 			interleave?.Parent,
 			interleave?.OnDelete,
 			items.OfType<CheckItem>().Select(c => c.Check).ToList(),
-			items.OfType<ForeignKeyItem>().Select(fk => fk.ForeignKey).ToList());
+			items.OfType<ForeignKeyItem>().Select(fk => fk.ForeignKey).ToList(),
+			ifNotExists);
 
 	// ──────────────────────────────────────────
 	// DROP TABLE
@@ -295,8 +336,9 @@ internal static class DdlParsers
 	public static TokenListParser<GoogleSqlToken, DropTableStatement> DropTable { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.Drop)
 		from __ in Token.EqualTo(GoogleSqlToken.Table)
+		from ifExists in IfExists
 		from name in IdentifierOrKeywordAsName
-		select new DropTableStatement(name);
+		select new DropTableStatement(name, ifExists);
 
 	// ──────────────────────────────────────────
 	// ALTER TABLE
@@ -318,11 +360,48 @@ internal static class DdlParsers
 		from name in IdentifierOrKeywordAsName
 		select (AlterAction)new DropColumnAction(name);
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_column
+	//   ALTER TABLE t ALTER COLUMN c type [NOT NULL] [DEFAULT (expr)]
+	private static TokenListParser<GoogleSqlToken, AlterAction> AlterColumnAction { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.Alter)
+		from __ in Token.EqualTo(GoogleSqlToken.Column)
+		from col in ColumnDefinition
+		select (AlterAction)new AlterColumnAction(col.Name, col);
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_table
+	//   ALTER TABLE t ADD CONSTRAINT name CHECK (...) / FOREIGN KEY ...
+	private static TokenListParser<GoogleSqlToken, AlterAction> AddConstraintAction { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.Add)
+		from action in
+			CheckConstraintParser.Try().Select(c => (AlterAction)new AddConstraintAction(c, null))
+			.Or(ForeignKeyConstraintParser.Select(fk => (AlterAction)new AddConstraintAction(null, fk)))
+		select action;
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_table
+	//   ALTER TABLE t DROP CONSTRAINT name
+	private static TokenListParser<GoogleSqlToken, AlterAction> DropConstraintAction { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.Drop)
+		from __ in Token.EqualTo(GoogleSqlToken.Constraint)
+		from name in IdentifierOrKeywordAsName
+		select (AlterAction)new DropConstraintAction(name);
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_table
+	//   ALTER TABLE t SET ON DELETE CASCADE | NO ACTION
+	private static TokenListParser<GoogleSqlToken, AlterAction> SetOnDeleteActionParser { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.Set)
+		from onDelete in OnDeleteClause
+		select (AlterAction)new SetOnDeleteAction(onDelete);
+
 	public static TokenListParser<GoogleSqlToken, AlterTableStatement> AlterTable { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.Alter)
 		from __ in Token.EqualTo(GoogleSqlToken.Table)
 		from name in IdentifierOrKeywordAsName
-		from action in AddColumnAction.Or(DropColumnAction)
+		from action in AddColumnAction.Try()
+			.Or(AlterColumnAction.Try())
+			.Or(DropConstraintAction.Try())
+			.Or(DropColumnAction.Try())
+			.Or(AddConstraintAction.Try())
+			.Or(SetOnDeleteActionParser)
 		select new AlterTableStatement(name, action);
 
 	// ──────────────────────────────────────────
@@ -352,6 +431,7 @@ internal static class DdlParsers
 		from isUnique in Token.EqualTo(GoogleSqlToken.Unique).Value(true).OptionalOrDefault(false)
 		from isNullFiltered in Token.EqualTo(GoogleSqlToken.NullFiltered).Value(true).OptionalOrDefault(false)
 		from __ in Token.EqualTo(GoogleSqlToken.Index)
+		from ifNotExists in IfNotExists
 		from name in IdentifierOrKeywordAsName
 		from ___ in Token.EqualTo(GoogleSqlToken.On)
 		from tableName in IdentifierOrKeywordAsName
@@ -359,7 +439,7 @@ internal static class DdlParsers
 		from columns in IndexColumnDefinition.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
 		from close in Token.EqualTo(GoogleSqlToken.CloseParen)
 		from storing in StoringClause.Select(x => (List<string>?)x).OptionalOrDefault()
-		select new CreateIndexStatement(name, tableName, columns.ToList(), storing, isUnique, isNullFiltered);
+		select new CreateIndexStatement(name, tableName, columns.ToList(), storing, isUnique, isNullFiltered, ifNotExists);
 
 	// ──────────────────────────────────────────
 	// DROP INDEX
@@ -368,8 +448,9 @@ internal static class DdlParsers
 	public static TokenListParser<GoogleSqlToken, DropIndexStatement> DropIndex { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.Drop)
 		from __ in Token.EqualTo(GoogleSqlToken.Index)
+		from ifExists in IfExists
 		from name in IdentifierOrKeywordAsName
-		select new DropIndexStatement(name);
+		select new DropIndexStatement(name, ifExists);
 
 	// ──────────────────────────────────────────
 	// Top-level DDL dispatcher

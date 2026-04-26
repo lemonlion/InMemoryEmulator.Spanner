@@ -1,5 +1,6 @@
 using Google.Cloud.Spanner.V1;
 using Google.Protobuf.WellKnownTypes;
+using Superpower;
 
 namespace Spanner.InMemoryEmulator;
 
@@ -123,6 +124,10 @@ internal class MutationExecutor
 					rowValues[colDef.Name] = null;
 			}
 
+			// Apply DEFAULT and GENERATED column expressions
+			var explicitCols = new HashSet<string>(columnNames, StringComparer.OrdinalIgnoreCase);
+			ApplyDefaultsAndGenerated(table, rowValues, explicitCols);
+
 			// Build the row key from PK columns
 			var pkValues = table.PrimaryKeyColumns
 				.Select(pk =>
@@ -164,6 +169,8 @@ internal class MutationExecutor
 					{
 						updatedValues[kvp.Key] = kvp.Value;
 					}
+					// Re-evaluate generated columns after merging updated values
+					ApplyDefaultsAndGenerated(table, updatedValues, explicitCols);
 					ValidateNotNull(table, updatedValues);
 					_database.Schema.ValidateWriteConstraints(tableName, updatedValues, rowKey);
 					table.Rows[rowKey] = new RowData(updatedValues, commitTimestamp);
@@ -180,6 +187,7 @@ internal class MutationExecutor
 						{
 							upsertValues[kvp.Key] = kvp.Value;
 						}
+						ApplyDefaultsAndGenerated(table, upsertValues, explicitCols);
 						ValidateNotNull(table, upsertValues);
 						_database.Schema.ValidateWriteConstraints(tableName, upsertValues, rowKey);
 						table.Rows[rowKey] = new RowData(upsertValues, commitTimestamp);
@@ -302,6 +310,68 @@ internal class MutationExecutor
 				//   NOT NULL columns cannot have NULL values.
 				throw new InvalidOperationException(
 					$"Column '{col.Name}' in table '{table.Name}' is NOT NULL but got NULL value.");
+			}
+		}
+	}
+
+	/// <summary>
+	/// Evaluates DEFAULT and GENERATED column expressions for a row.
+	/// Applies default values for omitted columns and computes generated columns.
+	/// </summary>
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#create_table
+	//   "DEFAULT (expression)" provides a default value when the column is omitted.
+	//   "AS (expression) STORED" defines a stored generated column.
+	internal static void ApplyDefaultsAndGenerated(
+		TableDefinition table,
+		Dictionary<string, object?> rowValues,
+		ISet<string>? explicitColumns = null)
+	{
+		var evaluator = new ExpressionEvaluator(null);
+
+		// Apply DEFAULT expressions for omitted columns
+		foreach (var col in table.Columns)
+		{
+			if (col.DefaultExpression != null
+				&& (explicitColumns == null || !explicitColumns.Contains(col.Name))
+				&& rowValues.TryGetValue(col.Name, out var val)
+				&& val == null)
+			{
+				try
+				{
+					var tokens = Parsing.GoogleSqlTokenizer.Tokenize(col.DefaultExpression);
+					var expr = Parsing.SqlParsers.Expression.AtEnd().Parse(tokens);
+					rowValues[col.Name] = evaluator.Evaluate(expr, rowValues);
+				}
+				catch
+				{
+					// If default expression evaluation fails, leave as null
+				}
+			}
+		}
+
+		// Apply GENERATED ALWAYS AS expressions (stored generated columns)
+		foreach (var col in table.Columns)
+		{
+			if (col.GeneratedExpression != null)
+			{
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#generated_column
+				//   "You cannot write directly to a generated column."
+				if (explicitColumns != null && explicitColumns.Contains(col.Name))
+				{
+					throw new InvalidOperationException(
+						$"Cannot write to generated column '{col.Name}' in table '{table.Name}'.");
+				}
+
+				try
+				{
+					var tokens = Parsing.GoogleSqlTokenizer.Tokenize(col.GeneratedExpression);
+					var expr = Parsing.SqlParsers.Expression.AtEnd().Parse(tokens);
+					rowValues[col.Name] = evaluator.Evaluate(expr, rowValues);
+				}
+				catch
+				{
+					// If generated expression evaluation fails, leave as null
+				}
 			}
 		}
 	}

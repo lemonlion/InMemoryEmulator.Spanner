@@ -264,7 +264,25 @@ internal class QueryExecutor
 		// 5. Window functions — pre-compute window function results into rows
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls
 		//   Window functions are computed after WHERE/GROUP BY/HAVING but before ORDER BY.
-		rows = EvaluateWindowFunctions(select.Columns, rows, evaluator);
+		//   Also include window functions referenced in QUALIFY clause.
+		var windowColumns = select.Columns.ToList();
+		if (select.Qualify != null)
+		{
+			foreach (var winExpr in ExtractWindowExprs(select.Qualify))
+			{
+				var synthName = InferColumnName(winExpr);
+				windowColumns.Add(new SelectColumn(winExpr, synthName));
+			}
+		}
+		rows = EvaluateWindowFunctions(windowColumns, rows, evaluator);
+
+		// 5b. QUALIFY — filter after window function evaluation
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#qualify_clause
+		//   "QUALIFY filters the results of window functions."
+		if (select.Qualify != null)
+		{
+			rows = rows.Where(r => evaluator.EvaluateAsBool(select.Qualify, r)).ToList();
+		}
 
 		// 6. ORDER BY — sort before projection so all source columns are available
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#order_by_clause
@@ -498,6 +516,55 @@ internal class QueryExecutor
 
 	private static string InferColumnName(SqlExpression expr) => InferColumnNameStatic(expr);
 
+	/// <summary>
+	/// Recursively extracts all WindowExpr nodes from an expression tree.
+	/// Used to find window functions in QUALIFY clauses that need pre-computation.
+	/// </summary>
+	private static IEnumerable<WindowExpr> ExtractWindowExprs(SqlExpression expr)
+	{
+		switch (expr)
+		{
+			case WindowExpr win:
+				yield return win;
+				break;
+			case BinaryExpr bin:
+				foreach (var w in ExtractWindowExprs(bin.Left)) yield return w;
+				foreach (var w in ExtractWindowExprs(bin.Right)) yield return w;
+				break;
+			case UnaryExpr un:
+				foreach (var w in ExtractWindowExprs(un.Operand)) yield return w;
+				break;
+			case FunctionCallExpr func:
+				foreach (var arg in func.Arguments)
+					foreach (var w in ExtractWindowExprs(arg)) yield return w;
+				break;
+			case CaseExpr caseExpr:
+				if (caseExpr.Operand != null)
+					foreach (var w in ExtractWindowExprs(caseExpr.Operand)) yield return w;
+				foreach (var when in caseExpr.Whens)
+				{
+					foreach (var w in ExtractWindowExprs(when.Condition)) yield return w;
+					foreach (var w in ExtractWindowExprs(when.Result)) yield return w;
+				}
+				if (caseExpr.Else != null)
+					foreach (var w in ExtractWindowExprs(caseExpr.Else)) yield return w;
+				break;
+			case IsNullExpr isNull:
+				foreach (var w in ExtractWindowExprs(isNull.Value)) yield return w;
+				break;
+			case BetweenExpr bet:
+				foreach (var w in ExtractWindowExprs(bet.Value)) yield return w;
+				foreach (var w in ExtractWindowExprs(bet.Low)) yield return w;
+				foreach (var w in ExtractWindowExprs(bet.High)) yield return w;
+				break;
+			case InExpr inExpr:
+				foreach (var w in ExtractWindowExprs(inExpr.Value)) yield return w;
+				foreach (var item in inExpr.List)
+					foreach (var w in ExtractWindowExprs(item)) yield return w;
+				break;
+		}
+	}
+
 	internal static string InferColumnNameStatic(SqlExpression expr) => expr switch
 	{
 		ColumnRefExpr col => col.Column,
@@ -703,7 +770,9 @@ internal class QueryExecutor
 			"COUNT" or "SUM" or "AVG" or "MIN" or "MAX"
 			or "ARRAY_AGG" or "STRING_AGG" or "COUNTIF" or "ANY_VALUE"
 			or "LOGICAL_AND" or "LOGICAL_OR"
-			or "BIT_AND" or "BIT_OR" or "BIT_XOR",
+			or "BIT_AND" or "BIT_OR" or "BIT_XOR"
+			or "STDDEV" or "STDDEV_SAMP" or "VAR_SAMP" or "VARIANCE"
+			or "ARRAY_CONCAT_AGG",
 		_ => false
 	};
 
@@ -1157,6 +1226,12 @@ internal class QueryExecutor
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#bit_xor
 				"BIT_XOR" => values.Count == 0 ? null : values.Aggregate((a, b) =>
 					(long)a! ^ (long)b!),
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#stddev
+				"STDDEV" or "STDDEV_SAMP" => StddevSamp(values),
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#var_samp
+				"VAR_SAMP" or "VARIANCE" => VarSamp(values),
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_concat_agg
+				"ARRAY_CONCAT_AGG" => ArrayConcatAgg(values),
 				_ => throw new NotSupportedException($"Aggregate function '{func.Name}' not supported.")
 			};
 		}
@@ -1176,6 +1251,41 @@ internal class QueryExecutor
 		if (values[0] is long)
 			return (double)values.Sum(v => (long)v!) / values.Count;
 		return values.Sum(v => Convert.ToDouble(v)) / values.Count;
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#stddev
+	//   "Returns the sample standard deviation of non-NULL values."
+	private static object? StddevSamp(List<object?> values)
+	{
+		if (values.Count < 2) return null;
+		var doubles = values.Select(v => Convert.ToDouble(v)).ToArray();
+		var mean = doubles.Average();
+		var variance = doubles.Sum(v => (v - mean) * (v - mean)) / (doubles.Length - 1);
+		return Math.Sqrt(variance);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#var_samp
+	//   "Returns the sample variance of non-NULL values."
+	private static object? VarSamp(List<object?> values)
+	{
+		if (values.Count < 2) return null;
+		var doubles = values.Select(v => Convert.ToDouble(v)).ToArray();
+		var mean = doubles.Average();
+		return doubles.Sum(v => (v - mean) * (v - mean)) / (doubles.Length - 1);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_concat_agg
+	//   "Concatenates elements from arrays into a single array."
+	private static object? ArrayConcatAgg(List<object?> values)
+	{
+		if (values.Count == 0) return null;
+		var result = new List<object?>();
+		foreach (var val in values)
+		{
+			if (val is System.Collections.IList list)
+				foreach (var item in list) result.Add(item);
+		}
+		return result;
 	}
 
 	// STRING_AGG(expr, delimiter [ORDER BY ...]): concatenates string values with a delimiter.

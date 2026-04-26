@@ -14,7 +14,8 @@ internal record CreateTableStatement(
 	string? ParentTable,
 	OnDeleteAction? OnDelete,
 	List<ParsedCheckConstraint>? CheckConstraints = null,
-	List<ParsedForeignKey>? ForeignKeys = null);
+	List<ParsedForeignKey>? ForeignKeys = null,
+	bool IfNotExists = false);
 
 internal record ParsedCheckConstraint(string? Name, string Expression);
 internal record ParsedForeignKey(
@@ -25,7 +26,7 @@ internal record ParsedForeignKey(
 	bool IsEnforced = true,
 	ForeignKeyDeleteAction OnDelete = ForeignKeyDeleteAction.NoAction);
 
-internal record DropTableStatement(string Name);
+internal record DropTableStatement(string Name, bool IfExists = false);
 
 internal record AlterTableStatement(string Name, AlterAction Action);
 
@@ -33,15 +34,29 @@ internal abstract record AlterAction;
 internal record AddColumnAction(ParsedColumnDef Column) : AlterAction;
 internal record DropColumnAction(string ColumnName) : AlterAction;
 
+// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_column
+//   ALTER TABLE t ALTER COLUMN c type [NOT NULL] [DEFAULT (expr)]
+internal record AlterColumnAction(string ColumnName, ParsedColumnDef NewDefinition) : AlterAction;
+
+// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_table
+//   ALTER TABLE t ADD CONSTRAINT ...
+internal record AddConstraintAction(ParsedCheckConstraint? Check, ParsedForeignKey? ForeignKey) : AlterAction;
+internal record DropConstraintAction(string ConstraintName) : AlterAction;
+
+// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_table
+//   ALTER TABLE t SET ON DELETE CASCADE | NO ACTION
+internal record SetOnDeleteAction(OnDeleteAction OnDelete) : AlterAction;
+
 internal record CreateIndexStatement(
 	string Name,
 	string TableName,
 	List<IndexColumnDef> Columns,
 	List<string>? StoringColumns,
 	bool IsUnique,
-	bool IsNullFiltered);
+	bool IsNullFiltered,
+	bool IfNotExists = false);
 
-internal record DropIndexStatement(string Name);
+internal record DropIndexStatement(string Name, bool IfExists = false);
 
 internal record CreateViewStatement(string Name, string SqlBody, bool OrReplace);
 internal record DropViewStatement(string Name);
@@ -106,6 +121,9 @@ internal record SelectStatement(
 	SqlExpression? Where,
 	List<SqlExpression>? GroupBy,
 	SqlExpression? Having,
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#qualify_clause
+	//   "Filters the results of window functions."
+	SqlExpression? Qualify,
 	List<OrderByColumn>? OrderBy,
 	long? Limit,
 	long? Offset);

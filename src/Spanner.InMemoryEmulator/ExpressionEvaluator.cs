@@ -238,12 +238,30 @@ internal class ExpressionEvaluator
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/functions-and-operators
 		var funcName = func.Name.ToUpperInvariant();
 
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/functions-and-operators#safe_prefix
+		//   "SAFE. prefix: If the function would error, returns NULL instead."
+		if (funcName.StartsWith("SAFE."))
+		{
+			var innerName = funcName.Substring(5);
+			var innerFunc = func with { Name = innerName };
+			try
+			{
+				return EvalFunction(innerFunc, row);
+			}
+			catch
+			{
+				return null;
+			}
+		}
+
 		// Aggregate functions may have been pre-computed and stored in the row
 		// (e.g., during GROUP BY processing or HAVING evaluation).
 		if (funcName is "SUM" or "AVG" or "COUNT" or "MIN" or "MAX"
 			or "ARRAY_AGG" or "STRING_AGG" or "COUNTIF" or "ANY_VALUE"
 			or "LOGICAL_AND" or "LOGICAL_OR"
-			or "BIT_AND" or "BIT_OR" or "BIT_XOR")
+			or "BIT_AND" or "BIT_OR" or "BIT_XOR"
+			or "STDDEV" or "STDDEV_SAMP" or "VAR_SAMP" or "VARIANCE"
+			or "ARRAY_CONCAT_AGG")
 		{
 			if (row.TryGetValue(funcName, out var precomputed))
 				return precomputed;
@@ -438,6 +456,77 @@ internal class ExpressionEvaluator
 			// Additional math functions
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/bit_functions
 			"BIT_COUNT" => EvalBitCount(func, row),
+
+			// Trigonometric functions
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions
+			"SIN" => EvalTrig(func, row, Math.Sin),
+			"COS" => EvalTrig(func, row, Math.Cos),
+			"TAN" => EvalTrig(func, row, Math.Tan),
+			"ASIN" => EvalTrig(func, row, Math.Asin),
+			"ACOS" => EvalTrig(func, row, Math.Acos),
+			"ATAN" => EvalTrig(func, row, Math.Atan),
+			"ATAN2" => EvalTrig2(func, row, Math.Atan2),
+			"SINH" => EvalTrig(func, row, Math.Sinh),
+			"COSH" => EvalTrig(func, row, Math.Cosh),
+			"TANH" => EvalTrig(func, row, Math.Tanh),
+			"ASINH" => EvalTrig(func, row, Math.Asinh),
+			"ACOSH" => EvalTrig(func, row, Math.Acosh),
+			"ATANH" => EvalTrig(func, row, Math.Atanh),
+
+			// Statistical aggregate functions — these are pre-computed by QueryExecutor and
+			// should be found in the row context via the aggregate lookup above.
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions
+			"STDDEV" or "STDDEV_SAMP" or "VAR_SAMP" or "VARIANCE" or "ARRAY_CONCAT_AGG" =>
+				throw new InvalidOperationException($"Aggregate function '{func.Name}' used outside of aggregate context."),
+
+			// UUID generation
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#generate_uuid
+			"GENERATE_UUID" => Guid.NewGuid().ToString(),
+
+			// Base64 encoding/decoding
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#from_base64
+			"FROM_BASE64" => EvalFromBase64(func, row),
+			"TO_BASE64" => EvalToBase64(func, row),
+			"FROM_BASE32" => EvalFromBase32(func, row),
+			"TO_BASE32" => EvalToBase32(func, row),
+
+			// JSON conversion functions
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_conversion_functions
+			"BOOL" => EvalJsonToBool(func, row),
+			"INT64" or "INT32" => EvalJsonToInt64(func, row),
+			"FLOAT64" or "FLOAT32" => EvalJsonToFloat64(func, row),
+			"STRING" => EvalJsonToString(func, row),
+			"JSON_ARRAY" => EvalJsonArray(func, row),
+			"JSON_OBJECT" => EvalJsonObject(func, row),
+			"JSON_SET" => EvalJsonSet(func, row),
+			"JSON_STRIP_NULLS" => EvalJsonStripNulls(func, row),
+			"JSON_KEYS" => EvalJsonKeys(func, row),
+
+			// LAX conversion functions
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#lax_conversion
+			"LAX_BOOL" => EvalLaxBool(func, row),
+			"LAX_INT64" or "LAX_INT32" => EvalLaxInt64(func, row),
+			"LAX_FLOAT64" or "LAX_FLOAT32" => EvalLaxFloat64(func, row),
+			"LAX_STRING" => EvalLaxString(func, row),
+
+			// Array distinct check
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#array_is_distinct
+			"ARRAY_IS_DISTINCT" => EvalArrayIsDistinct(func, row),
+
+			// Vector distance functions
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions#cosine_distance
+			"COSINE_DISTANCE" => EvalCosineDistance(func, row),
+			"EUCLIDEAN_DISTANCE" => EvalEuclideanDistance(func, row),
+			"DOT_PRODUCT" => EvalDotProduct(func, row),
+
+			// Net functions
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/net_functions
+			"NET.HOST" => EvalNetHost(func, row),
+			"NET.REG_DOMAIN" => EvalNetRegDomain(func, row),
+			"NET.PUBLIC_SUFFIX" => EvalNetPublicSuffix(func, row),
+			"NET.IP_FROM_STRING" => EvalNetIpFromString(func, row),
+			"NET.IP_TO_STRING" => EvalNetIpToString(func, row),
+			"NET.SAFE_IP_FROM_STRING" => EvalNetSafeIpFromString(func, row),
 
 			// Conditional: ERROR
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/debugging_functions
@@ -774,18 +863,23 @@ internal class ExpressionEvaluator
 	// Window expressions are pre-computed by QueryExecutor, look up by the generated column name
 	private object? EvalWindowExpr(WindowExpr win, Dictionary<string, object?> row)
 	{
-		// The QueryExecutor stores window results keyed by InferColumnName(win)
-		// which for a FunctionCallExpr is the function name
+		// The QueryExecutor stores window results keyed by alias or InferColumnName(win)
 		var key = win.Function switch
 		{
 			FunctionCallExpr f => f.Name,
 			CountStarExpr => "COUNT(*)",
 			_ => ""
 		};
+
+		// Try exact key first (handles SELECT ... AS rk -> stored as "rk" or "RANK")
 		if (row.TryGetValue(key, out var val))
 			return val;
 
-		// If the window result was stored under a different name, check the row keys
+		// Try the full canonical name via InferColumnNameStatic
+		var canonicalKey = QueryExecutor.InferColumnNameStatic(win);
+		if (row.TryGetValue(canonicalKey, out val))
+			return val;
+
 		throw new InvalidOperationException($"Window function result '{key}' not found. Window functions must be pre-computed by QueryExecutor.");
 	}
 
@@ -2304,4 +2398,372 @@ internal class ExpressionEvaluator
 		string s => DateTime.Parse(s, null, System.Globalization.DateTimeStyles.AdjustToUniversal),
 		_ => throw new InvalidOperationException($"Cannot convert {value.GetType().Name} to DateTime.")
 	};
+
+	// ═══════════════════════════════════════════════════════════════
+	// Trigonometric Functions
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalTrig(FunctionCallExpr func, Dictionary<string, object?> row, Func<double, double> fn)
+	{
+		if (func.Arguments.Count != 1)
+			throw new InvalidOperationException($"{func.Name} requires exactly 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		return fn(Convert.ToDouble(val));
+	}
+
+	private object? EvalTrig2(FunctionCallExpr func, Dictionary<string, object?> row, Func<double, double, double> fn)
+	{
+		if (func.Arguments.Count != 2)
+			throw new InvalidOperationException($"{func.Name} requires exactly 2 arguments.");
+		var a = Evaluate(func.Arguments[0], row);
+		var b = Evaluate(func.Arguments[1], row);
+		if (a == null || b == null) return null;
+		return fn(Convert.ToDouble(a), Convert.ToDouble(b));
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Base64 / Base32 Functions
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalFromBase64(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1) throw new InvalidOperationException("FROM_BASE64 requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		return Convert.FromBase64String(val.ToString()!);
+	}
+
+	private object? EvalToBase64(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1) throw new InvalidOperationException("TO_BASE64 requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		if (val is byte[] bytes) return Convert.ToBase64String(bytes);
+		return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(val.ToString()!));
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#from_base32
+	//   Base32 uses A-Z, 2-7
+	private object? EvalFromBase32(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1) throw new InvalidOperationException("FROM_BASE32 requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		return Base32Decode(val.ToString()!);
+	}
+
+	private object? EvalToBase32(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1) throw new InvalidOperationException("TO_BASE32 requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		if (val is byte[] bytes) return Base32Encode(bytes);
+		return Base32Encode(System.Text.Encoding.UTF8.GetBytes(val.ToString()!));
+	}
+
+	private static string Base32Encode(byte[] data)
+	{
+		const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+		var sb = new System.Text.StringBuilder((data.Length * 8 + 4) / 5);
+		int bits = 0, buffer = 0;
+		foreach (var b in data)
+		{
+			buffer = (buffer << 8) | b;
+			bits += 8;
+			while (bits >= 5) { bits -= 5; sb.Append(alphabet[(buffer >> bits) & 0x1F]); }
+		}
+		if (bits > 0) sb.Append(alphabet[(buffer << (5 - bits)) & 0x1F]);
+		while (sb.Length % 8 != 0) sb.Append('=');
+		return sb.ToString();
+	}
+
+	private static byte[] Base32Decode(string encoded)
+	{
+		const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+		encoded = encoded.TrimEnd('=').ToUpperInvariant();
+		var output = new List<byte>();
+		int bits = 0, buffer = 0;
+		foreach (var c in encoded)
+		{
+			var idx = alphabet.IndexOf(c);
+			if (idx < 0) continue;
+			buffer = (buffer << 5) | idx;
+			bits += 5;
+			if (bits >= 8) { bits -= 8; output.Add((byte)(buffer >> bits)); }
+		}
+		return output.ToArray();
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// JSON Conversion Functions
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalJsonToBool(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#bool
+		//   "Converts a JSON boolean to a SQL BOOL value. If the JSON value is not a boolean, an error is produced."
+		if (func.Arguments.Count != 1) throw new InvalidOperationException("BOOL requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		var s = val.ToString()!.Trim().Trim('"');
+		if (s.Equals("true", StringComparison.OrdinalIgnoreCase)) return true;
+		if (s.Equals("false", StringComparison.OrdinalIgnoreCase)) return false;
+		throw new InvalidOperationException($"BOOL: cannot convert JSON value '{s}' to BOOL");
+	}
+
+	private object? EvalJsonToInt64(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1) throw new InvalidOperationException($"{func.Name} requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		var s = val.ToString()!.Trim().Trim('"');
+		return long.Parse(s);
+	}
+
+	private object? EvalJsonToFloat64(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1) throw new InvalidOperationException($"{func.Name} requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		var s = val.ToString()!.Trim().Trim('"');
+		return double.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
+	}
+
+	private object? EvalJsonToString(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1) throw new InvalidOperationException("STRING requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		var s = val.ToString()!;
+		// Remove surrounding quotes if present (JSON string)
+		if (s.StartsWith('"') && s.EndsWith('"') && s.Length >= 2)
+			return s.Substring(1, s.Length - 2);
+		return s;
+	}
+
+	private object? EvalJsonArray(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var elements = func.Arguments.Select(a => Evaluate(a, row)).ToList();
+		var jsonElements = elements.Select(e => e == null ? "null" : JsonSerializer.Serialize(e));
+		return "[" + string.Join(",", jsonElements) + "]";
+	}
+
+	private object? EvalJsonObject(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count % 2 != 0)
+			throw new InvalidOperationException("JSON_OBJECT requires an even number of arguments (key/value pairs).");
+		var sb = new System.Text.StringBuilder("{");
+		for (int i = 0; i < func.Arguments.Count; i += 2)
+		{
+			if (i > 0) sb.Append(',');
+			var key = Evaluate(func.Arguments[i], row)?.ToString() ?? "";
+			var val = Evaluate(func.Arguments[i + 1], row);
+			sb.Append(JsonSerializer.Serialize(key));
+			sb.Append(':');
+			sb.Append(val == null ? "null" : JsonSerializer.Serialize(val));
+		}
+		sb.Append('}');
+		return sb.ToString();
+	}
+
+	private object? EvalJsonSet(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count < 3 || func.Arguments.Count % 2 != 1)
+			throw new InvalidOperationException("JSON_SET requires json, path, value triples.");
+		var json = Evaluate(func.Arguments[0], row)?.ToString();
+		if (json == null) return null;
+		using var doc = JsonDocument.Parse(json);
+		var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json) ?? new();
+		for (int i = 1; i < func.Arguments.Count; i += 2)
+		{
+			var path = Evaluate(func.Arguments[i], row)?.ToString()?.TrimStart('$', '.') ?? "";
+			var val = Evaluate(func.Arguments[i + 1], row);
+			dict[path] = JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(val));
+		}
+		return JsonSerializer.Serialize(dict);
+	}
+
+	private object? EvalJsonStripNulls(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1) throw new InvalidOperationException("JSON_STRIP_NULLS requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		using var doc = JsonDocument.Parse(val.ToString()!);
+		return StripNulls(doc.RootElement);
+	}
+
+	private static string StripNulls(JsonElement element) => element.ValueKind switch
+	{
+		JsonValueKind.Object => "{" + string.Join(",",
+			element.EnumerateObject()
+				.Where(p => p.Value.ValueKind != JsonValueKind.Null)
+				.Select(p => $"\"{p.Name}\":{StripNulls(p.Value)}")) + "}",
+		JsonValueKind.Array => "[" + string.Join(",",
+			element.EnumerateArray().Select(StripNulls)) + "]",
+		_ => element.GetRawText()
+	};
+
+	private object? EvalJsonKeys(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count < 1) throw new InvalidOperationException("JSON_KEYS requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		using var doc = JsonDocument.Parse(val.ToString()!);
+		if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
+		return doc.RootElement.EnumerateObject().Select(p => (object?)p.Name).ToList();
+	}
+
+	// LAX conversion functions — return NULL on conversion failure
+	private object? EvalLaxBool(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		try { return EvalJsonToBool(func, row); } catch { return null; }
+	}
+
+	private object? EvalLaxInt64(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		try { return EvalJsonToInt64(func, row); } catch { return null; }
+	}
+
+	private object? EvalLaxFloat64(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		try { return EvalJsonToFloat64(func, row); } catch { return null; }
+	}
+
+	private object? EvalLaxString(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		try { return EvalJsonToString(func, row); } catch { return null; }
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Array utility
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalArrayIsDistinct(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1) throw new InvalidOperationException("ARRAY_IS_DISTINCT requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		if (val is not System.Collections.IList list) throw new InvalidOperationException("ARRAY_IS_DISTINCT: non-array argument.");
+		var set = new HashSet<object?>();
+		foreach (var item in list)
+			if (!set.Add(item?.ToString())) return false;
+		return true;
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Vector distance functions
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalCosineDistance(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var (a, b) = GetVectorArgs(func, row);
+		if (a == null || b == null) return null;
+		double dot = 0, magA = 0, magB = 0;
+		for (int i = 0; i < a.Length; i++) { dot += a[i] * b[i]; magA += a[i] * a[i]; magB += b[i] * b[i]; }
+		var sim = dot / (Math.Sqrt(magA) * Math.Sqrt(magB));
+		return 1.0 - sim;
+	}
+
+	private object? EvalEuclideanDistance(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var (a, b) = GetVectorArgs(func, row);
+		if (a == null || b == null) return null;
+		double sum = 0;
+		for (int i = 0; i < a.Length; i++) { var d = a[i] - b[i]; sum += d * d; }
+		return Math.Sqrt(sum);
+	}
+
+	private object? EvalDotProduct(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var (a, b) = GetVectorArgs(func, row);
+		if (a == null || b == null) return null;
+		double dot = 0;
+		for (int i = 0; i < a.Length; i++) dot += a[i] * b[i];
+		return dot;
+	}
+
+	private (double[]?, double[]?) GetVectorArgs(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 2) throw new InvalidOperationException($"{func.Name} requires 2 arguments.");
+		var v1 = Evaluate(func.Arguments[0], row);
+		var v2 = Evaluate(func.Arguments[1], row);
+		if (v1 == null || v2 == null) return (null, null);
+		double[] ToArray(object val) => val is System.Collections.IList list
+			? list.Cast<object>().Select(x => Convert.ToDouble(x)).ToArray()
+			: throw new InvalidOperationException($"{func.Name}: arguments must be arrays.");
+		var a = ToArray(v1);
+		var b = ToArray(v2);
+		if (a.Length != b.Length) throw new InvalidOperationException($"{func.Name}: arrays must be same length.");
+		return (a, b);
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// NET functions
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/net_functions
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalNetHost(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1) throw new InvalidOperationException("NET.HOST requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		var url = val.ToString()!;
+		if (Uri.TryCreate(url, UriKind.Absolute, out var uri)) return uri.Host;
+		// Try parsing as just a host
+		if (Uri.TryCreate("http://" + url, UriKind.Absolute, out uri)) return uri.Host;
+		return null;
+	}
+
+	private object? EvalNetRegDomain(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1) throw new InvalidOperationException("NET.REG_DOMAIN requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		var host = val.ToString()!;
+		var parts = host.Split('.');
+		return parts.Length >= 2 ? string.Join(".", parts.TakeLast(2)) : host;
+	}
+
+	private object? EvalNetPublicSuffix(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1) throw new InvalidOperationException("NET.PUBLIC_SUFFIX requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		var host = val.ToString()!;
+		var parts = host.Split('.');
+		return parts.Length >= 1 ? parts[^1] : host;
+	}
+
+	private object? EvalNetIpFromString(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1) throw new InvalidOperationException("NET.IP_FROM_STRING requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		if (!System.Net.IPAddress.TryParse(val.ToString()!, out var ip))
+			throw new InvalidOperationException($"Invalid IP address: {val}");
+		return ip.GetAddressBytes();
+	}
+
+	private object? EvalNetIpToString(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1) throw new InvalidOperationException("NET.IP_TO_STRING requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		if (val is byte[] bytes) return new System.Net.IPAddress(bytes).ToString();
+		throw new InvalidOperationException("NET.IP_TO_STRING requires BYTES argument.");
+	}
+
+	private object? EvalNetSafeIpFromString(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1) throw new InvalidOperationException("NET.SAFE_IP_FROM_STRING requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		if (!System.Net.IPAddress.TryParse(val.ToString()!, out var ip)) return null;
+		return ip.GetAddressBytes();
+	}
 }

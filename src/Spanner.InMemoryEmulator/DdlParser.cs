@@ -72,6 +72,11 @@ internal static class DdlParser
 
 	private static void ApplyCreateTable(CreateTableStatement stmt, SchemaRegistry schema)
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#create_table
+		//   "IF NOT EXISTS" — silently succeed if the table already exists
+		if (stmt.IfNotExists && schema.TryGetTable(stmt.Name, out _))
+			return;
+
 		var columns = stmt.Columns.Select(c => new ColumnDef(
 			c.Name,
 			c.SpannerType,
@@ -129,8 +134,10 @@ internal static class DdlParser
 	{
 		if (!schema.TryGetTable(stmt.Name, out _))
 		{
-			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.admin.database.v1
-			//   Drop of non-existent table returns NOT_FOUND.
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#drop_table
+			//   "IF EXISTS" — silently succeed if the table does not exist
+			if (stmt.IfExists)
+				return;
 			throw new InvalidOperationException($"Table '{stmt.Name}' does not exist.");
 		}
 		schema.RemoveTable(stmt.Name);
@@ -224,13 +231,107 @@ internal static class DdlParser
 				break;
 			}
 
+			case AlterColumnAction alter:
+			{
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_column
+				var existingCol = table.Columns.FirstOrDefault(
+					c => string.Equals(c.Name, alter.ColumnName, StringComparison.OrdinalIgnoreCase));
+				if (existingCol == null)
+					throw new InvalidOperationException($"Column '{alter.ColumnName}' does not exist in table '{stmt.Name}'.");
+
+				var newCol = new ColumnDef(
+					existingCol.Name,
+					alter.NewDefinition.SpannerType,
+					alter.NewDefinition.IsNullable,
+					alter.NewDefinition.MaxLength,
+					alter.NewDefinition.AllowCommitTimestamp,
+					alter.NewDefinition.ArrayElementType,
+					alter.NewDefinition.GeneratedExpression ?? existingCol.GeneratedExpression,
+					alter.NewDefinition.IsStored || existingCol.IsStored,
+					alter.NewDefinition.DefaultExpression ?? existingCol.DefaultExpression);
+
+				var newColumns = table.Columns.Select(c =>
+					string.Equals(c.Name, alter.ColumnName, StringComparison.OrdinalIgnoreCase) ? newCol : c)
+					.ToList();
+
+				RebuildTable(table, newColumns, schema);
+				break;
+			}
+
+			case AddConstraintAction addConstraint:
+			{
+				if (addConstraint.Check != null)
+				{
+					table.CheckConstraints.Add(
+						new CheckConstraint(addConstraint.Check.Name, addConstraint.Check.Expression));
+				}
+				if (addConstraint.ForeignKey != null)
+				{
+					var fk = addConstraint.ForeignKey;
+					table.ForeignKeys.Add(
+						new ForeignKeyConstraint(fk.Name, fk.Columns, fk.ReferencedTable, fk.ReferencedColumns, fk.IsEnforced, fk.OnDelete));
+				}
+				break;
+			}
+
+			case DropConstraintAction dropConstraint:
+			{
+				var removedCheck = table.CheckConstraints.RemoveAll(
+					c => string.Equals(c.Name, dropConstraint.ConstraintName, StringComparison.OrdinalIgnoreCase));
+				var removedFk = table.ForeignKeys.RemoveAll(
+					f => string.Equals(f.Name, dropConstraint.ConstraintName, StringComparison.OrdinalIgnoreCase));
+				if (removedCheck == 0 && removedFk == 0)
+					throw new InvalidOperationException(
+						$"Constraint '{dropConstraint.ConstraintName}' does not exist in table '{stmt.Name}'.");
+				break;
+			}
+
+			case SetOnDeleteAction setOnDelete:
+			{
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_table
+				//   "SET ON DELETE CASCADE | NO ACTION"
+				RebuildTable(table, table.Columns.ToList(), schema, setOnDelete.OnDelete);
+				break;
+			}
+
 			default:
 				throw new InvalidOperationException($"Unknown alter action: {stmt.Action.GetType().Name}");
 		}
 	}
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_column
+	private static TableDefinition RebuildTable(
+		TableDefinition table, IReadOnlyList<ColumnDef> newColumns, SchemaRegistry schema,
+		OnDeleteAction? onDelete = null)
+	{
+		schema.RemoveTable(table.Name);
+		var newTable = new TableDefinition(
+			table.Name,
+			newColumns.ToList().AsReadOnly(),
+			table.PrimaryKeyColumns,
+			table.ParentTable,
+			onDelete ?? table.OnDeleteAction);
+
+		foreach (var kvp in table.Rows)
+			newTable.Rows[kvp.Key] = kvp.Value;
+
+		// Preserve CHECK and FK constraints
+		foreach (var check in table.CheckConstraints)
+			newTable.CheckConstraints.Add(check);
+		foreach (var fk in table.ForeignKeys)
+			newTable.ForeignKeys.Add(fk);
+
+		schema.AddTable(newTable);
+		return newTable;
+	}
+
 	private static void ApplyCreateIndex(CreateIndexStatement stmt, SchemaRegistry schema)
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#create-index
+		//   "IF NOT EXISTS" — silently succeed if the index already exists
+		if (stmt.IfNotExists && schema.TryGetIndex(stmt.Name, out _))
+			return;
+
 		if (!schema.TryGetTable(stmt.TableName, out var table) || table == null)
 		{
 			throw new InvalidOperationException($"Table '{stmt.TableName}' does not exist.");
@@ -262,6 +363,10 @@ internal static class DdlParser
 
 	private static void ApplyDropIndex(DropIndexStatement stmt, SchemaRegistry schema)
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#drop_index
+		//   "IF EXISTS" — silently succeed if the index does not exist
+		if (stmt.IfExists && !schema.TryGetIndex(stmt.Name, out _))
+			return;
 		schema.RemoveIndex(stmt.Name);
 	}
 

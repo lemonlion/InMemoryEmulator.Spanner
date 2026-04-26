@@ -122,7 +122,16 @@ internal static class SqlParsers
 		.Or(Token.EqualTo(GoogleSqlToken.Max).Select(t => t.ToStringValue()))
 		// Other keywords used as column/table names
 		.Or(Token.EqualTo(GoogleSqlToken.Parent).Select(t => t.ToStringValue()))
-		.Or(Token.EqualTo(GoogleSqlToken.Row).Select(t => t.ToStringValue()));
+		.Or(Token.EqualTo(GoogleSqlToken.Row).Select(t => t.ToStringValue()))
+		// Type keywords used as function names (JSON conversion: BOOL, INT64, FLOAT64, STRING)
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#bool
+		.Or(Token.EqualTo(GoogleSqlToken.BoolType).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Int64Type).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Float64Type).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Float32Type).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.StringType).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.BytesType).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.NumericType).Select(t => t.ToStringValue()));
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls#def_window_frame
@@ -181,10 +190,18 @@ internal static class SqlParsers
 	private static TokenListParser<GoogleSqlToken, SqlExpression> ColumnRefOrFunction { get; } =
 		from name in AnyIdentifier
 		from result in
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/functions-and-operators#safe_prefix
+			//   "SAFE.func(...) or namespace.func(...) — compound function names like NET.HOST, SAFE.DIVIDE"
+			(from dot in Token.EqualTo(GoogleSqlToken.Dot)
+			 from name2 in AnyIdentifier
+			 from open in Token.EqualTo(GoogleSqlToken.OpenParen)
+			 from args in ExpressionRef.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
+			 from close in Token.EqualTo(GoogleSqlToken.CloseParen)
+			 select (SqlExpression)new FunctionCallExpr(name + "." + name2, args.ToList())).Try()
 			// Function call: name(args...)
 			// Supports optional ORDER BY for aggregate functions like ARRAY_AGG, STRING_AGG
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
-			(from open in Token.EqualTo(GoogleSqlToken.OpenParen)
+			.Or(from open in Token.EqualTo(GoogleSqlToken.OpenParen)
 			 from distinct in Token.EqualTo(GoogleSqlToken.Distinct).Value(true).OptionalOrDefault(false)
 			 from args in ExpressionRef.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
 			 from orderBy in (
@@ -725,6 +742,18 @@ internal static class SqlParsers
 			.OptionalOrDefault(SortOrder.Asc)
 		select new OrderByColumn(expr, order);
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#limit_and_offset_clause
+	//   "LIMIT and OFFSET accept integer literal or parameter values."
+	private static TokenListParser<GoogleSqlToken, long> LimitValue { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.Limit)
+		from n in Token.EqualTo(GoogleSqlToken.Number).Select(t => long.Parse(t.ToStringValue()))
+		select n;
+
+	private static TokenListParser<GoogleSqlToken, long> OffsetValue { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.Offset)
+		from n in Token.EqualTo(GoogleSqlToken.Number).Select(t => long.Parse(t.ToStringValue()))
+		select n;
+
 	private static TokenListParser<GoogleSqlToken, JoinClause> JoinItem { get; } =
 		from joinType in
 			(from _ in Token.EqualTo(GoogleSqlToken.Inner) select JoinType.Inner)
@@ -853,16 +882,18 @@ internal static class SqlParsers
 		).AsNullable().OptionalOrDefault()
 		from having in (from __ in Token.EqualTo(GoogleSqlToken.Having) from expr in Expression select expr)
 			.AsNullable().OptionalOrDefault()
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#qualify_clause
+		//   "QUALIFY filters the results of window functions."
+		from qualify in (from __ in Token.EqualTo(GoogleSqlToken.Qualify) from expr in Expression select expr)
+			.AsNullable().OptionalOrDefault()
 		from orderBy in (
 			from __ in Token.EqualTo(GoogleSqlToken.Order) from ___ in Token.EqualTo(GoogleSqlToken.By)
 			from items in OrderByItem.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
 			select items.ToList()
 		).AsNullable().OptionalOrDefault()
-		from limit in (from __ in Token.EqualTo(GoogleSqlToken.Limit) from n in Token.EqualTo(GoogleSqlToken.Number) select long.Parse(n.ToStringValue()))
-			.Select(x => (long?)x).OptionalOrDefault()
-		from offset in (from __ in Token.EqualTo(GoogleSqlToken.Offset) from n in Token.EqualTo(GoogleSqlToken.Number) select long.Parse(n.ToStringValue()))
-			.Select(x => (long?)x).OptionalOrDefault()
-		select new SelectStatement(distinct, columns.ToList(), fromClause, whereExpr, groupBy, having, orderBy, limit, offset);
+		from limit in LimitValue.Select(x => (long?)x).OptionalOrDefault()
+		from offset in OffsetValue.Select(x => (long?)x).OptionalOrDefault()
+		select new SelectStatement(distinct, columns.ToList(), fromClause, whereExpr, groupBy, having, qualify, orderBy, limit, offset);
 
 	// ──────────────────────────────────────────
 	// CTE + Set Operations → FullQuery

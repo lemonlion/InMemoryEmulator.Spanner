@@ -98,6 +98,10 @@ internal class DmlExecutor
 					rowValues[colDef.Name] = null;
 			}
 
+			// Apply DEFAULT and GENERATED column expressions
+			var explicitCols = new HashSet<string>(insert.Columns, StringComparer.OrdinalIgnoreCase);
+			MutationExecutor.ApplyDefaultsAndGenerated(table, rowValues, explicitCols);
+
 			var pkValues = table.PrimaryKeyColumns
 				.Select(pk =>
 				{
@@ -183,6 +187,11 @@ internal class DmlExecutor
 
 				row[colDef.Name] = evaluator.Evaluate(set.Value, row);
 			}
+
+			// Re-evaluate generated columns after applying SET clauses
+			var updateExplicitCols = new HashSet<string>(
+				update.Sets.Select(s => s.Column), StringComparer.OrdinalIgnoreCase);
+			MutationExecutor.ApplyDefaultsAndGenerated(table, row, updateExplicitCols);
 
 			// Validate NOT NULL
 			foreach (var col in table.Columns)

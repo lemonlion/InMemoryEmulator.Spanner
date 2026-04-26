@@ -23,13 +23,13 @@ public class EmulatorSession : IAsyncLifetime
 	public InMemorySpannerDatabase? Database => _server?.Database;
 
 	/// <summary>Project ID for connection strings.</summary>
-	public string ProjectId { get; } = "test-project";
+	public string ProjectId { get; private set; } = "test-project";
 
 	/// <summary>Instance ID for connection strings.</summary>
-	public string InstanceId { get; } = "test-instance";
+	public string InstanceId { get; private set; } = "test-instance";
 
 	/// <summary>Database ID for connection strings.</summary>
-	public string DatabaseId { get; } = "test-db";
+	public string DatabaseId { get; private set; } = "test-db";
 
 	public async Task InitializeAsync()
 	{
@@ -72,10 +72,44 @@ public class EmulatorSession : IAsyncLifetime
 				CreateStatement = $"CREATE DATABASE `{DatabaseId}`"
 			});
 		}
+
+		if (Target == SpannerTestTarget.CloudSpanner)
+		{
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.admin.database.v1
+			//   CreateDatabase / DropDatabase on real Cloud Spanner via Application Default Credentials.
+			ProjectId = Environment.GetEnvironmentVariable("GCP_PROJECT_ID") ?? ProjectId;
+			InstanceId = Environment.GetEnvironmentVariable("SPANNER_INSTANCE_ID") ?? InstanceId;
+			DatabaseId = Environment.GetEnvironmentVariable("SPANNER_DATABASE_ID") ?? DatabaseId;
+
+			var adminClient = await new DatabaseAdminClientBuilder().BuildAsync();
+			var parent = $"projects/{ProjectId}/instances/{InstanceId}";
+
+			await adminClient.CreateDatabaseAsync(new CreateDatabaseRequest
+			{
+				Parent = parent,
+				CreateStatement = $"CREATE DATABASE `{DatabaseId}`"
+			});
+		}
 	}
 
 	public async Task DisposeAsync()
 	{
+		if (Target == SpannerTestTarget.CloudSpanner)
+		{
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.admin.database.v1
+			//   Drop the ephemeral database to avoid leaving resources behind.
+			try
+			{
+				var adminClient = await new DatabaseAdminClientBuilder().BuildAsync();
+				var databaseName = $"projects/{ProjectId}/instances/{InstanceId}/databases/{DatabaseId}";
+				await adminClient.DropDatabaseAsync(databaseName);
+			}
+			catch
+			{
+				// Best-effort cleanup — the workflow also has a cleanup step.
+			}
+		}
+
 		if (_server != null)
 		{
 			Environment.SetEnvironmentVariable("SPANNER_EMULATOR_HOST", null);

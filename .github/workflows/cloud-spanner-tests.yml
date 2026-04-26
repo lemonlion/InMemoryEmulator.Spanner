@@ -1,0 +1,70 @@
+name: Cloud Spanner Integration Tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Sundays at 03:00 UTC
+    - cron: '0 3 * * 0'
+
+env:
+  DOTNET_VERSION: '8.0.x'
+
+jobs:
+  test-cloud-spanner:
+    runs-on: ubuntu-latest
+    # Only run if the required secrets are configured
+    if: ${{ vars.GCP_PROJECT_ID != '' }}
+    env:
+      SPANNER_TEST_TARGET: CloudSpanner
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      SPANNER_INSTANCE_ID: ${{ vars.SPANNER_INSTANCE_ID }}
+      SPANNER_DATABASE_ID: test-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Build
+        run: dotnet build --configuration Release
+
+      - name: Run integration tests (Cloud Spanner)
+        run: |
+          dotnet test tests/Spanner.InMemoryEmulator.Tests.Integration/ \
+            --configuration Release \
+            --no-build \
+            --logger "trx;LogFileName=cloud-spanner.trx" \
+            --filter "Target!=InMemoryOnly"
+
+      - name: Test summary
+        if: always()
+        run: |
+          echo "## :test_tube: Cloud Spanner Test Results" >> $GITHUB_STEP_SUMMARY
+          for trx in $(find . -name '*.trx'); do
+            file=$(basename "$trx" .trx)
+            passed=$(grep -oP 'Counters[^>]*passed="\K[0-9]+' "$trx" | head -1)
+            failed=$(grep -oP 'Counters[^>]*failed="\K[0-9]+' "$trx" | head -1)
+            total=$(grep -oP 'Counters[^>]*total="\K[0-9]+' "$trx" | head -1)
+            outcome=$(grep -oP 'ResultSummary outcome="\K[^"]+' "$trx" | head -1)
+            icon=$( [ "$outcome" = "Completed" ] && echo ":white_check_mark:" || echo ":x:" )
+            echo "| $icon **$file** | $passed passed | $failed failed | $total total |" >> $GITHUB_STEP_SUMMARY
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-cloud-spanner
+          path: '**/*.trx'
+
+      - name: Cleanup — drop ephemeral database
+        if: always()
+        run: |
+          gcloud spanner databases delete "$SPANNER_DATABASE_ID" \
+            --instance="$SPANNER_INSTANCE_ID" \
+            --project="$GCP_PROJECT_ID" \
+            --quiet || true

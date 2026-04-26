@@ -39,6 +39,19 @@ jobs:
           dotnet test tests/Spanner.InMemoryEmulator.Tests.Integration/ \
             --configuration Release \
             --logger "trx;LogFileName=integration.trx"
+      - name: Test summary
+        if: always()
+        run: |
+          echo "## :test_tube: In-Memory Test Results" >> $GITHUB_STEP_SUMMARY
+          for trx in $(find . -name '*.trx'); do
+            file=$(basename "$trx" .trx)
+            passed=$(grep -oP 'Counters[^>]*passed="\K[0-9]+' "$trx" | head -1)
+            failed=$(grep -oP 'Counters[^>]*failed="\K[0-9]+' "$trx" | head -1)
+            total=$(grep -oP 'Counters[^>]*total="\K[0-9]+' "$trx" | head -1)
+            outcome=$(grep -oP 'ResultSummary outcome="\K[^"]+' "$trx" | head -1)
+            icon=$( [ "$outcome" = "Completed" ] && echo ":white_check_mark:" || echo ":x:" )
+            echo "| $icon **$file** | $passed passed | $failed failed | $total total |" >> $GITHUB_STEP_SUMMARY
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -80,6 +93,19 @@ jobs:
             --configuration Release \
             --logger "trx;LogFileName=emulator.trx" \
             --filter "Target!=InMemoryOnly&Target!=GoEmulatorUnsupported"
+      - name: Test summary
+        if: always()
+        run: |
+          echo "## :test_tube: Go Emulator Test Results" >> $GITHUB_STEP_SUMMARY
+          for trx in $(find . -name '*.trx'); do
+            file=$(basename "$trx" .trx)
+            passed=$(grep -oP 'Counters[^>]*passed="\K[0-9]+' "$trx" | head -1)
+            failed=$(grep -oP 'Counters[^>]*failed="\K[0-9]+' "$trx" | head -1)
+            total=$(grep -oP 'Counters[^>]*total="\K[0-9]+' "$trx" | head -1)
+            outcome=$(grep -oP 'ResultSummary outcome="\K[^"]+' "$trx" | head -1)
+            icon=$( [ "$outcome" = "Completed" ] && echo ":white_check_mark:" || echo ":x:" )
+            echo "| $icon **$file** | $passed passed | $failed failed | $total total |" >> $GITHUB_STEP_SUMMARY
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:

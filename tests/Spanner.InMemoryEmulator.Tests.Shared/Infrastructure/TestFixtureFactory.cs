@@ -14,6 +14,7 @@ public static class TestFixtureFactory
 		{
 			SpannerTestTarget.InMemory => new InMemoryTestFixture(session),
 			SpannerTestTarget.Emulator => new EmulatorTestFixture(session),
+			SpannerTestTarget.CloudSpanner => new CloudSpannerTestFixture(session),
 			_ => throw new NotSupportedException($"Test target '{session.Target}' is not supported by TestFixtureFactory.")
 		};
 	}
@@ -57,6 +58,31 @@ internal class EmulatorTestFixture : ITestDatabaseFixture
 		{
 			DataSource = $"projects/{_session.ProjectId}/instances/{_session.InstanceId}/databases/{_session.DatabaseId}",
 			EmulatorDetection = Google.Api.Gax.EmulatorDetection.EmulatorOnly
+		};
+
+		return new SpannerConnection(connectionStringBuilder);
+	}
+}
+
+internal class CloudSpannerTestFixture : ITestDatabaseFixture
+{
+	private readonly EmulatorSession _session;
+
+	public CloudSpannerTestFixture(EmulatorSession session)
+	{
+		_session = session;
+	}
+
+	public InMemorySpannerDatabase? Database => null;
+	public FakeSpannerServer? Server => null;
+
+	public SpannerConnection CreateConnection()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/getting-started/dotnet
+		//   Real Cloud Spanner uses Application Default Credentials (no EmulatorDetection).
+		var connectionStringBuilder = new SpannerConnectionStringBuilder
+		{
+			DataSource = $"projects/{_session.ProjectId}/instances/{_session.InstanceId}/databases/{_session.DatabaseId}"
 		};
 
 		return new SpannerConnection(connectionStringBuilder);

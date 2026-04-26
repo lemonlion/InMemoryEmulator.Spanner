@@ -12,12 +12,10 @@ env:
 jobs:
   test-cloud-spanner:
     runs-on: ubuntu-latest
-    # Only run if the required secrets are configured
-    if: ${{ vars.GCP_PROJECT_ID != '' }}
     env:
       SPANNER_TEST_TARGET: CloudSpanner
-      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-      SPANNER_INSTANCE_ID: ${{ vars.SPANNER_INSTANCE_ID }}
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      SPANNER_INSTANCE_ID: ${{ secrets.SPANNER_INSTANCE_ID }}
       SPANNER_DATABASE_ID: test-${{ github.run_id }}
     steps:
       - uses: actions/checkout@v5

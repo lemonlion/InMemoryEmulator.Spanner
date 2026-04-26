@@ -14,6 +14,7 @@
 		<RepositoryUrl>https://github.com/lemonlion/Spanner.InMemoryEmulator</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
 		<PackageTags>spanner;google-cloud;testing;emulator;fake;in-memory</PackageTags>
+		<PackageIcon>icon.png</PackageIcon>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 		<NoWarn>$(NoWarn);CS1591</NoWarn>
 	</PropertyGroup>
@@ -30,6 +31,10 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="$(MSBuildThisFileDirectory)..\icon.png" Pack="true" PackagePath="" />
 	</ItemGroup>
 
 </Project>

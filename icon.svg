@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <!-- Background: deep space navy -->
+    <linearGradient id="bg" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0D1B3E"/>
+      <stop offset="100%" stop-color="#0F1B2D"/>
+    </linearGradient>
+    <!-- Chip outline: official Spanner light → primary blue -->
+    <linearGradient id="chip" x1="64" y1="24" x2="64" y2="104" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#AECBFA"/>
+      <stop offset="100%" stop-color="#4285F4"/>
+    </linearGradient>
+    <!-- Wrench stroke: Spanner blue palette -->
+    <linearGradient id="wrench" x1="80" y1="42" x2="48" y2="86" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#AECBFA"/>
+      <stop offset="50%" stop-color="#669DF6"/>
+      <stop offset="100%" stop-color="#4285F4"/>
+    </linearGradient>
+    <!-- Wrench fill -->
+    <linearGradient id="wrenchFill" x1="80" y1="42" x2="48" y2="86" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#AECBFA" stop-opacity="0.9"/>
+      <stop offset="50%" stop-color="#669DF6" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#4285F4" stop-opacity="0.8"/>
+    </linearGradient>
+    <!-- Subtle center glow -->
+    <radialGradient id="glow" cx="64" cy="64" r="38" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#669DF6" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#4285F4" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="128" height="128" rx="22" fill="url(#bg)"/>
+
+  <!-- Center glow behind chip -->
+  <circle cx="64" cy="64" r="38" fill="url(#glow)"/>
+
+  <!-- ===== MEMORY CHIP ===== -->
+  <!-- Chip body -->
+  <rect x="32" y="24" width="64" height="80" rx="5" fill="none" stroke="url(#chip)" stroke-width="2.5"/>
+
+  <!-- Chip notch (semicircle cutout at top center) -->
+  <path d="M56 24 A8 8 0 0 1 72 24" fill="#0D1B3E" stroke="url(#chip)" stroke-width="2.5"/>
+
+  <!-- Pins — left side -->
+  <rect x="18" y="36" width="16" height="3" rx="1.5" fill="#AECBFA" opacity="0.85"/>
+  <rect x="18" y="48" width="16" height="3" rx="1.5" fill="#AECBFA" opacity="0.70"/>
+  <rect x="18" y="60" width="16" height="3" rx="1.5" fill="#669DF6" opacity="0.55"/>
+  <rect x="18" y="72" width="16" height="3" rx="1.5" fill="#669DF6" opacity="0.45"/>
+  <rect x="18" y="84" width="16" height="3" rx="1.5" fill="#4285F4" opacity="0.35"/>
+
+  <!-- Pins — right side -->
+  <rect x="94" y="36" width="16" height="3" rx="1.5" fill="#AECBFA" opacity="0.85"/>
+  <rect x="94" y="48" width="16" height="3" rx="1.5" fill="#AECBFA" opacity="0.70"/>
+  <rect x="94" y="60" width="16" height="3" rx="1.5" fill="#669DF6" opacity="0.55"/>
+  <rect x="94" y="72" width="16" height="3" rx="1.5" fill="#669DF6" opacity="0.45"/>
+  <rect x="94" y="84" width="16" height="3" rx="1.5" fill="#4285F4" opacity="0.35"/>
+
+  <!-- ===== WRENCH / SPANNER (rotated -45°, centered in chip) ===== -->
+  <g transform="translate(64,64) rotate(-45)">
+    <!-- Open-end jaw head -->
+    <path d="M-9,-10 L-9,-20 A13,8 0 0,1 9,-20 L9,-10 L4,-10 L4,-17 A5,4 0 0,0 -4,-17 L-4,-10 Z"
+          fill="url(#wrenchFill)" stroke="url(#wrench)" stroke-width="1.2"/>
+
+    <!-- Handle shaft -->
+    <rect x="-4" y="-12" width="8" height="26" rx="1"
+          fill="url(#wrenchFill)" stroke="url(#wrench)" stroke-width="1.2"/>
+
+    <!-- Box-end head (ring) -->
+    <circle cx="0" cy="18" r="9"
+            fill="url(#wrenchFill)" stroke="url(#wrench)" stroke-width="1.2"/>
+    <!-- Hexagonal cutout in box end -->
+    <polygon points="0,12.5 4.5,15 4.5,21 0,23.5 -4.5,21 -4.5,15"
+             fill="#0D1B3E" stroke="url(#wrench)" stroke-width="0.6" opacity="0.8"/>
+  </g>
+
+</svg>

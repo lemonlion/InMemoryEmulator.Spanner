@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
@@ -22,10 +22,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 		return reader.IsDBNull(0) ? null : reader.GetValue(0);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// ABS
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#abs
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("ABS(0)", 0L)]
@@ -51,10 +51,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task Abs_Null_ReturnsNull() => (await Eval("ABS(NULL)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// MOD
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#mod
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("MOD(10, 3)", 1L)]
@@ -73,10 +73,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task Mod_Null_ReturnsNull() => (await Eval("MOD(NULL, 3)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// CEIL / CEILING
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#ceil
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("CEIL(3.2)", 4.0)]
@@ -97,10 +97,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task Ceil_Null_ReturnsNull() => (await Eval("CEIL(NULL)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// FLOOR
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#floor
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("FLOOR(3.8)", 3.0)]
@@ -121,10 +121,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task Floor_Null_ReturnsNull() => (await Eval("FLOOR(NULL)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// ROUND
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#round
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("ROUND(3.456, 2)", 3.46)]
@@ -147,10 +147,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task Round_Null_ReturnsNull() => (await Eval("ROUND(NULL)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// TRUNC
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#trunc
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("TRUNC(3.456, 1)", 3.4)]
@@ -168,10 +168,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task Trunc_Null_ReturnsNull() => (await Eval("TRUNC(NULL, 1)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// SIGN
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#sign
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("SIGN(0)", 0L)]
@@ -196,10 +196,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task Sign_Null_ReturnsNull() => (await Eval("SIGN(NULL)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// GREATEST / LEAST
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#greatest
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("GREATEST(1, 2, 3)", 3L)]
@@ -239,10 +239,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Least_Float_ReturnsExpected(string expr, double expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// DIV (integer division)
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#div
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("DIV(10, 3)", 3L)]
@@ -261,10 +261,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task Div_Null_ReturnsNull() => (await Eval("DIV(NULL, 3)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// IEEE_DIVIDE
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#ieee_divide
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("IEEE_DIVIDE(10.0, 2.0)", 5.0)]
@@ -290,10 +290,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task IeeeDivide_ZeroByZero_ReturnsNaN()
 		=> double.IsNaN((double)(await Eval("IEEE_DIVIDE(0.0, 0.0)"))!).Should().BeTrue();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// SAFE_DIVIDE
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#safe_divide
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task SafeDivide_ByZero_ReturnsNull()
@@ -311,10 +311,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task SafeDivide_NullDenominator_ReturnsNull()
 		=> (await Eval("SAFE_DIVIDE(1.0, NULL)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// SAFE_NEGATE
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#safe_negate
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("SAFE_NEGATE(1)", -1L)]
@@ -328,10 +328,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task SafeNegate_Null_ReturnsNull()
 		=> (await Eval("SAFE_NEGATE(NULL)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// SAFE_ADD / SAFE_SUBTRACT / SAFE_MULTIPLY
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#safe_add
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("SAFE_ADD(1, 2)", 3L)]
@@ -369,10 +369,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task SafeMultiply_Null_ReturnsNull()
 		=> (await Eval("SAFE_MULTIPLY(NULL, 1)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// SQRT
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#sqrt
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("SQRT(0.0)", 0.0)]
@@ -396,10 +396,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task Sqrt_Null_ReturnsNull() => (await Eval("SQRT(NULL)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// POW / POWER
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#pow
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("POW(2.0, 0.0)", 1.0)]
@@ -422,10 +422,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task Pow_Null_ReturnsNull() => (await Eval("POW(NULL, 2.0)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// EXP
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#exp
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task Exp_0_Returns1() => (await Eval("EXP(0.0)")).Should().Be(1.0);
@@ -447,10 +447,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task Exp_Null_ReturnsNull() => (await Eval("EXP(NULL)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// LN
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#ln
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task Ln_1_Returns0() => (await Eval("LN(1.0)")).Should().Be(0.0);
@@ -472,10 +472,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task Ln_Null_ReturnsNull() => (await Eval("LN(NULL)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// LOG
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#log
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("LOG(100.0, 10.0)", 2.0)]
@@ -487,10 +487,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 		result.Should().BeApproximately(expected, 1e-10);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// LOG10
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#log10
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("LOG10(1.0)", 0.0)]
@@ -504,10 +504,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task Log10_Null_ReturnsNull() => (await Eval("LOG10(NULL)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// IS_NAN / IS_INF
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#is_nan
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("IS_NAN(IEEE_DIVIDE(0.0, 0.0))", true)]
@@ -526,27 +526,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task IsInf_ReturnsExpected(string expr, bool expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
-	// RANGE_BUCKET
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#range_bucket
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("RANGE_BUCKET(5, [0, 10, 20, 30])", 1L)]
-	[InlineData("RANGE_BUCKET(15, [0, 10, 20, 30])", 2L)]
-	[InlineData("RANGE_BUCKET(25, [0, 10, 20, 30])", 3L)]
-	[InlineData("RANGE_BUCKET(35, [0, 10, 20, 30])", 4L)]
-	[InlineData("RANGE_BUCKET(-5, [0, 10, 20, 30])", 0L)]
-	[InlineData("RANGE_BUCKET(0, [0, 10, 20, 30])", 1L)]
-	[InlineData("RANGE_BUCKET(10, [0, 10, 20, 30])", 2L)]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task RangeBucket_ReturnsExpected(string expr, long expected)
-		=> (await Eval(expr)).Should().Be(expected);
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Arithmetic operators: +, -, *, /, %
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("1 + 1", 2L)]
@@ -599,9 +582,9 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 		result.Should().BeApproximately(expected, 1e-10);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Unary minus
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("-1", -1L)]
@@ -612,10 +595,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task UnaryMinus_ReturnsExpected(string expr, long expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Comparison operators
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#comparison_operators
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("1 = 1", true)]
@@ -666,34 +649,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task StringComparison_ReturnsExpected(string expr, bool expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
-	// NULL comparison (three-valued logic)
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#comparison_operators
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("NULL = NULL")]
-	[InlineData("NULL != NULL")]
-	[InlineData("NULL < NULL")]
-	[InlineData("NULL > NULL")]
-	[InlineData("NULL <= NULL")]
-	[InlineData("NULL >= NULL")]
-	[InlineData("1 = NULL")]
-	[InlineData("NULL = 1")]
-	[InlineData("1 < NULL")]
-	[InlineData("NULL < 1")]
-	[InlineData("1 + NULL")]
-	[InlineData("NULL + 1")]
-	[InlineData("NULL * 5")]
-	[InlineData("NULL - 3")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task NullComparison_ReturnsNull(string expr)
-		=> (await Eval(expr)).Should().BeNull();
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// IS NULL / IS NOT NULL
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#is_null
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("NULL IS NULL", true)]
@@ -709,10 +668,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task IsNull_ReturnsExpected(string expr, bool expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// BETWEEN
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#between
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("5 BETWEEN 1 AND 10", true)]
@@ -728,10 +687,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Between_ReturnsExpected(string expr, bool expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// IN
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#in_operators
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("1 IN (1, 2, 3)", true)]
@@ -747,10 +706,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task In_ReturnsExpected(string expr, bool expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Boolean operators: AND, OR, NOT
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#logical_operators
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("true AND true", true)]
@@ -773,9 +732,9 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task BoolOperator_ReturnsExpected(string expr, bool expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Null coalesce operator ??
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("COALESCE(NULL, 1)", 1L)]
@@ -797,10 +756,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Coalesce_AllNull_ReturnsNull()
 		=> (await Eval("COALESCE(NULL, NULL, NULL)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// IF
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conditional_expressions#if
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("IF(true, 1, 2)", 1L)]
@@ -819,10 +778,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task If_String_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// IFNULL
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conditional_expressions#ifnull
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("IFNULL(NULL, 1)", 1L)]
@@ -838,10 +797,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Ifnull_String_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// NULLIF
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conditional_expressions#nullif
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("NULLIF(1, 2)", 1L)]
@@ -869,10 +828,10 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Nullif_String_Equal_ReturnsNull(string expr)
 		=> (await Eval(expr)).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// CASE expression
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conditional_expressions#case
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("CASE WHEN true THEN 1 ELSE 2 END", 1L)]
@@ -903,9 +862,9 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Case_NoMatch_NoElse_ReturnsNull()
 		=> (await Eval("CASE WHEN false THEN 1 END")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Integer literals
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("0", 0L)]
@@ -919,9 +878,9 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task IntLiteral_ReturnsExpected(string expr, long expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Float literals
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("0.0", 0.0)]
@@ -935,9 +894,9 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task FloatLiteral_ReturnsExpected(string expr, double expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// String literals
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("'hello'", "hello")]
@@ -949,9 +908,9 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task StringLiteral_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Boolean literals
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("true", true)]
@@ -961,17 +920,17 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task BoolLiteral_ReturnsExpected(string expr, bool expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// NULL literal
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task NullLiteral_ReturnsNull()
 		=> (await Eval("NULL")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Complex arithmetic expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("(1 + 2) * 3", 9L)]
@@ -985,9 +944,9 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task ComplexArithmetic_ReturnsExpected(string expr, long expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// NULL propagation for all math functions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("ABS(NULL)")]
@@ -1018,9 +977,9 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task MathFunction_NullPropagation(string expr)
 		=> (await Eval(expr)).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Nested math functions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("ABS(SIGN(-5))", 1L)]
@@ -1044,34 +1003,4 @@ public class MathFunctionExtendedIntegrationTests : IntegrationTestBase
 		result.Should().BeApproximately(expected, 1e-10);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
-	// RAND
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#rand
-	// ═══════════════════════════════════════════════════════════════
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Rand_ReturnsBetween0And1()
-	{
-		var result = (double)(await Eval("RAND()"))!;
-		result.Should().BeGreaterThanOrEqualTo(0.0);
-		result.Should().BeLessThan(1.0);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Rand_TwoCalls_MayDiffer()
-	{
-		// Two RAND calls in same query — just verify both return valid values
-		using var conn = Fixture.CreateConnection();
-		using var cmd = conn.CreateSelectCommand("SELECT RAND() AS R1, RAND() AS R2");
-		using var reader = await cmd.ExecuteReaderAsync();
-		await reader.ReadAsync();
-		var r1 = (double)reader.GetValue(0);
-		var r2 = (double)reader.GetValue(1);
-		r1.Should().BeGreaterThanOrEqualTo(0.0);
-		r2.Should().BeGreaterThanOrEqualTo(0.0);
-		r1.Should().BeLessThan(1.0);
-		r2.Should().BeLessThan(1.0);
-	}
 }

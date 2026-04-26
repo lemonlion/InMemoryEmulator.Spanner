@@ -345,4 +345,155 @@ public class ErrorConditionIntegrationTests : IntegrationTestBase
 		var count = await ExecuteDmlAsync("DELETE FROM ErrTest WHERE Id = -999999");
 		count.Should().Be(0);
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Non-GCP functions — must reject functions not in Cloud Spanner
+	// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
+	//   Functions like LEFT, RIGHT, ASCII, CHR, INITCAP, INSTR, TRANSLATE,
+	//   CONTAINS_SUBSTR, RANGE_BUCKET, RAND do not exist in GCP Spanner.
+	// ═══════════════════════════════════════════════════════════════
+
+	[Theory]
+	[InlineData("SELECT LEFT('abc', 2) AS R")]
+	[InlineData("SELECT RIGHT('abc', 2) AS R")]
+	[InlineData("SELECT INITCAP('hello world') AS R")]
+	[InlineData("SELECT INSTR('hello', 'l') AS R")]
+	[InlineData("SELECT TRANSLATE('abc', 'a', 'x') AS R")]
+	[InlineData("SELECT CONTAINS_SUBSTR('hello', 'ell') AS R")]
+	[InlineData("SELECT RANGE_BUCKET(5, [1, 10, 100]) AS R")]
+	[InlineData("SELECT RAND() AS R")]
+	[InlineData("SELECT ASCII('A') AS R")]
+	[InlineData("SELECT CHR(65) AS R")]
+	public async Task NonGcpFunction_Throws(string sql)
+	{
+		var act = () => QueryAsync(sql);
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Window / Analytic functions — not supported in Cloud Spanner
+	// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
+	//   Cloud Spanner does not support ROW_NUMBER, RANK, DENSE_RANK,
+	//   LAG, LEAD, FIRST_VALUE, LAST_VALUE, or aggregate OVER().
+	// ═══════════════════════════════════════════════════════════════
+
+	[Theory]
+	[InlineData("SELECT ROW_NUMBER() OVER (ORDER BY Id) AS RN FROM ErrTest")]
+	[InlineData("SELECT RANK() OVER (ORDER BY Id) AS R FROM ErrTest")]
+	[InlineData("SELECT DENSE_RANK() OVER (ORDER BY Id) AS DR FROM ErrTest")]
+	[InlineData("SELECT LAG(Val) OVER (ORDER BY Id) AS L FROM ErrTest")]
+	[InlineData("SELECT LEAD(Val) OVER (ORDER BY Id) AS L FROM ErrTest")]
+	[InlineData("SELECT FIRST_VALUE(Val) OVER (ORDER BY Id) AS FV FROM ErrTest")]
+	[InlineData("SELECT LAST_VALUE(Val) OVER (ORDER BY Id) AS LV FROM ErrTest")]
+	[InlineData("SELECT SUM(Val) OVER (PARTITION BY Name) AS S FROM ErrTest")]
+	public async Task WindowFunction_Throws(string sql)
+	{
+		await EnsureErrorTableAsync();
+		var act = () => QueryAsync(sql);
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Literal NULL in operators — GCP Spanner rejects at parse time
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators
+	//   "Operands of <op> cannot be literal NULL"
+	// ═══════════════════════════════════════════════════════════════
+
+	[Theory]
+	[InlineData("SELECT NULL + 1 AS R")]
+	[InlineData("SELECT 1 + NULL AS R")]
+	[InlineData("SELECT NULL - 1 AS R")]
+	[InlineData("SELECT NULL * 1 AS R")]
+	[InlineData("SELECT NULL / 1 AS R")]
+	[InlineData("SELECT NULL = 1 AS R")]
+	[InlineData("SELECT 1 = NULL AS R")]
+	[InlineData("SELECT NULL != 1 AS R")]
+	[InlineData("SELECT NULL < 1 AS R")]
+	[InlineData("SELECT NULL > 1 AS R")]
+	[InlineData("SELECT NULL <= 1 AS R")]
+	[InlineData("SELECT NULL >= 1 AS R")]
+	[InlineData("SELECT NULL || 'a' AS R")]
+	[InlineData("SELECT 'a' || NULL AS R")]
+	[InlineData("SELECT NOT NULL AS R")]
+	public async Task LiteralNull_InOperator_Throws(string sql)
+	{
+		var act = () => QueryAsync(sql);
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	public async Task LiteralNull_InAndOr_StillWorks()
+	{
+		// AND/OR with NULL use three-valued logic and are allowed
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#logical_operators
+		var rows = await QueryAsync("SELECT NULL AND FALSE AS R");
+		rows[0]["R"].Should().Be(false);
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// TO_JSON_STRING on non-JSON types — GCP Spanner rejects
+	// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
+	//   TO_JSON_STRING only accepts JSON-typed values.
+	// ═══════════════════════════════════════════════════════════════
+
+	[Theory]
+	[InlineData("SELECT TO_JSON_STRING(1) AS R")]
+	[InlineData("SELECT TO_JSON_STRING('hello') AS R")]
+	[InlineData("SELECT TO_JSON_STRING(TRUE) AS R")]
+	public async Task ToJsonString_NonJsonType_Throws(string sql)
+	{
+		var act = () => QueryAsync(sql);
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// ARRAY_TO_STRING on non-STRING arrays — GCP rejects
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#array_to_string
+	//   Signature: ARRAY_TO_STRING(ARRAY<STRING>, STRING, [STRING])
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task ArrayToString_NonStringArray_Throws()
+	{
+		var act = () => QueryAsync("SELECT ARRAY_TO_STRING([1, 2, 3], ',') AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// CAST ARRAY type incompatibility — GCP rejects cross-type array casts
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task CastArray_IncompatibleTypes_Throws()
+	{
+		var act = () => QueryAsync("SELECT CAST(GENERATE_ARRAY(1, 3) AS ARRAY<STRING>) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// TIMESTAMP_ADD with MONTH — not supported for TIMESTAMP
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_add
+	//   "TIMESTAMP_ADD does not support the MONTH date part"
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task TimestampAdd_Month_Throws()
+	{
+		var act = () => QueryAsync("SELECT TIMESTAMP_ADD(TIMESTAMP '2024-01-15T00:00:00Z', INTERVAL 1 MONTH) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// REGEXP_EXTRACT with >1 capturing group — GCP rejects
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_extract
+	//   "at most one capturing group"
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task RegexpExtract_MultipleCaptures_Throws()
+	{
+		var act = () => QueryAsync("SELECT REGEXP_EXTRACT('abc123', '([a-z]+)([0-9]+)') AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
 }

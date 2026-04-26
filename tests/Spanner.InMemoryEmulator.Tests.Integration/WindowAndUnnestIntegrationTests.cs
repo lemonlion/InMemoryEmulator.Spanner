@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
@@ -7,7 +7,7 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 
 /// <summary>
 /// Integration tests for Phase 15: Window Functions, UNNEST, Type Constructors.
-/// Tests flow through the full gRPC pipeline: SpannerConnection → gRPC → FakeSpannerService.
+/// Tests flow through the full gRPC pipeline: SpannerConnection â†’ gRPC â†’ FakeSpannerService.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 public class WindowAndUnnestIntegrationTests : IntegrationTestBase
@@ -54,139 +54,7 @@ public WindowAndUnnestIntegrationTests(EmulatorSession session) : base(session) 
 		return rows;
 	}
 
-	// ─── ROW_NUMBER ───
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task RowNumber_WithOrderBy()
-	{
-		var rows = await QueryAsync("SELECT Name, ROW_NUMBER() OVER (ORDER BY Salary DESC) AS rn FROM WinEmp ORDER BY rn");
-		rows.Should().HaveCount(5);
-		rows[0]["rn"].Should().Be(1L);
-		rows[4]["rn"].Should().Be(5L);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task RowNumber_WithPartitionBy()
-	{
-		var rows = await QueryAsync("SELECT Name, Dept, ROW_NUMBER() OVER (PARTITION BY Dept ORDER BY Salary DESC) AS rn FROM WinEmp ORDER BY Dept, rn");
-		var engRows = rows.Where(r => (string)r["Dept"]! == "Eng").ToList();
-		engRows[0]["rn"].Should().Be(1L); // Eve
-		engRows[2]["rn"].Should().Be(3L); // Bob
-	}
-
-	// ─── RANK ───
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Rank_WithTies()
-	{
-		var rows = await QueryAsync("SELECT Name, RANK() OVER (ORDER BY Salary DESC) AS rnk FROM WinEmp ORDER BY rnk, Name");
-		rows[0]["rnk"].Should().Be(1L); // Eve 110k
-		rows[1]["rnk"].Should().Be(2L); // Alice 100k
-		rows[2]["rnk"].Should().Be(3L); // Bob 90k
-		// Charlie and Diana both 80k → rank 4
-		rows[3]["rnk"].Should().Be(4L);
-		rows[4]["rnk"].Should().Be(4L);
-	}
-
-	// ─── DENSE_RANK ───
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task DenseRank_WithTies()
-	{
-		var rows = await QueryAsync("SELECT Name, DENSE_RANK() OVER (ORDER BY Salary DESC) AS drnk FROM WinEmp ORDER BY drnk, Name");
-		rows[0]["drnk"].Should().Be(1L);
-		rows[1]["drnk"].Should().Be(2L);
-		rows[2]["drnk"].Should().Be(3L);
-		rows[3]["drnk"].Should().Be(4L);
-		rows[4]["drnk"].Should().Be(4L);
-	}
-
-	// ─── Aggregate OVER ───
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Sum_OverPartition()
-	{
-		var rows = await QueryAsync("SELECT Name, SUM(Salary) OVER (PARTITION BY Dept) AS dept_total FROM WinEmp WHERE Dept = 'Eng' ORDER BY Name");
-		rows.Should().HaveCount(3);
-		foreach (var row in rows)
-		{
-			Convert.ToInt64(row["dept_total"]).Should().Be(300000L);
-		}
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Count_OverPartition()
-	{
-		var rows = await QueryAsync("SELECT Name, COUNT(*) OVER (PARTITION BY Dept) AS dept_count FROM WinEmp WHERE Dept = 'Sales' ORDER BY Name");
-		rows.Should().HaveCount(2);
-		foreach (var row in rows)
-		{
-			row["dept_count"].Should().Be(2L);
-		}
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Avg_OverPartition()
-	{
-		var rows = await QueryAsync("SELECT Name, AVG(Salary) OVER (PARTITION BY Dept) AS avg_salary FROM WinEmp WHERE Dept = 'Eng' ORDER BY Name");
-		foreach (var row in rows)
-		{
-			Convert.ToDouble(row["avg_salary"]).Should().Be(100000.0);
-		}
-	}
-
-	// ─── LAG / LEAD ───
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Lag_ReturnsNullForFirstRow()
-	{
-		var rows = await QueryAsync("SELECT Name, LAG(Name) OVER (ORDER BY Id) AS prev_name FROM WinEmp ORDER BY Id");
-		rows[0]["prev_name"].Should().BeNull();
-		rows[1]["prev_name"].Should().Be("Alice");
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Lead_ReturnsNullForLastRow()
-	{
-		var rows = await QueryAsync("SELECT Name, LEAD(Name) OVER (ORDER BY Id) AS next_name FROM WinEmp ORDER BY Id");
-		rows[4]["next_name"].Should().BeNull();
-		rows[0]["next_name"].Should().Be("Bob");
-	}
-
-	// ─── FIRST_VALUE / LAST_VALUE ───
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task FirstValue_ReturnsFirstInPartition()
-	{
-		var rows = await QueryAsync("SELECT Name, FIRST_VALUE(Name) OVER (PARTITION BY Dept ORDER BY Salary DESC) AS top_earner FROM WinEmp WHERE Dept = 'Eng' ORDER BY Id");
-		foreach (var row in rows)
-		{
-			row["top_earner"].Should().Be("Eve");
-		}
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task LastValue_ReturnsLastInPartition()
-	{
-		var rows = await QueryAsync("SELECT Name, LAST_VALUE(Name) OVER (PARTITION BY Dept ORDER BY Salary DESC) AS lowest_earner FROM WinEmp WHERE Dept = 'Eng' ORDER BY Id");
-		foreach (var row in rows)
-		{
-			row["lowest_earner"].Should().Be("Bob");
-		}
-	}
-
-	// ─── UNNEST ───
+	// â”€â”€â”€ UNNEST â”€â”€â”€
 
 	[Fact]
 	public async Task Unnest_FlattenArrayLiteral()
@@ -212,7 +80,7 @@ public WindowAndUnnestIntegrationTests(EmulatorSession session) : base(session) 
 		rows.Should().HaveCount(0);
 	}
 
-	// ─── Array element access ───
+	// â”€â”€â”€ Array element access â”€â”€â”€
 
 	[Fact]
 	public async Task ArrayAccess_Offset()
@@ -235,41 +103,16 @@ public WindowAndUnnestIntegrationTests(EmulatorSession session) : base(session) 
 		rows[0]["val"].Should().BeNull();
 	}
 
-	// ─── STRUCT ───
+	// â”€â”€â”€ STRUCT â”€â”€â”€
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task Struct_Constructor()
 	{
-		// STRUCT constructor should parse and evaluate — result type may be serialized as JSON/string
+		// STRUCT constructor should parse and evaluate â€” result type may be serialized as JSON/string
 		var rows = await QueryAsync("SELECT STRUCT(1 AS a, 'hello' AS b) AS s FROM WinDummy WHERE Id = 1");
 		rows.Should().HaveCount(1);
 		rows[0]["s"].Should().NotBeNull();
 	}
 
-	// ─── Window function without PARTITION BY ───
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task RowNumber_WithoutPartition()
-	{
-		var rows = await QueryAsync("SELECT Name, ROW_NUMBER() OVER (ORDER BY Id) AS rn FROM WinEmp ORDER BY rn");
-		rows.Should().HaveCount(5);
-		for (var i = 0; i < 5; i++)
-		{
-			rows[i]["rn"].Should().Be((long)(i + 1));
-		}
-	}
-
-	// ─── Multiple window functions in same query ───
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task MultipleWindowFunctions_InSameQuery()
-	{
-		var rows = await QueryAsync("SELECT Name, ROW_NUMBER() OVER (ORDER BY Salary DESC) AS rn, RANK() OVER (ORDER BY Salary DESC) AS rnk FROM WinEmp ORDER BY rn");
-		rows.Should().HaveCount(5);
-		rows[0]["rn"].Should().Be(1L);
-		rows[0]["rnk"].Should().Be(1L);
-	}
 }

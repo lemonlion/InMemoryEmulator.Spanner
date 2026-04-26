@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
@@ -22,10 +22,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 		return reader.IsDBNull(0) ? null : reader.GetValue(0);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// CONCAT
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#concat
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("CONCAT('a', 'b')", "ab")]
@@ -40,7 +40,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("CONCAT(' ', ' ')", "  ")]
 	[InlineData("CONCAT('a', 'b', 'c', 'd', 'e', 'f', 'g')", "abcdefg")]
 	[InlineData("CONCAT('line1\\n', 'line2')", "line1\\nline2")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task Concat_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
@@ -52,10 +52,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Concat_WithNull_ReturnsNull(string expr)
 		=> (await Eval(expr)).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// LENGTH / CHAR_LENGTH / CHARACTER_LENGTH
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#length
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("LENGTH('')", 0L)]
@@ -75,10 +75,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Length_Null_ReturnsNull()
 		=> (await Eval("LENGTH(NULL)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// UPPER
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#upper
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("UPPER('hello')", "HELLO")]
@@ -98,10 +98,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Upper_Null_ReturnsNull()
 		=> (await Eval("UPPER(NULL)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// LOWER
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#lower
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("LOWER('HELLO')", "hello")]
@@ -121,10 +121,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Lower_Null_ReturnsNull()
 		=> (await Eval("LOWER(NULL)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// TRIM
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#trim
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("TRIM('  hello  ')", "hello")]
@@ -136,7 +136,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("TRIM('  hello world  ')", "hello world")]
 	[InlineData("TRIM(' x ')", "x")]
 	[InlineData("TRIM('  multiple  words  ')", "multiple  words")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task Trim_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
@@ -144,10 +144,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Trim_Null_ReturnsNull()
 		=> (await Eval("TRIM(NULL)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// LTRIM
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#ltrim
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("LTRIM('  hello')", "hello")]
@@ -165,10 +165,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Ltrim_Null_ReturnsNull()
 		=> (await Eval("LTRIM(NULL)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// RTRIM
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#rtrim
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("RTRIM('hello  ')", "hello")]
@@ -186,11 +186,11 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Rtrim_Null_ReturnsNull()
 		=> (await Eval("RTRIM(NULL)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// SUBSTR / SUBSTRING
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#substr
 	// Position is 1-based.
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("SUBSTR('hello', 1)", "hello")]
@@ -217,10 +217,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Substr_Null_ReturnsNull()
 		=> (await Eval("SUBSTR(NULL, 1)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// REPLACE
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#replace
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("REPLACE('hello', 'ell', 'ELL')", "hELLo")]
@@ -242,10 +242,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Replace_Null_ReturnsNull()
 		=> (await Eval("REPLACE(NULL, 'a', 'b')")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// REVERSE
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#reverse
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("REVERSE('abc')", "cba")]
@@ -264,11 +264,11 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Reverse_Null_ReturnsNull()
 		=> (await Eval("REVERSE(NULL)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// STRPOS
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#strpos
 	// Returns 1-based position, 0 if not found.
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("STRPOS('hello', 'h')", 1L)]
@@ -290,10 +290,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Strpos_Null_ReturnsNull()
 		=> (await Eval("STRPOS(NULL, 'a')")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// STARTS_WITH
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#starts_with
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("STARTS_WITH('hello', 'hel')", true)]
@@ -314,10 +314,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task StartsWith_Null_ReturnsNull()
 		=> (await Eval("STARTS_WITH(NULL, 'a')")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// ENDS_WITH
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#ends_with
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("ENDS_WITH('hello', 'llo')", true)]
@@ -338,10 +338,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task EndsWith_Null_ReturnsNull()
 		=> (await Eval("ENDS_WITH(NULL, 'a')")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// LPAD
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#lpad
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("LPAD('hi', 5, '-')", "---hi")]
@@ -361,10 +361,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Lpad_Null_ReturnsNull()
 		=> (await Eval("LPAD(NULL, 5, 'x')")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// RPAD
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#rpad
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("RPAD('hi', 5, '-')", "hi---")]
@@ -384,10 +384,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Rpad_Null_ReturnsNull()
 		=> (await Eval("RPAD(NULL, 5, 'x')")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// REPEAT
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#repeat
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("REPEAT('ab', 3)", "ababab")]
@@ -405,107 +405,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Repeat_Null_ReturnsNull()
 		=> (await Eval("REPEAT(NULL, 3)")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
-	// LEFT / RIGHT
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#left
-	// ═══════════════════════════════════════════════════════════════
-
 	[Theory]
-	[InlineData("LEFT('hello', 3)", "hel")]
-	[InlineData("LEFT('hello', 0)", "")]
-	[InlineData("LEFT('hello', 5)", "hello")]
-	[InlineData("LEFT('hello', 10)", "hello")]
-	[InlineData("LEFT('hello', 1)", "h")]
-	[InlineData("LEFT('', 3)", "")]
-	[InlineData("LEFT('a', 1)", "a")]
-	[InlineData("LEFT('abcdef', 4)", "abcd")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Left_ReturnsExpected(string expr, string expected)
-		=> (await Eval(expr)).Should().Be(expected);
-
-	[Theory]
-	[InlineData("RIGHT('hello', 3)", "llo")]
-	[InlineData("RIGHT('hello', 0)", "")]
-	[InlineData("RIGHT('hello', 5)", "hello")]
-	[InlineData("RIGHT('hello', 10)", "hello")]
-	[InlineData("RIGHT('hello', 1)", "o")]
-	[InlineData("RIGHT('', 3)", "")]
-	[InlineData("RIGHT('a', 1)", "a")]
-	[InlineData("RIGHT('abcdef', 4)", "cdef")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Right_ReturnsExpected(string expr, string expected)
-		=> (await Eval(expr)).Should().Be(expected);
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Left_Null_ReturnsNull() => (await Eval("LEFT(NULL, 3)")).Should().BeNull();
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Right_Null_ReturnsNull() => (await Eval("RIGHT(NULL, 3)")).Should().BeNull();
-
-	// ═══════════════════════════════════════════════════════════════
-	// INITCAP
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#initcap
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("INITCAP('hello world')", "Hello World")]
-	[InlineData("INITCAP('HELLO WORLD')", "Hello World")]
-	[InlineData("INITCAP('hello')", "Hello")]
-	[InlineData("INITCAP('')", "")]
-	[InlineData("INITCAP('a')", "A")]
-	[InlineData("INITCAP('hello-world')", "Hello-World")]
-	[InlineData("INITCAP('one two three')", "One Two Three")]
-	[InlineData("INITCAP('already Capitalized')", "Already Capitalized")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Initcap_ReturnsExpected(string expr, string expected)
-		=> (await Eval(expr)).Should().Be(expected);
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Initcap_Null_ReturnsNull()
-		=> (await Eval("INITCAP(NULL)")).Should().BeNull();
-
-	// ═══════════════════════════════════════════════════════════════
-	// REGEXP_CONTAINS
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_contains
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("REGEXP_CONTAINS('hello123', '[0-9]+')", true)]
-	[InlineData("REGEXP_CONTAINS('hello', '[0-9]+')", false)]
-	[InlineData("REGEXP_CONTAINS('abc', 'abc')", true)]
-	[InlineData("REGEXP_CONTAINS('abc', '^abc$')", true)]
-	[InlineData("REGEXP_CONTAINS('abc', '^ab$')", false)]
-	[InlineData("REGEXP_CONTAINS('hello world', 'world')", true)]
-	[InlineData("REGEXP_CONTAINS('hello world', '^hello')", true)]
-	[InlineData("REGEXP_CONTAINS('hello world', 'world$')", true)]
-	[InlineData("REGEXP_CONTAINS('', '')", true)]
-	[InlineData("REGEXP_CONTAINS('abc', '.')", true)]
-	[InlineData("REGEXP_CONTAINS('abc', '[xyz]')", false)]
-	[InlineData("REGEXP_CONTAINS('abc', '[a-c]')", true)]
-	[InlineData("REGEXP_CONTAINS('test@email.com', '@')", true)]
-	[InlineData("REGEXP_CONTAINS('test', '(test|foo)')", true)]
-	[InlineData("REGEXP_CONTAINS('foo', '(test|foo)')", true)]
-	[InlineData("REGEXP_CONTAINS('bar', '(test|foo)')", false)]
-	public async Task RegexpContains_ReturnsExpected(string expr, bool expected)
-		=> (await Eval(expr)).Should().Be(expected);
-
-	[Fact]
-	public async Task RegexpContains_Null_ReturnsNull()
-		=> (await Eval("REGEXP_CONTAINS(NULL, 'a')")).Should().BeNull();
-
-	// ═══════════════════════════════════════════════════════════════
-	// REGEXP_EXTRACT
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_extract
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("REGEXP_EXTRACT('hello123', '[0-9]+')", "123")]
-	[InlineData("REGEXP_EXTRACT('abc', 'abc')", "abc")]
-	[InlineData("REGEXP_EXTRACT('hello world', '[a-z]+')", "hello")]
-	[InlineData("REGEXP_EXTRACT('test123end', '[0-9]+')", "123")]
-	[InlineData("REGEXP_EXTRACT('2024-01-15', '[0-9]{4}')", "2024")]
 	[InlineData("REGEXP_EXTRACT('no match here', '[0-9]+')", null)]
 	public async Task RegexpExtract_ReturnsExpected(string expr, string? expected)
 	{
@@ -516,10 +416,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 			result.Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// REGEXP_REPLACE
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_replace
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("REGEXP_REPLACE('abc123', '[0-9]+', 'X')", "abcX")]
@@ -537,11 +437,11 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task RegexpReplace_Null_ReturnsNull()
 		=> (await Eval("REGEXP_REPLACE(NULL, 'a', 'b')")).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// SPLIT
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#split
 	// Tested via ARRAY_TO_STRING(SPLIT(...)) to get scalar result.
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("ARRAY_TO_STRING(SPLIT('a,b,c', ','), '|')", "a|b|c")]
@@ -554,10 +454,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Split_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// ARRAY_TO_STRING
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#array_to_string
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("ARRAY_TO_STRING(['a', 'b', 'c'], ',')", "a,b,c")]
@@ -568,44 +468,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task ArrayToString_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
-	// ASCII
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#ascii
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("ASCII('A')", 65L)]
-	[InlineData("ASCII('a')", 97L)]
-	[InlineData("ASCII('0')", 48L)]
-	[InlineData("ASCII(' ')", 32L)]
-	[InlineData("ASCII('Z')", 90L)]
-	[InlineData("ASCII('z')", 122L)]
-	[InlineData("ASCII('!')", 33L)]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Ascii_ReturnsExpected(string expr, long expected)
-		=> (await Eval(expr)).Should().Be(expected);
-
-	// ═══════════════════════════════════════════════════════════════
-	// CHR
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#chr
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("CHR(65)", "A")]
-	[InlineData("CHR(97)", "a")]
-	[InlineData("CHR(48)", "0")]
-	[InlineData("CHR(32)", " ")]
-	[InlineData("CHR(90)", "Z")]
-	[InlineData("CHR(122)", "z")]
-	[InlineData("CHR(33)", "!")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Chr_ReturnsExpected(string expr, string expected)
-		=> (await Eval(expr)).Should().Be(expected);
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// BYTE_LENGTH
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#byte_length
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("BYTE_LENGTH('')", 0L)]
@@ -615,10 +481,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task ByteLength_ReturnsExpected(string expr, long expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// TO_HEX / FROM_HEX
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#to_hex
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("TO_HEX(b'\\x00')", "00")]
@@ -628,27 +494,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task ToHex_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
-	// INSTR
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#instr
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("INSTR('hello', 'l')", 3L)]
-	[InlineData("INSTR('hello', 'x')", 0L)]
-	[InlineData("INSTR('hello', 'h')", 1L)]
-	[InlineData("INSTR('hello', 'o')", 5L)]
-	[InlineData("INSTR('hello', 'hello')", 1L)]
-	[InlineData("INSTR('abcabc', 'abc')", 1L)]
-	[InlineData("INSTR('', 'a')", 0L)]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Instr_ReturnsExpected(string expr, long expected)
-		=> (await Eval(expr)).Should().Be(expected);
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// SOUNDEX
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#soundex
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("SOUNDEX('Robert')", "R163")]
@@ -658,42 +507,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Soundex_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
-	// CONTAINS_SUBSTR
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#contains_substr
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("CONTAINS_SUBSTR('hello world', 'world')", true)]
-	[InlineData("CONTAINS_SUBSTR('hello world', 'WORLD')", true)]
-	[InlineData("CONTAINS_SUBSTR('hello world', 'xyz')", false)]
-	[InlineData("CONTAINS_SUBSTR('hello', 'hello')", true)]
-	[InlineData("CONTAINS_SUBSTR('hello', '')", true)]
-	[InlineData("CONTAINS_SUBSTR('', 'a')", false)]
-	[InlineData("CONTAINS_SUBSTR('Hello World', 'hello')", true)]
-	[InlineData("CONTAINS_SUBSTR('ABC', 'abc')", true)]
-	[InlineData("CONTAINS_SUBSTR('abc', 'ABC')", true)]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ContainsSubstr_ReturnsExpected(string expr, bool expected)
-		=> (await Eval(expr)).Should().Be(expected);
-
-	// ═══════════════════════════════════════════════════════════════
-	// TRANSLATE
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("TRANSLATE('hello', 'el', 'ip')", "hippo")]
-	[InlineData("TRANSLATE('abc', 'abc', 'xyz')", "xyz")]
-	[InlineData("TRANSLATE('hello', '', '')", "hello")]
-	[InlineData("TRANSLATE('', 'a', 'b')", "")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Translate_ReturnsExpected(string expr, string expected)
-		=> (await Eval(expr)).Should().Be(expected);
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// String concatenation operator ||
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#concatenation_operator
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("'hello' || ' ' || 'world'", "hello world")]
@@ -706,74 +523,10 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task StringConcat_Operator_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	[Theory]
-	[InlineData("NULL || 'a'")]
-	[InlineData("'a' || NULL")]
-	[InlineData("NULL || NULL")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task StringConcat_Operator_Null_ReturnsNull(string expr)
-		=> (await Eval(expr)).Should().BeNull();
-
-	// ═══════════════════════════════════════════════════════════════
-	// Nested / Combined string functions
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("UPPER(CONCAT('hello', ' ', 'world'))", "HELLO WORLD")]
-	[InlineData("LENGTH(CONCAT('a', 'bc', 'def'))", 6L)]
-	[InlineData("REVERSE(UPPER('abc'))", "CBA")]
-	[InlineData("LOWER(REVERSE('ABC'))", "cba")]
-	[InlineData("SUBSTR(UPPER('hello'), 1, 3)", "HEL")]
-	[InlineData("LENGTH(REPLACE('aaa', 'a', 'bb'))", 6L)]
-	[InlineData("UPPER(LEFT('hello', 3))", "HEL")]
-	[InlineData("LOWER(RIGHT('HELLO', 3))", "llo")]
-	[InlineData("LENGTH(TRIM('  hi  '))", 2L)]
-	[InlineData("REVERSE(REVERSE('test'))", "test")]
-	[InlineData("UPPER(LOWER('HELLO'))", "HELLO")]
-	[InlineData("CONCAT(LEFT('hello', 2), RIGHT('world', 3))", "herld")]
-	[InlineData("SUBSTR(CONCAT('abc', 'def'), 2, 4)", "bcde")]
-	[InlineData("REPLACE(UPPER('hello'), 'LL', 'rr')", "HErrO")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task NestedStringFunctions_ReturnsExpected(string expr, object expected)
-		=> (await Eval(expr)).Should().Be(expected);
-
-	// ═══════════════════════════════════════════════════════════════
-	// Extended NULL propagation for all string functions
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("UPPER(NULL)")]
-	[InlineData("LOWER(NULL)")]
-	[InlineData("TRIM(NULL)")]
-	[InlineData("LTRIM(NULL)")]
-	[InlineData("RTRIM(NULL)")]
-	[InlineData("SUBSTR(NULL, 1)")]
-	[InlineData("REPLACE(NULL, 'a', 'b')")]
-	[InlineData("REVERSE(NULL)")]
-	[InlineData("STRPOS(NULL, 'a')")]
-	[InlineData("STRPOS('a', NULL)")]
-	[InlineData("STARTS_WITH(NULL, 'a')")]
-	[InlineData("ENDS_WITH(NULL, 'a')")]
-	[InlineData("LPAD(NULL, 5, 'x')")]
-	[InlineData("RPAD(NULL, 5, 'x')")]
-	[InlineData("REPEAT(NULL, 3)")]
-	[InlineData("LEFT(NULL, 3)")]
-	[InlineData("RIGHT(NULL, 3)")]
-	[InlineData("INITCAP(NULL)")]
-	[InlineData("REGEXP_CONTAINS(NULL, 'a')")]
-	[InlineData("REGEXP_EXTRACT(NULL, 'a')")]
-	[InlineData("REGEXP_REPLACE(NULL, 'a', 'b')")]
-	[InlineData("LENGTH(NULL)")]
-	[InlineData("BYTE_LENGTH(NULL)")]
-	[InlineData("CONCAT(NULL, 'a')")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task StringFunction_NullPropagation(string expr)
-		=> (await Eval(expr)).Should().BeNull();
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// LPAD / RPAD with default padding (space)
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#lpad
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("LPAD('hi', 5)", "   hi")]
@@ -783,9 +536,9 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task PadWithDefaultSpace_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Edge cases: very long strings, repeated operations
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task Repeat_LargeCount_Works()

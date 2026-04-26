@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
@@ -47,243 +47,10 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 			new Dictionary<string, object?> { ["Id"] = 8L, ["Dept"] = "HR", ["Name"] = "Hank", ["Salary"] = 70000L, ["HireDate"] = new DateTime(2020, 4, 1) });
 	}
 
-	// ═══════════════════════════════════════════════════════════════
-	// ROW_NUMBER
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#row_number
-	// ═══════════════════════════════════════════════════════════════
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task RowNumber_OverOrderBy()
-	{
-		await SeedData();
-		var rows = await QueryAsync(
-			"SELECT Name, ROW_NUMBER() OVER (ORDER BY Salary DESC) AS RN FROM WinOrd ORDER BY RN");
-		rows.Should().HaveCount(8);
-		rows[0]["Name"].Should().Be("Charlie");
-		((long)rows[0]["RN"]!).Should().Be(1L);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task RowNumber_PartitionedByDept()
-	{
-		await SeedData();
-		var rows = await QueryAsync(@"
-			SELECT Dept, Name, ROW_NUMBER() OVER (PARTITION BY Dept ORDER BY Salary DESC) AS RN
-			FROM WinOrd ORDER BY Dept, RN");
-		// Eng: Charlie(1), Alice(2), Bob(3)
-		rows[0]["Name"].Should().Be("Charlie");
-		((long)rows[0]["RN"]!).Should().Be(1L);
-		rows[1]["Name"].Should().Be("Alice");
-		((long)rows[1]["RN"]!).Should().Be(2L);
-	}
-
-	// ═══════════════════════════════════════════════════════════════
-	// RANK and DENSE_RANK
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#rank
-	// ═══════════════════════════════════════════════════════════════
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Rank_OverOrderBy()
-	{
-		await SeedData();
-		var rows = await QueryAsync(
-			"SELECT Name, RANK() OVER (ORDER BY Salary DESC) AS R FROM WinOrd ORDER BY R, Name");
-		rows[0]["Name"].Should().Be("Charlie");
-		((long)rows[0]["R"]!).Should().Be(1L);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task DenseRank_OverOrderBy()
-	{
-		await SeedData();
-		var rows = await QueryAsync(
-			"SELECT Name, DENSE_RANK() OVER (ORDER BY Salary DESC) AS DR FROM WinOrd ORDER BY DR, Name");
-		rows[0]["Name"].Should().Be("Charlie");
-		((long)rows[0]["DR"]!).Should().Be(1L);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Rank_PartitionedByDept()
-	{
-		await SeedData();
-		var rows = await QueryAsync(@"
-			SELECT Dept, Name, RANK() OVER (PARTITION BY Dept ORDER BY Salary DESC) AS R
-			FROM WinOrd WHERE Dept = 'Eng' ORDER BY R");
-		rows[0]["Name"].Should().Be("Charlie");
-		rows[1]["Name"].Should().Be("Alice");
-		rows[2]["Name"].Should().Be("Bob");
-	}
-
-	// ═══════════════════════════════════════════════════════════════
-	// SUM OVER (window aggregate)
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls
-	// ═══════════════════════════════════════════════════════════════
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task SumOver_PartitionedByDept()
-	{
-		await SeedData();
-		var rows = await QueryAsync(@"
-			SELECT Dept, Name, Salary, SUM(Salary) OVER (PARTITION BY Dept) AS DeptTotal
-			FROM WinOrd WHERE Dept = 'Eng' ORDER BY Name");
-		rows.Should().AllSatisfy(r => r["DeptTotal"].Should().Be(300000L));
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task SumOver_RunningTotal()
-	{
-		await SeedData();
-		var rows = await QueryAsync(@"
-			SELECT Name, Salary,
-				SUM(Salary) OVER (ORDER BY Salary ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS RunSum
-			FROM WinOrd ORDER BY Salary");
-		// Running sum: 70000, 145000, 225000, ...
-		rows[0]["RunSum"].Should().Be(70000L);
-		rows[1]["RunSum"].Should().Be(145000L);
-	}
-
-	// ═══════════════════════════════════════════════════════════════
-	// COUNT OVER
-	// ═══════════════════════════════════════════════════════════════
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task CountOver_PartitionedByDept()
-	{
-		await SeedData();
-		var rows = await QueryAsync(@"
-			SELECT Dept, COUNT(*) OVER (PARTITION BY Dept) AS DeptCount
-			FROM WinOrd WHERE Dept = 'Eng'");
-		rows.Should().AllSatisfy(r => r["DeptCount"].Should().Be(3L));
-	}
-
-	// ═══════════════════════════════════════════════════════════════
-	// AVG OVER
-	// ═══════════════════════════════════════════════════════════════
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task AvgOver_PartitionedByDept()
-	{
-		await SeedData();
-		var rows = await QueryAsync(@"
-			SELECT Dept, AVG(Salary) OVER (PARTITION BY Dept) AS AvgSal
-			FROM WinOrd WHERE Dept = 'Eng'");
-		rows.Should().AllSatisfy(r => ((double)r["AvgSal"]!).Should().BeApproximately(100000.0, 1e-10));
-	}
-
-	// ═══════════════════════════════════════════════════════════════
-	// MIN/MAX OVER
-	// ═══════════════════════════════════════════════════════════════
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task MinMaxOver_PartitionedByDept()
-	{
-		await SeedData();
-		var rows = await QueryAsync(@"
-			SELECT Dept, MIN(Salary) OVER (PARTITION BY Dept) AS MinSal, MAX(Salary) OVER (PARTITION BY Dept) AS MaxSal
-			FROM WinOrd WHERE Dept = 'Eng'");
-		rows.Should().AllSatisfy(r =>
-		{
-			r["MinSal"].Should().Be(90000L);
-			r["MaxSal"].Should().Be(110000L);
-		});
-	}
-
-	// ═══════════════════════════════════════════════════════════════
-	// LAG and LEAD
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/navigation_functions#lag
-	// ═══════════════════════════════════════════════════════════════
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Lag_Default()
-	{
-		await SeedData();
-		var rows = await QueryAsync(@"
-			SELECT Name, Salary, LAG(Salary) OVER (ORDER BY Salary) AS PrevSal
-			FROM WinOrd ORDER BY Salary");
-		rows[0]["PrevSal"].Should().BeNull(); // First row has no previous
-		rows[1]["PrevSal"].Should().Be(70000L);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Lead_Default()
-	{
-		await SeedData();
-		var rows = await QueryAsync(@"
-			SELECT Name, Salary, LEAD(Salary) OVER (ORDER BY Salary) AS NextSal
-			FROM WinOrd ORDER BY Salary");
-		rows[^1]["NextSal"].Should().BeNull(); // Last row has no next
-		rows[0]["NextSal"].Should().Be(75000L);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Lag_WithOffset()
-	{
-		await SeedData();
-		var rows = await QueryAsync(@"
-			SELECT Name, Salary, LAG(Salary, 2) OVER (ORDER BY Salary) AS PrevPrevSal
-			FROM WinOrd ORDER BY Salary");
-		rows[0]["PrevPrevSal"].Should().BeNull();
-		rows[1]["PrevPrevSal"].Should().BeNull();
-		rows[2]["PrevPrevSal"].Should().Be(70000L);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Lag_WithDefault()
-	{
-		await SeedData();
-		var rows = await QueryAsync(@"
-			SELECT Name, Salary, LAG(Salary, 1, 0) OVER (ORDER BY Salary) AS PrevSal
-			FROM WinOrd ORDER BY Salary");
-		rows[0]["PrevSal"].Should().Be(0L);
-	}
-
-	// ═══════════════════════════════════════════════════════════════
-	// FIRST_VALUE and LAST_VALUE
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/navigation_functions#first_value
-	// ═══════════════════════════════════════════════════════════════
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task FirstValue_PartitionedByDept()
-	{
-		await SeedData();
-		var rows = await QueryAsync(@"
-			SELECT Dept, Name, FIRST_VALUE(Name) OVER (PARTITION BY Dept ORDER BY Salary DESC) AS TopEarner
-			FROM WinOrd WHERE Dept = 'Eng'");
-		rows.Should().AllSatisfy(r => r["TopEarner"].Should().Be("Charlie"));
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task LastValue_UnboundedFrame()
-	{
-		await SeedData();
-		var rows = await QueryAsync(@"
-			SELECT Dept, Name,
-				LAST_VALUE(Name) OVER (PARTITION BY Dept ORDER BY Salary DESC
-					ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS LowestEarner
-			FROM WinOrd WHERE Dept = 'Eng'");
-		rows.Should().AllSatisfy(r => r["LowestEarner"].Should().Be("Bob"));
-	}
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// ORDER BY
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#order_by_clause
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task OrderBy_Ascending()
@@ -365,10 +132,10 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 		rows[0]["Name"].Should().Be("Charlie");
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// LIMIT and OFFSET
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#limit_and_offset_clause
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData(1)]
@@ -406,10 +173,10 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 		rows.Should().BeEmpty();
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// DISTINCT
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#select_distinct
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task Distinct_SingleColumn()
@@ -458,66 +225,4 @@ public class WindowAndOrderIntegrationTests : IntegrationTestBase
 		rows.Should().HaveCount(2); // "a" and NULL
 	}
 
-	// ═══════════════════════════════════════════════════════════════
-	// Window functions combined with WHERE
-	// ═══════════════════════════════════════════════════════════════
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task WindowFunction_WithWhere()
-	{
-		await SeedData();
-		var rows = await QueryAsync(@"
-			SELECT Name, Salary, ROW_NUMBER() OVER (ORDER BY Salary DESC) AS RN
-			FROM WinOrd
-			WHERE Dept = 'Eng'
-			ORDER BY RN");
-		rows.Should().HaveCount(3);
-		rows[0]["Name"].Should().Be("Charlie");
-	}
-
-	// ═══════════════════════════════════════════════════════════════
-	// Window functions in subquery
-	// ═══════════════════════════════════════════════════════════════
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task WindowFunction_TopNPerGroup()
-	{
-		await SeedData();
-		var rows = await QueryAsync(@"
-			SELECT Dept, Name, Salary FROM (
-				SELECT Dept, Name, Salary,
-					ROW_NUMBER() OVER (PARTITION BY Dept ORDER BY Salary DESC) AS RN
-				FROM WinOrd
-			) WHERE RN = 1 ORDER BY Dept");
-		rows.Should().HaveCount(3);
-		rows[0]["Name"].Should().Be("Charlie");  // Eng top
-		rows[1]["Name"].Should().Be("Grace");    // HR top
-		rows[2]["Name"].Should().Be("Frank");    // Sales top
-	}
-
-	// ═══════════════════════════════════════════════════════════════
-	// Multiple window functions in same query
-	// ═══════════════════════════════════════════════════════════════
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task MultipleWindowFunctions()
-	{
-		await SeedData();
-		var rows = await QueryAsync(@"
-			SELECT Name, Salary,
-				ROW_NUMBER() OVER (ORDER BY Salary DESC) AS RN,
-				RANK() OVER (ORDER BY Salary DESC) AS R,
-				SUM(Salary) OVER () AS Total
-			FROM WinOrd
-			ORDER BY RN
-			LIMIT 3");
-		rows.Should().HaveCount(3);
-		((long)rows[0]["RN"]!).Should().Be(1L);
-		((long)rows[0]["R"]!).Should().Be(1L);
-		// Total salary = 100+90+110+80+85+95+75+70 = 705000
-		rows[0]["Total"].Should().Be(705000L);
-	}
 }

@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
@@ -23,9 +23,9 @@ public class DenseScalarIntegrationTests : IntegrationTestBase
 		return reader.IsDBNull(0) ? null : reader.GetValue(0);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Integer expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("0", 0L)]
@@ -89,13 +89,13 @@ public class DenseScalarIntegrationTests : IntegrationTestBase
 	[InlineData("SIGN(ABS(-5))", 1L)]
 	[InlineData("GREATEST(ABS(-5), ABS(-3))", 5L)]
 	[InlineData("LEAST(ABS(-5), ABS(-3))", 3L)]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task IntegerExpressions(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Float expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("0.0", 0.0)]
@@ -168,9 +168,9 @@ public class DenseScalarIntegrationTests : IntegrationTestBase
 	public async Task MathFunctionExpressions(string expr, double expected) =>
 		((double)(await Eval(expr))!).Should().BeApproximately(expected, 1e-4);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Boolean expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("TRUE", true)]
@@ -233,84 +233,9 @@ public class DenseScalarIntegrationTests : IntegrationTestBase
 	public async Task BooleanExpressions(string expr, bool expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
-	// String expressions
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("''", "")]
-	[InlineData("'hello'", "hello")]
-	[InlineData("'hello world'", "hello world")]
-	[InlineData("CONCAT('a', 'b')", "ab")]
-	[InlineData("CONCAT('hello', ' ', 'world')", "hello world")]
-	[InlineData("UPPER('hello')", "HELLO")]
-	[InlineData("LOWER('HELLO')", "hello")]
-	[InlineData("TRIM('  hi  ')", "hi")]
-	[InlineData("LTRIM('  hi  ')", "hi  ")]
-	[InlineData("RTRIM('  hi  ')", "  hi")]
-	[InlineData("SUBSTR('abcdef', 2, 3)", "bcd")]
-	[InlineData("SUBSTR('abcdef', 1, 1)", "a")]
-	[InlineData("SUBSTR('abcdef', -2)", "ef")]
-	[InlineData("REPLACE('aaa', 'a', 'b')", "bbb")]
-	[InlineData("REPLACE('abc', 'x', 'y')", "abc")]
-	[InlineData("REVERSE('abc')", "cba")]
-	[InlineData("REVERSE('')", "")]
-	[InlineData("REPEAT('ab', 3)", "ababab")]
-	[InlineData("REPEAT('a', 0)", "")]
-	[InlineData("LPAD('x', 5, '0')", "0000x")]
-	[InlineData("RPAD('x', 5, '0')", "x0000")]
-	[InlineData("LEFT('hello', 3)", "hel")]
-	[InlineData("RIGHT('hello', 3)", "llo")]
-	[InlineData("LEFT('hello', 0)", "")]
-	[InlineData("RIGHT('hello', 0)", "")]
-	[InlineData("INITCAP('hello world')", "Hello World")]
-	[InlineData("INITCAP('HELLO')", "Hello")]
-	[InlineData("'a' || 'b'", "ab")]
-	[InlineData("'a' || 'b' || 'c'", "abc")]
-	[InlineData("UPPER(TRIM('  hello  '))", "HELLO")]
-	[InlineData("LOWER(TRIM('  HELLO  '))", "hello")]
-	[InlineData("REVERSE(UPPER('abc'))", "CBA")]
-	[InlineData("CONCAT(UPPER('a'), LOWER('B'))", "Ab")]
-	[InlineData("FORMAT('%d', 42)", "42")]
-	[InlineData("FORMAT('%s', 'hi')", "hi")]
-	[InlineData("CHR(65)", "A")]
-	[InlineData("CHR(97)", "a")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task StringExpressions(string expr, string expected) =>
-		(await Eval(expr)).Should().Be(expected);
-
-	// ═══════════════════════════════════════════════════════════════
-	// Long integer expressions (LENGTH, STRPOS, ASCII, etc.)
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("LENGTH('')", 0L)]
-	[InlineData("LENGTH('a')", 1L)]
-	[InlineData("LENGTH('abc')", 3L)]
-	[InlineData("LENGTH('hello world')", 11L)]
-	[InlineData("STRPOS('abc', 'b')", 2L)]
-	[InlineData("STRPOS('abc', 'x')", 0L)]
-	[InlineData("STRPOS('abc', '')", 1L)]
-	[InlineData("ASCII('A')", 65L)]
-	[InlineData("ASCII('a')", 97L)]
-	[InlineData("ASCII('0')", 48L)]
-	[InlineData("BYTE_LENGTH('abc')", 3L)]
-	[InlineData("BYTE_LENGTH('')", 0L)]
-	[InlineData("ARRAY_LENGTH(SPLIT('a,b,c', ','))", 3L)]
-	[InlineData("ARRAY_LENGTH(SPLIT('a', ','))", 1L)]
-	[InlineData("LENGTH(CONCAT('ab', 'cd'))", 4L)]
-	[InlineData("LENGTH(REPEAT('ab', 5))", 10L)]
-	[InlineData("STRPOS(UPPER('abc'), 'B')", 2L)]
-	[InlineData("LENGTH(LPAD('x', 10, 'y'))", 10L)]
-	[InlineData("LENGTH(RPAD('x', 10, 'y'))", 10L)]
-	[InlineData("LENGTH(TRIM('  abc  '))", 3L)]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task LongExpressions(string expr, long expected) =>
-		(await Eval(expr)).Should().Be(expected);
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Conditional expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("IF(TRUE, 1, 2)", 1L)]
@@ -344,9 +269,9 @@ public class DenseScalarIntegrationTests : IntegrationTestBase
 	public async Task CaseExpressions(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// CAST expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("CAST(1 AS STRING)", "1")]
@@ -367,66 +292,9 @@ public class DenseScalarIntegrationTests : IntegrationTestBase
 	public async Task CastExpressions(string expr, object expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
-	// NULL propagation comprehensive
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("CAST(NULL AS INT64) + 1")]
-	[InlineData("1 + CAST(NULL AS INT64)")]
-	[InlineData("CAST(NULL AS INT64) * 2")]
-	[InlineData("CAST(NULL AS INT64) - 1")]
-	[InlineData("10 / CAST(NULL AS INT64)")]
-	[InlineData("ABS(CAST(NULL AS INT64))")]
-	[InlineData("MOD(CAST(NULL AS INT64), 3)")]
-	[InlineData("SIGN(CAST(NULL AS INT64))")]
-	[InlineData("LENGTH(CAST(NULL AS STRING))")]
-	[InlineData("UPPER(CAST(NULL AS STRING))")]
-	[InlineData("LOWER(CAST(NULL AS STRING))")]
-	[InlineData("TRIM(CAST(NULL AS STRING))")]
-	[InlineData("REVERSE(CAST(NULL AS STRING))")]
-	[InlineData("SUBSTR(CAST(NULL AS STRING), 1)")]
-	[InlineData("REPLACE(CAST(NULL AS STRING), 'a', 'b')")]
-	[InlineData("STRPOS(CAST(NULL AS STRING), 'a')")]
-	[InlineData("CONCAT(CAST(NULL AS STRING))")]
-	[InlineData("STARTS_WITH(CAST(NULL AS STRING), 'a')")]
-	[InlineData("ENDS_WITH(CAST(NULL AS STRING), 'a')")]
-	[InlineData("REGEXP_CONTAINS(CAST(NULL AS STRING), 'a')")]
-	[InlineData("REGEXP_EXTRACT(CAST(NULL AS STRING), 'a')")]
-	[InlineData("INITCAP(CAST(NULL AS STRING))")]
-	[InlineData("ASCII(CAST(NULL AS STRING))")]
-	[InlineData("BYTE_LENGTH(CAST(NULL AS STRING))")]
-	[InlineData("LEFT(CAST(NULL AS STRING), 1)")]
-	[InlineData("RIGHT(CAST(NULL AS STRING), 1)")]
-	[InlineData("REPEAT(CAST(NULL AS STRING), 1)")]
-	[InlineData("LPAD(CAST(NULL AS STRING), 5, 'x')")]
-	[InlineData("RPAD(CAST(NULL AS STRING), 5, 'x')")]
-	[InlineData("CEIL(CAST(NULL AS FLOAT64))")]
-	[InlineData("FLOOR(CAST(NULL AS FLOAT64))")]
-	[InlineData("ROUND(CAST(NULL AS FLOAT64))")]
-	[InlineData("TRUNC(CAST(NULL AS FLOAT64))")]
-	[InlineData("SQRT(CAST(NULL AS FLOAT64))")]
-	[InlineData("POW(CAST(NULL AS FLOAT64), 2)")]
-	[InlineData("EXP(CAST(NULL AS FLOAT64))")]
-	[InlineData("LN(CAST(NULL AS FLOAT64))")]
-	[InlineData("LOG10(CAST(NULL AS FLOAT64))")]
-	[InlineData("IEEE_DIVIDE(CAST(NULL AS FLOAT64), 1.0)")]
-	[InlineData("SAFE_DIVIDE(CAST(NULL AS INT64), 1)")]
-	[InlineData("SAFE_NEGATE(CAST(NULL AS INT64))")]
-	[InlineData("GREATEST(1, CAST(NULL AS INT64))")]
-	[InlineData("LEAST(1, CAST(NULL AS INT64))")]
-	[InlineData("EXTRACT(YEAR FROM CAST(NULL AS DATE))")]
-	[InlineData("EXTRACT(HOUR FROM CAST(NULL AS TIMESTAMP))")]
-	[InlineData("DATE_ADD(CAST(NULL AS DATE), INTERVAL 1 DAY)")]
-	[InlineData("TIMESTAMP_ADD(CAST(NULL AS TIMESTAMP), INTERVAL 1 HOUR)")]
-	[InlineData("UNIX_SECONDS(CAST(NULL AS TIMESTAMP))")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task NullPropagation(string expr) =>
-		(await Eval(expr)).Should().BeNull();
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// SAFE functions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("SAFE_DIVIDE(10, 0)")]
@@ -448,9 +316,9 @@ public class DenseScalarIntegrationTests : IntegrationTestBase
 	public async Task SafeNegate_Results(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Complex nested expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("ABS(ROUND(-3.7))", 4.0)]
@@ -464,9 +332,9 @@ public class DenseScalarIntegrationTests : IntegrationTestBase
 	public async Task NestedMathExpressions(string expr, double expected) =>
 		((double)(await Eval(expr))!).Should().BeApproximately(expected, 1e-2);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// SAFE_CAST
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("SAFE_CAST('abc' AS INT64)")]
@@ -477,9 +345,9 @@ public class DenseScalarIntegrationTests : IntegrationTestBase
 	public async Task SafeCast_InvalidReturnsNull(string expr) =>
 		(await Eval(expr)).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// REGEXP functions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("REGEXP_EXTRACT('abc123', '[0-9]+')", "123")]
@@ -490,24 +358,9 @@ public class DenseScalarIntegrationTests : IntegrationTestBase
 	public async Task RegexpFunctionResults(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
-	// TO_JSON_STRING
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("TO_JSON_STRING(1)", "1")]
-	[InlineData("TO_JSON_STRING(0)", "0")]
-	[InlineData("TO_JSON_STRING(-1)", "-1")]
-	[InlineData("TO_JSON_STRING(TRUE)", "true")]
-	[InlineData("TO_JSON_STRING(FALSE)", "false")]
-	[InlineData("TO_JSON_STRING('hello')", "\"hello\"")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ToJsonStringExpressions(string expr, string expected) =>
-		(await Eval(expr)).Should().Be(expected);
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Hex/bytes
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("TO_HEX(b'\\x00')", "00")]
@@ -517,9 +370,9 @@ public class DenseScalarIntegrationTests : IntegrationTestBase
 	public async Task HexExpressions(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Mixed type expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("LENGTH(CAST(12345 AS STRING))", 5L)]

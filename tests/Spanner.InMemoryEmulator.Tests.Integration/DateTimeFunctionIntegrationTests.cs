@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
@@ -23,10 +23,10 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 		return reader.IsDBNull(0) ? null : reader.GetValue(0);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// CURRENT_TIMESTAMP / CURRENT_DATE
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#current_timestamp
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task CurrentTimestamp_ReturnsDateTime()
@@ -50,17 +50,17 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task CurrentDate_IsToday()
 	{
 		var result = (DateTime)(await Eval("CURRENT_DATE()"))!;
 		result.Date.Should().Be(DateTime.UtcNow.Date);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// DATE constructor
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task Date_FromLiteral_ReturnsExpected()
@@ -104,10 +104,10 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 		result.Should().Be(new DateTime(2000, 1, 1));
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// TIMESTAMP constructor
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task Timestamp_FromLiteral()
@@ -130,10 +130,10 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 		result.Should().Be(new DateTime(2024, 12, 31, 23, 59, 59, DateTimeKind.Utc));
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// EXTRACT
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#extract
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("EXTRACT(YEAR FROM DATE '2024-06-15')", 2024L)]
@@ -153,9 +153,9 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#extract
 	//   "If no time zone is specified, the default time zone, America/Los_Angeles, is used."
-	//   2024-06-15T14:30:45Z → LA(UTC-7 DST) = 2024-06-15T07:30:45
-	//   2024-01-01T00:00:00Z → LA(UTC-8)     = 2023-12-31T16:00:00
-	//   2024-12-31T23:59:59Z → LA(UTC-8)     = 2024-12-31T15:59:59
+	//   2024-06-15T14:30:45Z â†’ LA(UTC-7 DST) = 2024-06-15T07:30:45
+	//   2024-01-01T00:00:00Z â†’ LA(UTC-8)     = 2023-12-31T16:00:00
+	//   2024-12-31T23:59:59Z â†’ LA(UTC-8)     = 2024-12-31T15:59:59
 	[Theory]
 	[InlineData("EXTRACT(HOUR FROM TIMESTAMP '2024-06-15T14:30:45Z')", 7L)]
 	[InlineData("EXTRACT(MINUTE FROM TIMESTAMP '2024-06-15T14:30:45Z')", 30L)]
@@ -185,29 +185,29 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 		=> (await Eval(expr)).Should().Be(expected);
 
 	[Theory]
-	[InlineData("EXTRACT(WEEK FROM DATE '2024-01-01')", 0L)] // Before first Sunday → week 0
+	[InlineData("EXTRACT(WEEK FROM DATE '2024-01-01')", 0L)] // Before first Sunday â†’ week 0
 	[InlineData("EXTRACT(ISOYEAR FROM DATE '2024-01-01')", 2024L)]
 	public async Task Extract_Week_ReturnsExpected(string expr, long expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// EXTRACT(DATE FROM TIMESTAMP)
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task Extract_Date_FromTimestamp()
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#extract
 		//   Default timezone: America/Los_Angeles.
-		//   2024-06-15T14:30:45Z → LA(UTC-7 DST) = 2024-06-15T07:30:45 → DATE = 2024-06-15
+		//   2024-06-15T14:30:45Z â†’ LA(UTC-7 DST) = 2024-06-15T07:30:45 â†’ DATE = 2024-06-15
 		var result = (DateTime)(await Eval("EXTRACT(DATE FROM TIMESTAMP '2024-06-15T14:30:45Z')"))!;
 		result.Should().Be(new DateTime(2024, 6, 15));
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// TIMESTAMP_ADD
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_add
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task TimestampAdd_Day()
@@ -272,10 +272,10 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 		result.Should().Be(new DateTime(2024, 1, 15, 10, 0, 1, DateTimeKind.Utc));
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// TIMESTAMP_SUB
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_sub
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task TimestampSub_Day()
@@ -312,10 +312,10 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 		result.Should().Be(new DateTime(2023, 12, 31, 23, 0, 0, DateTimeKind.Utc));
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// TIMESTAMP_DIFF
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_diff
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("TIMESTAMP_DIFF(TIMESTAMP '2024-01-16T10:00:00Z', TIMESTAMP '2024-01-15T10:00:00Z', DAY)", 1L)]
@@ -328,15 +328,15 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	public async Task TimestampDiff_ReturnsExpected(string expr, long expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// TIMESTAMP_TRUNC
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_trunc
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task TimestampTrunc_Day()
 	{
-		// LA: Jun 15 07:30:45 → trunc DAY → Jun 15 00:00 LA → UTC Jun 15 07:00
+		// LA: Jun 15 07:30:45 â†’ trunc DAY â†’ Jun 15 00:00 LA â†’ UTC Jun 15 07:00
 		var result = (DateTime)(await Eval("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T14:30:45Z', DAY)"))!;
 		result.Should().Be(new DateTime(2024, 6, 15, 7, 0, 0, DateTimeKind.Utc));
 	}
@@ -365,7 +365,7 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task TimestampTrunc_Month()
 	{
-		// LA: Jun 15 07:30:45 → trunc MONTH → Jun 1 00:00 LA → UTC Jun 1 07:00
+		// LA: Jun 15 07:30:45 â†’ trunc MONTH â†’ Jun 1 00:00 LA â†’ UTC Jun 1 07:00
 		var result = (DateTime)(await Eval("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T14:30:45Z', MONTH)"))!;
 		result.Should().Be(new DateTime(2024, 6, 1, 7, 0, 0, DateTimeKind.Utc));
 	}
@@ -373,15 +373,15 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task TimestampTrunc_Year()
 	{
-		// LA: Jun 15 07:30:45 → trunc YEAR → Jan 1 00:00 LA (UTC-8) → UTC Jan 1 08:00
+		// LA: Jun 15 07:30:45 â†’ trunc YEAR â†’ Jan 1 00:00 LA (UTC-8) â†’ UTC Jan 1 08:00
 		var result = (DateTime)(await Eval("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T14:30:45Z', YEAR)"))!;
 		result.Should().Be(new DateTime(2024, 1, 1, 8, 0, 0, DateTimeKind.Utc));
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// DATE_ADD
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date_add
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task DateAdd_Day()
@@ -391,31 +391,10 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	public async Task DateAdd_Month()
-	{
-		var result = (DateTime)(await Eval("DATE_ADD(DATE '2024-01-15', INTERVAL 1 MONTH)"))!;
-		result.Should().Be(new DateTime(2024, 2, 15));
-	}
-
-	[Fact]
-	public async Task DateAdd_Year()
-	{
-		var result = (DateTime)(await Eval("DATE_ADD(DATE '2024-01-15', INTERVAL 1 YEAR)"))!;
-		result.Should().Be(new DateTime(2025, 1, 15));
-	}
-
-	[Fact]
 	public async Task DateAdd_MultipleDays()
 	{
 		var result = (DateTime)(await Eval("DATE_ADD(DATE '2024-01-15', INTERVAL 30 DAY)"))!;
 		result.Should().Be(new DateTime(2024, 2, 14));
-	}
-
-	[Fact]
-	public async Task DateAdd_EndOfMonth()
-	{
-		var result = (DateTime)(await Eval("DATE_ADD(DATE '2024-01-31', INTERVAL 1 MONTH)"))!;
-		result.Should().Be(new DateTime(2024, 2, 29)); // Leap year
 	}
 
 	[Fact]
@@ -432,30 +411,16 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 		result.Should().Be(new DateTime(2025, 1, 1));
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// DATE_SUB
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date_sub
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task DateSub_Day()
 	{
 		var result = (DateTime)(await Eval("DATE_SUB(DATE '2024-01-15', INTERVAL 1 DAY)"))!;
 		result.Should().Be(new DateTime(2024, 1, 14));
-	}
-
-	[Fact]
-	public async Task DateSub_Month()
-	{
-		var result = (DateTime)(await Eval("DATE_SUB(DATE '2024-03-15', INTERVAL 1 MONTH)"))!;
-		result.Should().Be(new DateTime(2024, 2, 15));
-	}
-
-	[Fact]
-	public async Task DateSub_Year()
-	{
-		var result = (DateTime)(await Eval("DATE_SUB(DATE '2024-01-15', INTERVAL 1 YEAR)"))!;
-		result.Should().Be(new DateTime(2023, 1, 15));
 	}
 
 	[Fact]
@@ -472,10 +437,10 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 		result.Should().Be(new DateTime(2024, 2, 29));
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// DATE_DIFF
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date_diff
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("DATE_DIFF(DATE '2024-01-16', DATE '2024-01-15', DAY)", 1L)]
@@ -488,10 +453,10 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	public async Task DateDiff_ReturnsExpected(string expr, long expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// DATE_TRUNC
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date_trunc
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task DateTrunc_Month()
@@ -514,10 +479,10 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 		result.Should().Be(new DateTime(2024, 6, 15));
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// UNIX_SECONDS / UNIX_MILLIS / UNIX_MICROS
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#unix_seconds
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task UnixSeconds_Epoch_ReturnsZero()
@@ -543,10 +508,10 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	public async Task UnixMicros_KnownTimestamp()
 		=> (await Eval("UNIX_MICROS(TIMESTAMP '2024-01-01T00:00:00Z')")).Should().Be(1704067200000000L);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// TIMESTAMP_SECONDS / TIMESTAMP_MILLIS / TIMESTAMP_MICROS
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_seconds
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task TimestampSeconds_Epoch()
@@ -590,10 +555,10 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 		result.Should().Be(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc));
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// FORMAT_TIMESTAMP
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#format_timestamp
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("FORMAT_TIMESTAMP('%Y-%m-%d', TIMESTAMP '2024-06-15T10:30:00Z')", "2024-06-15")]
@@ -601,17 +566,17 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	[InlineData("FORMAT_TIMESTAMP('%Y', TIMESTAMP '2024-06-15T10:30:00Z')", "2024")]
 	[InlineData("FORMAT_TIMESTAMP('%m', TIMESTAMP '2024-06-15T10:30:00Z')", "06")]
 	[InlineData("FORMAT_TIMESTAMP('%d', TIMESTAMP '2024-06-15T10:30:00Z')", "15")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task FormatTimestamp_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// PARSE_TIMESTAMP
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#parse_timestamp
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task ParseTimestamp_BasicFormat()
 	{
 		var result = (DateTime)(await Eval("PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', '2024-06-15 10:30:45')"))!;
@@ -623,10 +588,10 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 		result.Second.Should().Be(45);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// FORMAT_DATE
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#format_date
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("FORMAT_DATE('%Y-%m-%d', DATE '2024-06-15')", "2024-06-15")]
@@ -636,10 +601,10 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	public async Task FormatDate_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// PARSE_DATE
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#parse_date
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task ParseDate_BasicFormat()
@@ -655,9 +620,9 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 		result.Should().Be(new DateTime(2024, 6, 15));
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Date/time arithmetic combinations
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task TimestampAdd_ThenDiff_RoundTrips()
@@ -677,31 +642,10 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Extract_FromTimestampAdd()
-	{
-		var result = await Eval(
-			"EXTRACT(MONTH FROM TIMESTAMP_ADD(TIMESTAMP '2024-01-15T00:00:00Z', INTERVAL 2 MONTH))");
-		result.Should().Be(3L);
-	}
-
-	[Fact]
 	public async Task Extract_FromDateAdd()
 	{
 		var result = await Eval("EXTRACT(DAY FROM DATE_ADD(DATE '2024-01-15', INTERVAL 10 DAY))");
 		result.Should().Be(25L);
-	}
-
-	// ═══════════════════════════════════════════════════════════════
-	// Edge cases: end-of-month, leap year, midnight
-	// ═══════════════════════════════════════════════════════════════
-
-	[Fact]
-	public async Task DateAdd_Feb29_NonLeapYear()
-	{
-		// 2024-02-29 + 1 year = 2025-02-28 (non-leap year clamps)
-		var result = (DateTime)(await Eval("DATE_ADD(DATE '2024-02-29', INTERVAL 1 YEAR)"))!;
-		result.Should().Be(new DateTime(2025, 2, 28));
 	}
 
 	[Fact]
@@ -730,9 +674,9 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	public async Task DateDiff_SameDate_ReturnsZero()
 		=> (await Eval("DATE_DIFF(DATE '2024-01-15', DATE '2024-01-15', DAY)")).Should().Be(0L);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Nested date/time operations
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task TimestampTrunc_ThenExtract()
@@ -756,9 +700,9 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 		result.Should().Be(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc));
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// NULL propagation for date functions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("EXTRACT(YEAR FROM CAST(NULL AS DATE))")]

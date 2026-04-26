@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
@@ -22,70 +22,10 @@ public class NullHandlingIntegrationTests : IntegrationTestBase
 		return reader.IsDBNull(0) ? null : reader.GetValue(0);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
-	// String functions with NULL input
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("CONCAT(NULL, 'a')")]
-	[InlineData("CONCAT('a', NULL)")]
-	[InlineData("CONCAT(NULL, NULL)")]
-	[InlineData("LENGTH(NULL)")]
-	[InlineData("CHAR_LENGTH(NULL)")]
-	[InlineData("UPPER(NULL)")]
-	[InlineData("LOWER(NULL)")]
-	[InlineData("TRIM(NULL)")]
-	[InlineData("LTRIM(NULL)")]
-	[InlineData("RTRIM(NULL)")]
-	[InlineData("SUBSTR(NULL, 1)")]
-	[InlineData("SUBSTR('abc', NULL)")]
-	[InlineData("SUBSTR(NULL, NULL)")]
-	[InlineData("SUBSTR(NULL, 1, 2)")]
-	[InlineData("SUBSTR('abc', NULL, 2)")]
-	[InlineData("SUBSTR('abc', 1, NULL)")]
-	[InlineData("REPLACE(NULL, 'a', 'b')")]
-	[InlineData("REPLACE('abc', NULL, 'b')")]
-	[InlineData("REPLACE('abc', 'a', NULL)")]
-	[InlineData("REVERSE(NULL)")]
-	[InlineData("STRPOS(NULL, 'a')")]
-	[InlineData("STRPOS('abc', NULL)")]
-	[InlineData("STARTS_WITH(NULL, 'a')")]
-	[InlineData("STARTS_WITH('abc', NULL)")]
-	[InlineData("ENDS_WITH(NULL, 'a')")]
-	[InlineData("ENDS_WITH('abc', NULL)")]
-	[InlineData("LPAD(NULL, 10)")]
-	[InlineData("LPAD('abc', NULL)")]
-	[InlineData("RPAD(NULL, 10)")]
-	[InlineData("RPAD('abc', NULL)")]
-	[InlineData("REPEAT(NULL, 3)")]
-	[InlineData("REPEAT('a', NULL)")]
-	[InlineData("LEFT(NULL, 3)")]
-	[InlineData("LEFT('abc', NULL)")]
-	[InlineData("RIGHT(NULL, 3)")]
-	[InlineData("RIGHT('abc', NULL)")]
-	[InlineData("INITCAP(NULL)")]
-	[InlineData("ASCII(NULL)")]
-	[InlineData("CHR(NULL)")]
-	[InlineData("BYTE_LENGTH(NULL)")]
-	[InlineData("FORMAT('%s', NULL)")]
-	[InlineData("REGEXP_CONTAINS(NULL, 'a')")]
-	[InlineData("REGEXP_CONTAINS('abc', NULL)")]
-	[InlineData("REGEXP_EXTRACT(NULL, 'a')")]
-	[InlineData("REGEXP_EXTRACT('abc', NULL)")]
-	[InlineData("REGEXP_REPLACE(NULL, 'a', 'b')")]
-	[InlineData("REGEXP_REPLACE('abc', NULL, 'b')")]
-	[InlineData("REGEXP_REPLACE('abc', 'a', NULL)")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task StringFunctions_NullInput_ReturnsNull(string expr)
-	{
-		(await Eval(expr)).Should().BeNull();
-	}
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Math functions with NULL input
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("ABS(NULL)")]
@@ -136,10 +76,10 @@ public class NullHandlingIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().BeNull();
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Date/Time functions with NULL input
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("EXTRACT(YEAR FROM CAST(NULL AS TIMESTAMP))")]
@@ -165,10 +105,10 @@ public class NullHandlingIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().BeNull();
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// CAST with NULL
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("CAST(NULL AS INT64)")]
@@ -186,10 +126,10 @@ public class NullHandlingIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().BeNull();
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Conditional functions with NULL
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conditional_expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	// COALESCE returns NULL only if all args are NULL
@@ -213,9 +153,9 @@ public class NullHandlingIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().BeNull();
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// NULL in CASE WHEN conditions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task Case_NullCondition_SkipsToNextWhen()
@@ -233,30 +173,9 @@ public class NullHandlingIntegrationTests : IntegrationTestBase
 		(await Eval("CASE NULL WHEN NULL THEN 1 ELSE 2 END")).Should().Be(2L);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
-	// NULL in arithmetic chains
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("1 + NULL + 2")]
-	[InlineData("NULL * 0")]
-	[InlineData("0 * NULL")]
-	[InlineData("NULL - NULL")]
-	[InlineData("NULL + NULL")]
-	[InlineData("NULL * NULL")]
-	[InlineData("NULL / NULL")]
-	[InlineData("ABS(NULL) + 1")]
-	[InlineData("1 + ABS(NULL)")]
-	[InlineData("SIGN(NULL) * 5")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ArithmeticWithNull_PropagatesNull(string expr)
-	{
-		(await Eval(expr)).Should().BeNull();
-	}
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// NULL in nested function calls
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("UPPER(LOWER(NULL))")]
@@ -272,59 +191,10 @@ public class NullHandlingIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().BeNull();
 	}
 
-	// ═══════════════════════════════════════════════════════════════
-	// NULL in string concatenation (|| operator)
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#concatenation_operator
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("NULL || 'a'")]
-	[InlineData("'a' || NULL")]
-	[InlineData("NULL || NULL")]
-	[InlineData("'a' || NULL || 'b'")]
-	[InlineData("NULL || 'a' || 'b'")]
-	[InlineData("'a' || 'b' || NULL")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task StringConcat_NullPropagation(string expr)
-	{
-		(await Eval(expr)).Should().BeNull();
-	}
-
-	// ═══════════════════════════════════════════════════════════════
-	// NULL in comparison chains
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("NULL = 1")]
-	[InlineData("1 = NULL")]
-	[InlineData("NULL = NULL")]
-	[InlineData("NULL != 1")]
-	[InlineData("1 != NULL")]
-	[InlineData("NULL != NULL")]
-	[InlineData("NULL < 1")]
-	[InlineData("1 < NULL")]
-	[InlineData("NULL <= 1")]
-	[InlineData("1 <= NULL")]
-	[InlineData("NULL > 1")]
-	[InlineData("1 > NULL")]
-	[InlineData("NULL >= 1")]
-	[InlineData("1 >= NULL")]
-	[InlineData("NULL = 'a'")]
-	[InlineData("'a' = NULL")]
-	[InlineData("NULL = true")]
-	[InlineData("true = NULL")]
-	[InlineData("NULL = 1.0")]
-	[InlineData("1.0 = NULL")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Comparisons_WithNull_ReturnNull(string expr)
-	{
-		(await Eval(expr)).Should().BeNull();
-	}
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Three-valued logic detailed cases
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#logical_operators
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	// NULL AND x:
@@ -360,9 +230,9 @@ public class NullHandlingIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().BeNull();
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// COALESCE with mixed null/non-null
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("COALESCE(NULL, 1)", 1L)]
@@ -386,9 +256,9 @@ public class NullHandlingIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// IFNULL detailed combinations
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("IFNULL(NULL, 42)", 42L)]
@@ -418,9 +288,9 @@ public class NullHandlingIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// NULLIF detailed combinations
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("NULLIF(1, 1)")]
@@ -442,9 +312,9 @@ public class NullHandlingIntegrationTests : IntegrationTestBase
 		(await Eval("NULLIF(CAST(NULL AS INT64), 1)")).Should().BeNull();
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// NULL in BETWEEN / IN
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("NULL BETWEEN 1 AND 10")]
@@ -465,35 +335,4 @@ public class NullHandlingIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().BeNull();
 	}
 
-	// ═══════════════════════════════════════════════════════════════
-	// IS NULL / IS NOT NULL with various expressions
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("NULL IS NULL", true)]
-	[InlineData("1 IS NULL", false)]
-	[InlineData("0 IS NULL", false)]
-	[InlineData("'' IS NULL", false)]
-	[InlineData("false IS NULL", false)]
-	[InlineData("0.0 IS NULL", false)]
-	[InlineData("NULL IS NOT NULL", false)]
-	[InlineData("1 IS NOT NULL", true)]
-	[InlineData("'' IS NOT NULL", true)]
-	[InlineData("false IS NOT NULL", true)]
-	[InlineData("CAST(NULL AS INT64) IS NULL", true)]
-	[InlineData("CAST(NULL AS STRING) IS NULL", true)]
-	[InlineData("CAST(NULL AS FLOAT64) IS NULL", true)]
-	[InlineData("CAST(NULL AS BOOL) IS NULL", true)]
-	// Expression results
-	[InlineData("(1 + NULL) IS NULL", true)]
-	[InlineData("(NULL + NULL) IS NULL", true)]
-	[InlineData("CONCAT(NULL, 'a') IS NULL", true)]
-	[InlineData("LENGTH(NULL) IS NULL", true)]
-	[InlineData("ABS(NULL) IS NULL", true)]
-	[InlineData("UPPER(NULL) IS NULL", true)]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task IsNull_Expressions(string expr, bool expected)
-	{
-		(await Eval(expr)).Should().Be(expected);
-	}
 }

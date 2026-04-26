@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
@@ -24,37 +24,19 @@ public class JsonAndSubqueryIntegrationTests : IntegrationTestBase
 		return reader.IsDBNull(0) ? null : reader.GetValue(0);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
-	// TO_JSON_STRING
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json_string
-	// ═══════════════════════════════════════════════════════════════
-
 	// Go emulator: TO_JSON_STRING is not supported on non-JSON types (StatusCode=Unimplemented).
 	[Theory]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	[InlineData("TO_JSON_STRING(1)", "1")]
-	[InlineData("TO_JSON_STRING(0)", "0")]
-	[InlineData("TO_JSON_STRING(-1)", "-1")]
-	[InlineData("TO_JSON_STRING(TRUE)", "true")]
-	[InlineData("TO_JSON_STRING(FALSE)", "false")]
-	[InlineData("TO_JSON_STRING('hello')", "\"hello\"")]
-	[InlineData("TO_JSON_STRING('')", "\"\"")]
-	public async Task ToJsonString_Scalars(string expr, string expected) =>
-		(await Eval(expr)).Should().Be(expected);
-
-	// Go emulator: TO_JSON_STRING is not supported on non-JSON types (StatusCode=Unimplemented).
-	[Theory]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	[InlineData("TO_JSON_STRING(CAST(NULL AS INT64))", "null")]
 	[InlineData("TO_JSON_STRING(CAST(NULL AS STRING))", "null")]
 	[InlineData("TO_JSON_STRING(CAST(NULL AS BOOL))", "null")]
 	public async Task ToJsonString_Null(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// JSON_VALUE (requires JSON type support)
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_value
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("JSON_VALUE(JSON '{\"a\": \"hello\"}', '$.a')", "hello")]
@@ -65,10 +47,10 @@ public class JsonAndSubqueryIntegrationTests : IntegrationTestBase
 	public async Task JsonValue_Combinations(string expr, string? expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// JSON_QUERY
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_query
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("JSON_QUERY(JSON '{\"a\": [1, 2, 3]}', '$.a')", "[1,2,3]")]
@@ -76,10 +58,10 @@ public class JsonAndSubqueryIntegrationTests : IntegrationTestBase
 	public async Task JsonQuery_Combinations(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// PARSE_JSON
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#parse_json
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("JSON_VALUE(PARSE_JSON('{\"a\": \"b\"}'), '$.a')", "b")]
@@ -87,10 +69,10 @@ public class JsonAndSubqueryIntegrationTests : IntegrationTestBase
 	public async Task ParseJson_Combinations(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// JSON_TYPE
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_type
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("JSON_TYPE(JSON '\"hello\"')", "string")]
@@ -102,10 +84,10 @@ public class JsonAndSubqueryIntegrationTests : IntegrationTestBase
 	public async Task JsonType_Combinations(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Scalar subqueries
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/subqueries#scalar_subquery_concepts
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task ScalarSubquery_InSelect()
@@ -136,10 +118,10 @@ public class JsonAndSubqueryIntegrationTests : IntegrationTestBase
 		rows.Should().ContainSingle().Which["Id"].Should().Be(3L);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// EXISTS subquery
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/subqueries#exists_subquery_concepts
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task Exists_True()
@@ -167,10 +149,10 @@ public class JsonAndSubqueryIntegrationTests : IntegrationTestBase
 		result.Should().Be(true);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// IN subquery
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/subqueries#in_subquery_concepts
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task In_Subquery()
@@ -221,9 +203,9 @@ public class JsonAndSubqueryIntegrationTests : IntegrationTestBase
 		rows[1]["Id"].Should().Be(3L);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// FROM subquery (derived table)
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task From_Subquery()
@@ -241,10 +223,10 @@ public class JsonAndSubqueryIntegrationTests : IntegrationTestBase
 		rows[2]["Doubled"].Should().Be(60L);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// CTEs (WITH clause)
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#with_clause
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task CTE_Basic()
@@ -296,10 +278,10 @@ public class JsonAndSubqueryIntegrationTests : IntegrationTestBase
 		rows[1]["Total"].Should().Be(30L);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// UNION ALL, EXCEPT DISTINCT, INTERSECT DISTINCT
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#set_operators
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task UnionAll()
@@ -372,10 +354,10 @@ public class JsonAndSubqueryIntegrationTests : IntegrationTestBase
 		rows[1]["Id"].Should().Be(3L);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// ARRAY subquery
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/subqueries#array_subquery_concepts
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task ArraySubquery()
@@ -391,9 +373,9 @@ public class JsonAndSubqueryIntegrationTests : IntegrationTestBase
 		arr.Should().Equal(1L, 2L, 3L);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Correlated subquery
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task CorrelatedSubquery()
@@ -418,9 +400,9 @@ public class JsonAndSubqueryIntegrationTests : IntegrationTestBase
 		rows[2]["GrpMax"].Should().Be(30L);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Nested subqueries
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task NestedSubqueries()

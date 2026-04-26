@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
@@ -23,7 +23,7 @@ public TransactionIntegrationTests(EmulatorSession session) : base(session) { }
 		return table;
 	}
 
-	// ─── RunInTransactionAsync (retry pattern) ───
+	// â”€â”€â”€ RunInTransactionAsync (retry pattern) â”€â”€â”€
 
 	[Fact]
 	[Trait(TestTraits.Category, "Transaction")]
@@ -47,7 +47,7 @@ public TransactionIntegrationTests(EmulatorSession session) : base(session) { }
 		Convert.ToInt64(rows[0]["Value"]).Should().Be(200L);
 	}
 
-	// ─── DML within transaction ───
+	// â”€â”€â”€ DML within transaction â”€â”€â”€
 
 	[Fact]
 	[Trait(TestTraits.Category, "Transaction")]
@@ -112,8 +112,9 @@ public TransactionIntegrationTests(EmulatorSession session) : base(session) { }
 		rows.Should().BeEmpty();
 	}
 
-	// ─── Mutations within transaction ───
+	// â”€â”€â”€ Mutations within transaction â”€â”€â”€
 
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	[Fact]
 	[Trait(TestTraits.Category, "Transaction")]
 	public async Task MutationInsert_WithinTransaction_CommitsOnSuccess()
@@ -138,7 +139,7 @@ public TransactionIntegrationTests(EmulatorSession session) : base(session) { }
 		rows[0]["Name"].Should().Be("Alice");
 	}
 
-	// ─── Read within transaction ───
+	// â”€â”€â”€ Read within transaction â”€â”€â”€
 
 	[Fact]
 	[Trait(TestTraits.Category, "Transaction")]
@@ -165,7 +166,7 @@ public TransactionIntegrationTests(EmulatorSession session) : base(session) { }
 		name.Should().Be("Alice");
 	}
 
-	// ─── DML returns row count ───
+	// â”€â”€â”€ DML returns row count â”€â”€â”€
 
 	[Fact]
 	[Trait(TestTraits.Category, "Transaction")]

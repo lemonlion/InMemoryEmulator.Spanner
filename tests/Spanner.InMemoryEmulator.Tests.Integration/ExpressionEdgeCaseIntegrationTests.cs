@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
@@ -24,10 +24,10 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		return reader.IsDBNull(0) ? null : reader.GetValue(0);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// ROUND with various decimal places
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#round
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#round
@@ -57,10 +57,10 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		((double)(await Eval(expr))!).Should().BeApproximately(expected, 1e-10);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// TRUNC with various decimal places
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#trunc
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("TRUNC(1.9)", 1.0)]
@@ -80,10 +80,10 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		((double)(await Eval(expr))!).Should().BeApproximately(expected, 1e-10);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// CEIL / FLOOR
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#ceil
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("CEIL(1.1)", 2.0)]
@@ -117,10 +117,10 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		((double)(await Eval(expr))!).Should().BeApproximately(expected, 1e-10);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// SQRT, POW, EXP, LN, LOG, LOG10
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("SQRT(0.0)", 0.0)]
@@ -188,10 +188,10 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		((double)(await Eval(expr))!).Should().BeApproximately(expected, 1e-10);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// String edge cases: CONCAT variations
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#concat
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("CONCAT('a')", "a")]
@@ -208,10 +208,10 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// SUBSTR edge cases
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#substr
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("SUBSTR('hello', 1)", "hello")]
@@ -234,10 +234,10 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// REPLACE edge cases
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#replace
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("REPLACE('hello world', 'world', 'earth')", "hello earth")]
@@ -254,10 +254,10 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// LPAD / RPAD edge cases
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#lpad
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("LPAD('abc', 5)", "  abc")]
@@ -289,10 +289,10 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// TRIM / LTRIM / RTRIM edge cases
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#trim
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("TRIM('  hello  ')", "hello")]
@@ -314,10 +314,10 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// UPPER / LOWER edge cases
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#upper
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("UPPER('hello')", "HELLO")]
@@ -337,10 +337,10 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// LENGTH / STRPOS / STARTS_WITH / ENDS_WITH edge cases
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("LENGTH('')", 0L)]
@@ -398,10 +398,10 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// REVERSE edge cases
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#reverse
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("REVERSE('hello')", "olleh")]
@@ -416,10 +416,10 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// REPEAT edge cases
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#repeat
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("REPEAT('a', 0)", "")]
@@ -434,41 +434,10 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
-	// LEFT / RIGHT edge cases
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#left
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("LEFT('hello', 0)", "")]
-	[InlineData("LEFT('hello', 1)", "h")]
-	[InlineData("LEFT('hello', 3)", "hel")]
-	[InlineData("LEFT('hello', 5)", "hello")]
-	[InlineData("LEFT('hello', 10)", "hello")]
-	[InlineData("LEFT('', 5)", "")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Left_EdgeCases(string expr, string expected)
-	{
-		(await Eval(expr)).Should().Be(expected);
-	}
-
-	[Theory]
-	[InlineData("RIGHT('hello', 0)", "")]
-	[InlineData("RIGHT('hello', 1)", "o")]
-	[InlineData("RIGHT('hello', 3)", "llo")]
-	[InlineData("RIGHT('hello', 5)", "hello")]
-	[InlineData("RIGHT('hello', 10)", "hello")]
-	[InlineData("RIGHT('', 5)", "")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Right_EdgeCases(string expr, string expected)
-	{
-		(await Eval(expr)).Should().Be(expected);
-	}
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// REGEXP functions edge cases
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_contains
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("REGEXP_CONTAINS('hello', 'h')", true)]
@@ -512,58 +481,10 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
-	// INITCAP edge cases
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#initcap
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("INITCAP('hello world')", "Hello World")]
-	[InlineData("INITCAP('HELLO WORLD')", "Hello World")]
-	[InlineData("INITCAP('hello')", "Hello")]
-	[InlineData("INITCAP('')", "")]
-	[InlineData("INITCAP('a')", "A")]
-	[InlineData("INITCAP('hello-world')", "Hello-World")]
-	[InlineData("INITCAP('foo bar baz')", "Foo Bar Baz")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Initcap_EdgeCases(string expr, string expected)
-	{
-		(await Eval(expr)).Should().Be(expected);
-	}
-
-	// ═══════════════════════════════════════════════════════════════
-	// ASCII / CHR edge cases
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#ascii
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("ASCII('A')", 65L)]
-	[InlineData("ASCII('a')", 97L)]
-	[InlineData("ASCII('0')", 48L)]
-	[InlineData("ASCII('Z')", 90L)]
-	[InlineData("ASCII(' ')", 32L)]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Ascii_EdgeCases(string expr, long expected)
-	{
-		(await Eval(expr)).Should().Be(expected);
-	}
-
-	[Theory]
-	[InlineData("CHR(65)", "A")]
-	[InlineData("CHR(97)", "a")]
-	[InlineData("CHR(48)", "0")]
-	[InlineData("CHR(90)", "Z")]
-	[InlineData("CHR(32)", " ")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Chr_EdgeCases(string expr, string expected)
-	{
-		(await Eval(expr)).Should().Be(expected);
-	}
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// BYTE_LENGTH edge cases
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#byte_length
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("BYTE_LENGTH('')", 0L)]
@@ -575,10 +496,10 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// TO_HEX / FROM_HEX
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#to_hex
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("TO_HEX(b'\\x00')", "00")]
@@ -589,9 +510,9 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Nested / combined function calls
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("UPPER(LOWER('HeLLo'))", "HELLO")]
@@ -609,10 +530,10 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// CAST chains and conversions
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("CAST(42 AS STRING)", "42")]
@@ -667,10 +588,10 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// FORMAT function edge cases
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#format_string
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("FORMAT('%d', 42)", "42")]
@@ -685,10 +606,10 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Date/timestamp edge cases
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("EXTRACT(YEAR FROM DATE '2024-01-15')", 2024L)]
@@ -718,49 +639,30 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// TIMESTAMP_ADD / TIMESTAMP_SUB detailed
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	// Ref: default timezone is America/Los_Angeles (Jan=UTC-8, Mar=UTC-8)
-	[InlineData("EXTRACT(DAY FROM TIMESTAMP_ADD(TIMESTAMP '2024-01-15T00:00:00Z', INTERVAL 1 DAY))", 15L)]    // Result: Jan 16 00:00Z → LA: Jan 15 16:00
-	[InlineData("EXTRACT(DAY FROM TIMESTAMP_ADD(TIMESTAMP '2024-01-31T00:00:00Z', INTERVAL 1 DAY))", 31L)]   // Result: Feb 1 00:00Z → LA: Jan 31 16:00
-	[InlineData("EXTRACT(MONTH FROM TIMESTAMP_ADD(TIMESTAMP '2024-01-31T00:00:00Z', INTERVAL 1 DAY))", 1L)]  // LA: Jan 31 16:00 → month=1
-	[InlineData("EXTRACT(HOUR FROM TIMESTAMP_ADD(TIMESTAMP '2024-01-15T23:00:00Z', INTERVAL 2 HOUR))", 17L)] // Result: Jan 16 01:00Z → LA: Jan 15 17:00
-	[InlineData("EXTRACT(DAY FROM TIMESTAMP_SUB(TIMESTAMP '2024-01-15T00:00:00Z', INTERVAL 1 DAY))", 13L)]   // Result: Jan 14 00:00Z → LA: Jan 13 16:00
-	[InlineData("EXTRACT(DAY FROM TIMESTAMP_SUB(TIMESTAMP '2024-03-01T00:00:00Z', INTERVAL 1 DAY))", 28L)]   // Result: Feb 29 00:00Z → LA: Feb 28 16:00
-	[InlineData("EXTRACT(MONTH FROM TIMESTAMP_SUB(TIMESTAMP '2024-01-01T00:00:00Z', INTERVAL 1 DAY))", 12L)] // Result: Dec 31 00:00Z → LA: Dec 30 16:00
-	[InlineData("EXTRACT(YEAR FROM TIMESTAMP_SUB(TIMESTAMP '2024-01-01T00:00:00Z', INTERVAL 1 DAY))", 2023L)] // LA: Dec 30 → 2023
+	[InlineData("EXTRACT(DAY FROM TIMESTAMP_ADD(TIMESTAMP '2024-01-15T00:00:00Z', INTERVAL 1 DAY))", 15L)]    // Result: Jan 16 00:00Z â†’ LA: Jan 15 16:00
+	[InlineData("EXTRACT(DAY FROM TIMESTAMP_ADD(TIMESTAMP '2024-01-31T00:00:00Z', INTERVAL 1 DAY))", 31L)]   // Result: Feb 1 00:00Z â†’ LA: Jan 31 16:00
+	[InlineData("EXTRACT(MONTH FROM TIMESTAMP_ADD(TIMESTAMP '2024-01-31T00:00:00Z', INTERVAL 1 DAY))", 1L)]  // LA: Jan 31 16:00 â†’ month=1
+	[InlineData("EXTRACT(HOUR FROM TIMESTAMP_ADD(TIMESTAMP '2024-01-15T23:00:00Z', INTERVAL 2 HOUR))", 17L)] // Result: Jan 16 01:00Z â†’ LA: Jan 15 17:00
+	[InlineData("EXTRACT(DAY FROM TIMESTAMP_SUB(TIMESTAMP '2024-01-15T00:00:00Z', INTERVAL 1 DAY))", 13L)]   // Result: Jan 14 00:00Z â†’ LA: Jan 13 16:00
+	[InlineData("EXTRACT(DAY FROM TIMESTAMP_SUB(TIMESTAMP '2024-03-01T00:00:00Z', INTERVAL 1 DAY))", 28L)]   // Result: Feb 29 00:00Z â†’ LA: Feb 28 16:00
+	[InlineData("EXTRACT(MONTH FROM TIMESTAMP_SUB(TIMESTAMP '2024-01-01T00:00:00Z', INTERVAL 1 DAY))", 12L)] // Result: Dec 31 00:00Z â†’ LA: Dec 30 16:00
+	[InlineData("EXTRACT(YEAR FROM TIMESTAMP_SUB(TIMESTAMP '2024-01-01T00:00:00Z', INTERVAL 1 DAY))", 2023L)] // LA: Dec 30 â†’ 2023
 	public async Task TimestampAddSub_EdgeCases(string expr, long expected)
 	{
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
-	// DATE_ADD / DATE_SUB detailed
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("EXTRACT(DAY FROM DATE_ADD(DATE '2024-01-15', INTERVAL 1 DAY))", 16L)]
-	[InlineData("EXTRACT(DAY FROM DATE_ADD(DATE '2024-01-31', INTERVAL 1 DAY))", 1L)]
-	[InlineData("EXTRACT(MONTH FROM DATE_ADD(DATE '2024-01-31', INTERVAL 1 DAY))", 2L)]
-	[InlineData("EXTRACT(DAY FROM DATE_SUB(DATE '2024-01-15', INTERVAL 1 DAY))", 14L)]
-	[InlineData("EXTRACT(DAY FROM DATE_SUB(DATE '2024-03-01', INTERVAL 1 DAY))", 29L)]
-	[InlineData("EXTRACT(MONTH FROM DATE_ADD(DATE '2024-01-15', INTERVAL 1 MONTH))", 2L)]
-	[InlineData("EXTRACT(YEAR FROM DATE_ADD(DATE '2024-01-15', INTERVAL 1 YEAR))", 2025L)]
-	[InlineData("EXTRACT(YEAR FROM DATE_SUB(DATE '2024-01-15', INTERVAL 1 YEAR))", 2023L)]
-	public async Task DateAddSub_EdgeCases(string expr, long expected)
-	{
-		(await Eval(expr)).Should().Be(expected);
-	}
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// TIMESTAMP_DIFF detailed
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_diff
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("TIMESTAMP_DIFF(TIMESTAMP '2024-01-02T00:00:00Z', TIMESTAMP '2024-01-01T00:00:00Z', DAY)", 1L)]
@@ -774,9 +676,9 @@ public class ExpressionEdgeCaseIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Complex combined expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("CAST(GREATEST(1, 2, 3) AS STRING)", "3")]

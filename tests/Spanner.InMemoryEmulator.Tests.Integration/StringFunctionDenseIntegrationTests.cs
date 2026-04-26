@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
@@ -22,9 +22,9 @@ public class StringFunctionDenseIntegrationTests : IntegrationTestBase
 		return reader.IsDBNull(0) ? null : reader.GetValue(0);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// CONCAT variations
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("CONCAT('')", "")]
@@ -40,9 +40,9 @@ public class StringFunctionDenseIntegrationTests : IntegrationTestBase
 	public async Task Concat_String(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// UPPER / LOWER comprehensive
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("UPPER('')", "")]
@@ -64,9 +64,9 @@ public class StringFunctionDenseIntegrationTests : IntegrationTestBase
 	public async Task UpperLower(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// TRIM / LTRIM / RTRIM
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("TRIM('')", "")]
@@ -92,9 +92,9 @@ public class StringFunctionDenseIntegrationTests : IntegrationTestBase
 	public async Task TrimVariants(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// SUBSTR comprehensive
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("SUBSTR('abcdef', 1)", "abcdef")]
@@ -117,9 +117,9 @@ public class StringFunctionDenseIntegrationTests : IntegrationTestBase
 	public async Task Substr(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// REPLACE comprehensive
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("REPLACE('abc', 'b', 'x')", "axc")]
@@ -135,9 +135,9 @@ public class StringFunctionDenseIntegrationTests : IntegrationTestBase
 	public async Task Replace_String(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// REVERSE/REPEAT comprehensive
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("REVERSE('')", "")]
@@ -157,9 +157,9 @@ public class StringFunctionDenseIntegrationTests : IntegrationTestBase
 	public async Task ReverseRepeat(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// LPAD / RPAD comprehensive
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("LPAD('abc', 5, 'x')", "xxabc")]
@@ -177,30 +177,9 @@ public class StringFunctionDenseIntegrationTests : IntegrationTestBase
 	public async Task LpadRpad(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
-	// LEFT / RIGHT comprehensive
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("LEFT('hello', 0)", "")]
-	[InlineData("LEFT('hello', 1)", "h")]
-	[InlineData("LEFT('hello', 3)", "hel")]
-	[InlineData("LEFT('hello', 5)", "hello")]
-	[InlineData("LEFT('hello', 10)", "hello")]
-	[InlineData("LEFT('', 5)", "")]
-	[InlineData("RIGHT('hello', 0)", "")]
-	[InlineData("RIGHT('hello', 1)", "o")]
-	[InlineData("RIGHT('hello', 3)", "llo")]
-	[InlineData("RIGHT('hello', 5)", "hello")]
-	[InlineData("RIGHT('hello', 10)", "hello")]
-	[InlineData("RIGHT('', 5)", "")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task LeftRight(string expr, string expected) =>
-		(await Eval(expr)).Should().Be(expected);
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// STRPOS comprehensive
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("STRPOS('abc', 'a')", 1L)]
@@ -219,9 +198,9 @@ public class StringFunctionDenseIntegrationTests : IntegrationTestBase
 	public async Task Strpos(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// STARTS_WITH / ENDS_WITH comprehensive
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("STARTS_WITH('', '')", true)]
@@ -243,9 +222,9 @@ public class StringFunctionDenseIntegrationTests : IntegrationTestBase
 	public async Task StartsWithEndsWith(string expr, bool expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// LENGTH / BYTE_LENGTH / CHAR_LENGTH
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("LENGTH('')", 0L)]
@@ -263,56 +242,9 @@ public class StringFunctionDenseIntegrationTests : IntegrationTestBase
 	public async Task LengthFunctions(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
-	// INITCAP comprehensive
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("INITCAP('')", "")]
-	[InlineData("INITCAP('a')", "A")]
-	[InlineData("INITCAP('hello')", "Hello")]
-	[InlineData("INITCAP('HELLO')", "Hello")]
-	[InlineData("INITCAP('hello world')", "Hello World")]
-	[InlineData("INITCAP('HELLO WORLD')", "Hello World")]
-	[InlineData("INITCAP('hello world test')", "Hello World Test")]
-	[InlineData("INITCAP('a b c')", "A B C")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Initcap(string expr, string expected) =>
-		(await Eval(expr)).Should().Be(expected);
-
-	// ═══════════════════════════════════════════════════════════════
-	// ASCII / CHR
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("ASCII('A')", 65L)]
-	[InlineData("ASCII('B')", 66L)]
-	[InlineData("ASCII('Z')", 90L)]
-	[InlineData("ASCII('a')", 97L)]
-	[InlineData("ASCII('z')", 122L)]
-	[InlineData("ASCII('0')", 48L)]
-	[InlineData("ASCII('9')", 57L)]
-	[InlineData("ASCII(' ')", 32L)]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task AsciiFunction(string expr, long expected) =>
-		(await Eval(expr)).Should().Be(expected);
-
-	[Theory]
-	[InlineData("CHR(65)", "A")]
-	[InlineData("CHR(66)", "B")]
-	[InlineData("CHR(90)", "Z")]
-	[InlineData("CHR(97)", "a")]
-	[InlineData("CHR(122)", "z")]
-	[InlineData("CHR(48)", "0")]
-	[InlineData("CHR(57)", "9")]
-	[InlineData("CHR(32)", " ")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ChrFunction(string expr, string expected) =>
-		(await Eval(expr)).Should().Be(expected);
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// REGEXP functions comprehensive
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("REGEXP_CONTAINS('abc', 'a')", true)]
@@ -355,9 +287,9 @@ public class StringFunctionDenseIntegrationTests : IntegrationTestBase
 	public async Task RegexpReplace(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// || operator
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("'' || ''", "")]
@@ -370,9 +302,9 @@ public class StringFunctionDenseIntegrationTests : IntegrationTestBase
 	public async Task ConcatOperator(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// SPLIT comprehensive
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("ARRAY_LENGTH(SPLIT('a,b,c', ','))", 3L)]
@@ -384,35 +316,9 @@ public class StringFunctionDenseIntegrationTests : IntegrationTestBase
 	public async Task SplitLength(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
-	// Chained string function calls
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("UPPER(REVERSE('abc'))", "CBA")]
-	[InlineData("REVERSE(UPPER('abc'))", "CBA")]
-	[InlineData("LOWER(REVERSE(UPPER('AbC')))", "cba")]
-	[InlineData("TRIM(UPPER('  hello  '))", "HELLO")]
-	[InlineData("UPPER(TRIM('  hello  '))", "HELLO")]
-	[InlineData("LENGTH(UPPER('abc'))", 3L)]
-	[InlineData("LENGTH(REVERSE('abcde'))", 5L)]
-	[InlineData("SUBSTR(UPPER('hello'), 1, 2)", "HE")]
-	[InlineData("UPPER(SUBSTR('hello', 1, 2))", "HE")]
-	[InlineData("REPLACE(UPPER('abc'), 'B', 'X')", "AXC")]
-	[InlineData("UPPER(REPLACE('abc', 'b', 'x'))", "AXC")]
-	[InlineData("CONCAT(LEFT('hello', 3), RIGHT('world', 3))", "helrld")]
-	[InlineData("REVERSE(REPEAT('ab', 3))", "bababa")]
-	[InlineData("LENGTH(LPAD('x', 10, '0'))", 10L)]
-	[InlineData("STRPOS(UPPER('hello'), 'L')", 3L)]
-	[InlineData("LEFT(REVERSE('abcde'), 2)", "ed")]
-	[InlineData("RIGHT(REVERSE('abcde'), 2)", "ba")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ChainedStringFunctions(string expr, object expected) =>
-		(await Eval(expr)).Should().Be(expected);
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// FORMAT for strings
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("FORMAT('%d', 0)", "0")]

@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
@@ -25,10 +25,10 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 		return reader.IsDBNull(0) ? null : reader.GetValue(0);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// CONCAT edge cases
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#concat
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("CONCAT('')", "")]
@@ -47,9 +47,9 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	public async Task Concat_Combinations(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// LENGTH plus SUBSTR combinations
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("LENGTH('')", 0L)]
@@ -70,10 +70,10 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	public async Task Length_Combinations(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// SUBSTR edge cases
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#substr
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("SUBSTR('abcdef', 1)", "abcdef")]
@@ -96,10 +96,10 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	public async Task Substr_EdgeCases(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// REPLACE edge cases
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#replace
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("REPLACE('aaa', 'a', 'b')", "bbb")]
@@ -115,9 +115,9 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	public async Task Replace_EdgeCases(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// UPPER and LOWER chaining
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("UPPER('')", "")]
@@ -142,10 +142,10 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	public async Task UpperLower_Combinations(string expr, object expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// TRIM, LTRIM, RTRIM
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#trim
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("TRIM('')", "")]
@@ -168,10 +168,10 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	public async Task Trim_Combinations(string expr, object expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// STRPOS
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#strpos
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("STRPOS('abc', 'a')", 1L)]
@@ -189,10 +189,10 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	public async Task Strpos_Combinations(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// STARTS_WITH and ENDS_WITH
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#starts_with
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("STARTS_WITH('abc', 'a')", true)]
@@ -218,10 +218,10 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	public async Task StartsEndsWith_Combinations(string expr, bool expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// REVERSE
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#reverse
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("REVERSE('')", "")]
@@ -237,10 +237,10 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	public async Task Reverse_Combinations(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// REPEAT
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#repeat
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("REPEAT('', 5)", "")]
@@ -255,10 +255,10 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	public async Task Repeat_Combinations(string expr, object expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// LPAD and RPAD
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#lpad
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("LPAD('abc', 5, 'x')", "xxabc")]
@@ -280,10 +280,10 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	public async Task LpadRpad_Combinations(string expr, object expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// SPLIT
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#split
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("ARRAY_LENGTH(SPLIT('a,b,c', ','))", 3L)]
@@ -299,9 +299,9 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	public async Task Split_Combinations(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Complex multi-function pipelines
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("UPPER(TRIM('  hello  '))", "HELLO")]
@@ -328,10 +328,10 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	public async Task Pipeline_Combinations(string expr, object expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// String concatenation operator ||
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#concatenation_operator
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("'a' || 'b'", "ab")]
@@ -345,10 +345,10 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	public async Task StringConcat_Operator(string expr, object expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// REGEXP_CONTAINS
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_contains
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("REGEXP_CONTAINS('abc', 'a')", true)]
@@ -370,30 +370,15 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	public async Task RegexpContains_Combinations(string expr, bool expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
-	// REGEXP_EXTRACT
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_extract
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("REGEXP_EXTRACT('abc123', '[0-9]+')", "123")]
-	[InlineData("REGEXP_EXTRACT('abc123def456', '[0-9]+')", "123")]
-	[InlineData("REGEXP_EXTRACT('hello world', '[a-z]+')", "hello")]
-	[InlineData("REGEXP_EXTRACT('abc', '(b)')", "b")]
-	[InlineData("REGEXP_EXTRACT('abc', '(a)(b)')", "a")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task RegexpExtract_Combinations(string expr, string expected) =>
-		(await Eval(expr)).Should().Be(expected);
-
 	[Theory]
 	[InlineData("REGEXP_EXTRACT('xyz', '[0-9]+')")]
 	public async Task RegexpExtract_NoMatch_ReturnsNull(string expr) =>
 		(await Eval(expr)).Should().BeNull();
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// REGEXP_REPLACE
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_replace
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("REGEXP_REPLACE('abc', 'b', 'X')", "aXc")]
@@ -406,68 +391,10 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	public async Task RegexpReplace_Combinations(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
-	// INITCAP
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#initcap
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("INITCAP('')", "")]
-	[InlineData("INITCAP('hello')", "Hello")]
-	[InlineData("INITCAP('hello world')", "Hello World")]
-	[InlineData("INITCAP('HELLO')", "Hello")]
-	[InlineData("INITCAP('HELLO WORLD')", "Hello World")]
-	[InlineData("INITCAP('aBC dEF')", "Abc Def")]
-	[InlineData("INITCAP('hello-world')", "Hello-World")]
-	[InlineData("INITCAP('hello_world')", "Hello_World")]
-	[InlineData("INITCAP('  hello  world  ')", "  Hello  World  ")]
-	[InlineData("INITCAP('a')", "A")]
-	[InlineData("INITCAP('123abc')", "123Abc")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Initcap_Combinations(string expr, string expected) =>
-		(await Eval(expr)).Should().Be(expected);
-
-	// ═══════════════════════════════════════════════════════════════
-	// ASCII and CHR
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#ascii
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("ASCII('A')", 65L)]
-	[InlineData("ASCII('a')", 97L)]
-	[InlineData("ASCII('0')", 48L)]
-	[InlineData("ASCII(' ')", 32L)]
-	[InlineData("ASCII('Z')", 90L)]
-	[InlineData("ASCII('z')", 122L)]
-	[InlineData("ASCII('abc')", 97L)]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Ascii_Combinations(string expr, long expected) =>
-		(await Eval(expr)).Should().Be(expected);
-
-	[Theory]
-	[InlineData("CHR(65)", "A")]
-	[InlineData("CHR(97)", "a")]
-	[InlineData("CHR(48)", "0")]
-	[InlineData("CHR(32)", " ")]
-	[InlineData("CHR(90)", "Z")]
-	[InlineData("CHR(122)", "z")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Chr_Combinations(string expr, string expected) =>
-		(await Eval(expr)).Should().Be(expected);
-
-	[Theory]
-	[InlineData("CHR(ASCII('A'))", "A")]
-	[InlineData("CHR(ASCII('z'))", "z")]
-	[InlineData("ASCII(CHR(65))", 65L)]
-	[InlineData("ASCII(CHR(97))", 97L)]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task AsciiChr_RoundTrip(string expr, object expected) =>
-		(await Eval(expr)).Should().Be(expected);
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// BYTE_LENGTH
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#byte_length
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("BYTE_LENGTH('')", 0L)]
@@ -478,10 +405,10 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	public async Task ByteLength_Combinations(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// TO_HEX and FROM_HEX
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#to_hex
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("TO_HEX(b'\\x00')", "00")]
@@ -491,69 +418,9 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	public async Task ToHex_Combinations(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
-	// LEFT and RIGHT
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#left
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("LEFT('hello', 0)", "")]
-	[InlineData("LEFT('hello', 1)", "h")]
-	[InlineData("LEFT('hello', 3)", "hel")]
-	[InlineData("LEFT('hello', 5)", "hello")]
-	[InlineData("LEFT('hello', 10)", "hello")]
-	[InlineData("LEFT('', 3)", "")]
-	[InlineData("RIGHT('hello', 0)", "")]
-	[InlineData("RIGHT('hello', 1)", "o")]
-	[InlineData("RIGHT('hello', 3)", "llo")]
-	[InlineData("RIGHT('hello', 5)", "hello")]
-	[InlineData("RIGHT('hello', 10)", "hello")]
-	[InlineData("RIGHT('', 3)", "")]
-	[InlineData("LEFT(UPPER('hello'), 3)", "HEL")]
-	[InlineData("RIGHT(REVERSE('hello'), 3)", "leh")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task LeftRight_Combinations(string expr, string expected) =>
-		(await Eval(expr)).Should().Be(expected);
-
-	// ═══════════════════════════════════════════════════════════════
-	// NULL propagation through all string functions
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("CONCAT(CAST(NULL AS STRING))")]
-	[InlineData("LENGTH(CAST(NULL AS STRING))")]
-	[InlineData("UPPER(CAST(NULL AS STRING))")]
-	[InlineData("LOWER(CAST(NULL AS STRING))")]
-	[InlineData("TRIM(CAST(NULL AS STRING))")]
-	[InlineData("LTRIM(CAST(NULL AS STRING))")]
-	[InlineData("RTRIM(CAST(NULL AS STRING))")]
-	[InlineData("SUBSTR(CAST(NULL AS STRING), 1)")]
-	[InlineData("REPLACE(CAST(NULL AS STRING), 'a', 'b')")]
-	[InlineData("REPLACE('abc', CAST(NULL AS STRING), 'b')")]
-	[InlineData("STRPOS(CAST(NULL AS STRING), 'a')")]
-	[InlineData("STRPOS('abc', CAST(NULL AS STRING))")]
-	[InlineData("STARTS_WITH(CAST(NULL AS STRING), 'a')")]
-	[InlineData("ENDS_WITH(CAST(NULL AS STRING), 'a')")]
-	[InlineData("REVERSE(CAST(NULL AS STRING))")]
-	[InlineData("REPEAT(CAST(NULL AS STRING), 3)")]
-	[InlineData("LPAD(CAST(NULL AS STRING), 5, 'x')")]
-	[InlineData("RPAD(CAST(NULL AS STRING), 5, 'x')")]
-	[InlineData("LEFT(CAST(NULL AS STRING), 3)")]
-	[InlineData("RIGHT(CAST(NULL AS STRING), 3)")]
-	[InlineData("REGEXP_CONTAINS(CAST(NULL AS STRING), 'a')")]
-	[InlineData("REGEXP_EXTRACT(CAST(NULL AS STRING), '[a-z]+')")]
-	[InlineData("REGEXP_REPLACE(CAST(NULL AS STRING), 'a', 'b')")]
-	[InlineData("INITCAP(CAST(NULL AS STRING))")]
-	[InlineData("ASCII(CAST(NULL AS STRING))")]
-	[InlineData("BYTE_LENGTH(CAST(NULL AS STRING))")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task StringFunction_NullInput_ReturnsNull(string expr) =>
-		(await Eval(expr)).Should().BeNull();
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Deep nesting (5+ levels)
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("UPPER(LOWER(UPPER(LOWER(UPPER('hello')))))", "HELLO")]
@@ -564,10 +431,10 @@ public class StringCombinationIntegrationTests : IntegrationTestBase
 	public async Task DeepNesting_Combinations(string expr, object expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// FORMAT function for strings
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#format_string
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("FORMAT('%d', 42)", "42")]

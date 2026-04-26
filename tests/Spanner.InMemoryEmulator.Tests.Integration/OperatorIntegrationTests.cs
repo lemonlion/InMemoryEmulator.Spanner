@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
@@ -24,10 +24,10 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		return reader.IsDBNull(0) ? null : reader.GetValue(0);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Comparison operators returning BOOL
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#comparison_operators
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	// INT64 comparisons
@@ -106,10 +106,10 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Arithmetic operators
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	// Addition INT64
@@ -180,10 +180,10 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		result.Should().BeApproximately(expected, 1e-10);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Boolean / logical operators
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#logical_operators
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	// AND
@@ -223,10 +223,10 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// BETWEEN operator
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#between
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	// INT64 BETWEEN
@@ -261,10 +261,10 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// IN operator
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#in_operators
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	// INT64 IN
@@ -294,38 +294,10 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
-	// IS NULL / IS NOT NULL
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#is_operators
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("NULL IS NULL", true)]
-	[InlineData("1 IS NULL", false)]
-	[InlineData("0 IS NULL", false)]
-	[InlineData("'' IS NULL", false)]
-	[InlineData("false IS NULL", false)]
-	[InlineData("NULL IS NOT NULL", false)]
-	[InlineData("1 IS NOT NULL", true)]
-	[InlineData("0 IS NOT NULL", true)]
-	[InlineData("'' IS NOT NULL", true)]
-	[InlineData("false IS NOT NULL", true)]
-	[InlineData("CAST(NULL AS INT64) IS NULL", true)]
-	[InlineData("CAST(NULL AS STRING) IS NULL", true)]
-	[InlineData("CAST(NULL AS BOOL) IS NULL", true)]
-	[InlineData("CAST(NULL AS FLOAT64) IS NULL", true)]
-	[InlineData("1 + NULL IS NULL", true)]
-	[InlineData("CONCAT(NULL, 'a') IS NULL", true)]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task IsNullOperator(string expr, bool expected)
-	{
-		(await Eval(expr)).Should().Be(expected);
-	}
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// IS TRUE / IS FALSE / IS NOT TRUE / IS NOT FALSE
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#is_operators
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("true IS TRUE", true)]
@@ -341,10 +313,10 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// String concatenation operator ||
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#concatenation_operator
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("'a' || 'b'", "ab")]
@@ -359,10 +331,10 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// COALESCE
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conditional_expressions#coalesce
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("COALESCE(1, 2)", 1L)]
@@ -391,10 +363,10 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		(await Eval("COALESCE(NULL, NULL, NULL)")).Should().BeNull();
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// IF expression
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conditional_expressions#if
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("IF(true, 1, 2)", 1L)]
@@ -444,10 +416,10 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		(await Eval("IF(false, 1, NULL)")).Should().BeNull();
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// IFNULL
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conditional_expressions#ifnull
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("IFNULL(1, 2)", 1L)]
@@ -474,10 +446,10 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		(await Eval("IFNULL(NULL, NULL)")).Should().BeNull();
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// NULLIF
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conditional_expressions#nullif
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("NULLIF(1, 1)")]
@@ -505,10 +477,10 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// CASE expressions
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conditional_expressions#case
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	// Searched CASE
@@ -556,47 +528,6 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		(await Eval("CASE 3 WHEN 1 THEN 10 WHEN 2 THEN 20 END")).Should().BeNull();
 	}
 
-	// ═══════════════════════════════════════════════════════════════
-	// NULL propagation through operators (three-valued logic)
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#logical_operators
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	// NULL in comparisons
-	[InlineData("NULL = NULL")]
-	[InlineData("NULL = 1")]
-	[InlineData("1 = NULL")]
-	[InlineData("NULL != NULL")]
-	[InlineData("NULL < 1")]
-	[InlineData("1 < NULL")]
-	[InlineData("NULL <= 1")]
-	[InlineData("NULL > 1")]
-	[InlineData("NULL >= 1")]
-	// NULL in arithmetic
-	[InlineData("NULL + 1")]
-	[InlineData("1 + NULL")]
-	[InlineData("NULL - 1")]
-	[InlineData("NULL * 1")]
-	[InlineData("NULL / 1")]
-	// NULL in string ops
-	[InlineData("NULL || 'a'")]
-	[InlineData("'a' || NULL")]
-	// NULL in boolean (some)
-	[InlineData("NULL AND NULL")]
-	[InlineData("NULL OR NULL")]
-	[InlineData("NOT NULL")]
-	// NULL BETWEEN
-	[InlineData("NULL BETWEEN 1 AND 10")]
-	[InlineData("5 BETWEEN NULL AND 10")]
-	[InlineData("5 BETWEEN 1 AND NULL")]
-	// NULL IN
-	[InlineData("NULL IN (1, 2, 3)")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task NullPropagation_ReturnsNull(string expr)
-	{
-		(await Eval(expr)).Should().BeNull();
-	}
-
 	// Three-valued logic: NULL AND false = false, NULL OR true = true
 	[Theory]
 	[InlineData("NULL AND false", false)]
@@ -608,10 +539,10 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Literal expressions
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#literals
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("0", 0L)]
@@ -646,7 +577,7 @@ public class OperatorIntegrationTests : IntegrationTestBase
 	[InlineData("'it''s'", "it's")]
 	[InlineData("'123'", "123")]
 	[InlineData("'true'", "true")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task StringLiterals(string expr, string expected)
 	{
 		(await Eval(expr)).Should().Be(expected);
@@ -668,9 +599,9 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		(await Eval("NULL")).Should().BeNull();
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Parenthesized expressions / operator precedence
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("(1)", 1L)]
@@ -686,10 +617,10 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// IEEE_DIVIDE
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#ieee_divide
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("IEEE_DIVIDE(10.0, 2.0)", 5.0)]
@@ -722,10 +653,10 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		double.IsNaN(result).Should().BeTrue();
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// SAFE functions
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("SAFE_DIVIDE(10, 2)", 5.0)]
@@ -779,10 +710,10 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// IS_NAN / IS_INF
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#is_nan
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("IS_NAN(IEEE_DIVIDE(0.0, 0.0))", true)]
@@ -805,10 +736,10 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// GREATEST / LEAST
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#greatest
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("GREATEST(1, 2, 3)", 3L)]
@@ -864,10 +795,10 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().BeNull();
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// SIGN function
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#sign
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("SIGN(10)", 1L)]
@@ -889,10 +820,10 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		((double)(await Eval(expr))!).Should().BeApproximately(expected, 1e-10);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// ABS function
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#abs
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("ABS(0)", 0L)]
@@ -916,9 +847,9 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		((double)(await Eval(expr))!).Should().BeApproximately(expected, 1e-10);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Complex combined expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("CASE WHEN 1 + 1 = 2 THEN 'math works' ELSE 'broken' END", "math works")]

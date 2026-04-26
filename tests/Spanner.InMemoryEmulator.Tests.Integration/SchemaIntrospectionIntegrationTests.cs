@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
@@ -13,7 +13,7 @@ public class SchemaIntrospectionIntegrationTests : IntegrationTestBase
 {
 public SchemaIntrospectionIntegrationTests(EmulatorSession session) : base(session) { }
 
-	// ─── INFORMATION_SCHEMA.TABLES ───
+	// â”€â”€â”€ INFORMATION_SCHEMA.TABLES â”€â”€â”€
 
 	[Fact]
 	public async Task InformationSchema_Tables_ReturnsTables()
@@ -28,7 +28,7 @@ public SchemaIntrospectionIntegrationTests(EmulatorSession session) : base(sessi
 		reader.GetString(0).Should().Be("IS_TestT");
 	}
 
-	// ─── INFORMATION_SCHEMA.COLUMNS ───
+	// â”€â”€â”€ INFORMATION_SCHEMA.COLUMNS â”€â”€â”€
 
 	[Fact]
 	public async Task InformationSchema_Columns_ReturnsColumnMetadata()
@@ -44,7 +44,7 @@ public SchemaIntrospectionIntegrationTests(EmulatorSession session) : base(sessi
 		reader.GetString(1).Should().Be("STRING(100)");
 	}
 
-	// ─── INFORMATION_SCHEMA.INDEXES ───
+	// â”€â”€â”€ INFORMATION_SCHEMA.INDEXES â”€â”€â”€
 
 	[Fact]
 	public async Task InformationSchema_Indexes_ShowsPrimaryKey()
@@ -59,10 +59,10 @@ public SchemaIntrospectionIntegrationTests(EmulatorSession session) : base(sessi
 		reader.GetString(0).Should().Be("PRIMARY_KEY");
 	}
 
-	// ─── VIEWS ───
+	// â”€â”€â”€ VIEWS â”€â”€â”€
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task View_QueryViaSdk()
 	{
 		await ExecuteDdlAsync("CREATE TABLE IS_ViewT (Id INT64 NOT NULL, Name STRING(MAX)) PRIMARY KEY (Id)");
@@ -78,10 +78,10 @@ public SchemaIntrospectionIntegrationTests(EmulatorSession session) : base(sessi
 		(await reader.ReadAsync()).Should().BeFalse();
 	}
 
-	// ─── SEQUENCES ───
+	// â”€â”€â”€ SEQUENCES â”€â”€â”€
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task Sequence_GetNextValueViaSdk()
 	{
 		await ExecuteDdlAsync("CREATE TABLE IS_SeqT (Id INT64 NOT NULL) PRIMARY KEY (Id)");

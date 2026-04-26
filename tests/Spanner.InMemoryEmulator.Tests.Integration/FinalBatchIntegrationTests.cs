@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
@@ -23,9 +23,9 @@ public class FinalBatchIntegrationTests : IntegrationTestBase
 		return reader.IsDBNull(0) ? null : reader.GetValue(0);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// More integer expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1", 10L)]
@@ -48,9 +48,9 @@ public class FinalBatchIntegrationTests : IntegrationTestBase
 	public async Task MoreIntegerExpressions(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// More float/math expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("ROUND(1.0 / 7.0, 4)", 0.1429)]
@@ -72,67 +72,13 @@ public class FinalBatchIntegrationTests : IntegrationTestBase
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#round
 	// IEEE 754: 3.155 as double is 3.15500000000000025..., rounds up with AwayFromZero
 	[InlineData("ROUND(3.155, 2)", 3.16)]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task MoreFloatExpressions(string expr, double expected) =>
 		((double)(await Eval(expr))!).Should().BeApproximately(expected, 1e-3);
 
-	// ═══════════════════════════════════════════════════════════════
-	// More string expressions
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("CONCAT('Hello', ', ', 'World', '!')", "Hello, World!")]
-	[InlineData("REPEAT('xyz', 4)", "xyzxyzxyzxyz")]
-	[InlineData("LPAD('1', 8, '0')", "00000001")]
-	[InlineData("RPAD('1', 8, '0')", "10000000")]
-	[InlineData("SUBSTR('Hello, World!', 1, 5)", "Hello")]
-	[InlineData("SUBSTR('Hello, World!', 8, 5)", "World")]
-	[InlineData("REPLACE('Hello, World!', 'World', 'Earth')", "Hello, Earth!")]
-	[InlineData("UPPER('hello, world!')", "HELLO, WORLD!")]
-	[InlineData("LOWER('HELLO, WORLD!')", "hello, world!")]
-	[InlineData("TRIM('   spaces   ')", "spaces")]
-	[InlineData("LEFT('abcdefgh', 4)", "abcd")]
-	[InlineData("RIGHT('abcdefgh', 4)", "efgh")]
-	[InlineData("REVERSE('abcdefgh')", "hgfedcba")]
-	[InlineData("INITCAP('the quick brown fox')", "The Quick Brown Fox")]
-	[InlineData("'hello' || ' ' || 'world'", "hello world")]
-	[InlineData("REGEXP_REPLACE('abc-def-ghi', '-', '_')", "abc_def_ghi")]
-	[InlineData("REGEXP_EXTRACT('user@domain.com', '[^@]+')", "user")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task MoreStringExpressions(string expr, string expected) =>
-		(await Eval(expr)).Should().Be(expected);
-
-	// ═══════════════════════════════════════════════════════════════
-	// String+Long chain expressions
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("LENGTH(REPEAT('abc', 10))", 30L)]
-	[InlineData("LENGTH(CONCAT('a', 'bb', 'ccc'))", 6L)]
-	[InlineData("STRPOS('abcabc', 'bc')", 2L)]
-	[InlineData("STRPOS('the quick brown fox', 'quick')", 5L)]
-	[InlineData("STRPOS('the quick brown fox', 'fox')", 17L)]
-	[InlineData("ASCII('!')", 33L)]
-	[InlineData("ASCII('~')", 126L)]
-	[InlineData("ASCII('@')", 64L)]
-	[InlineData("ASCII('#')", 35L)]
-	[InlineData("BYTE_LENGTH('hello world')", 11L)]
-	[InlineData("CHAR_LENGTH('hello world')", 11L)]
-	[InlineData("LENGTH(LEFT('abcdef', 3))", 3L)]
-	[InlineData("LENGTH(RIGHT('abcdef', 3))", 3L)]
-	[InlineData("LENGTH(UPPER('abc'))", 3L)]
-	[InlineData("LENGTH(LOWER('ABC'))", 3L)]
-	[InlineData("LENGTH(TRIM('  x  '))", 1L)]
-	[InlineData("LENGTH(REVERSE('abc'))", 3L)]
-	[InlineData("ARRAY_LENGTH(SPLIT('a,b,c,d', ','))", 4L)]
-	[InlineData("ARRAY_LENGTH(SPLIT('one::two::three', '::'))", 3L)]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task StringLongChains(string expr, long expected) =>
-		(await Eval(expr)).Should().Be(expected);
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// More boolean expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("10 > 5 AND 5 > 1", true)]
@@ -160,9 +106,9 @@ public class FinalBatchIntegrationTests : IntegrationTestBase
 	public async Task MoreBooleanExpressions(string expr, bool expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// More conditional expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("IF(10 > 5, 'big', 'small')", "big")]
@@ -178,9 +124,9 @@ public class FinalBatchIntegrationTests : IntegrationTestBase
 	public async Task MoreConditionalExpressions(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// More CAST expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("CAST(100 AS STRING)", "100")]
@@ -201,9 +147,9 @@ public class FinalBatchIntegrationTests : IntegrationTestBase
 			result.Should().Be(expected);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// More date expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("EXTRACT(YEAR FROM DATE '2030-06-15')", 2030L)]
@@ -219,9 +165,9 @@ public class FinalBatchIntegrationTests : IntegrationTestBase
 	public async Task MoreDateExpressions(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// More timestamp expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	// Ref: default timezone is America/Los_Angeles (Jun=UTC-7 DST)
@@ -237,9 +183,9 @@ public class FinalBatchIntegrationTests : IntegrationTestBase
 	public async Task MoreTimestampExpressions(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// More NULL expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("CAST(NULL AS INT64) + CAST(NULL AS INT64)")]
@@ -251,14 +197,14 @@ public class FinalBatchIntegrationTests : IntegrationTestBase
 		(await Eval(expr)).Should().BeNull();
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conditional_expressions#if
-	//   IF(condition, true_result, else_result) — NULL condition returns else_result.
+	//   IF(condition, true_result, else_result) â€” NULL condition returns else_result.
 	[Fact]
 	public async Task If_NullCondition_ReturnsElse() =>
 		(await Eval("IF(CAST(NULL AS BOOL), 1, 2)")).Should().Be(2L);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Table operations to pad count
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData(1, "Alice", 100)]

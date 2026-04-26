@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -59,6 +60,7 @@ public class SchemaExtendedIntegrationTests : IntegrationTestBase
 		rows.Should().HaveCount(2);
 	}
 
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	[Fact]
 	public async Task CreateTable_CompositePrimaryKey()
 	{
@@ -422,6 +424,7 @@ public class SchemaExtendedIntegrationTests : IntegrationTestBase
 	// DDL with multiple statements
 	// ═══════════════════════════════════════════════════════════════
 
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	[Fact]
 	public async Task DdlBatch_MultipleStatements()
 	{

@@ -790,7 +790,10 @@ internal class QueryExecutor
 		_ => false
 	};
 
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls
+	// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
+	//   GCP Spanner does not support standard SQL analytic/window functions
+	//   (ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
+	//   or aggregate OVER). It only supports IS_FIRST.
 	private List<Dictionary<string, object?>> EvaluateWindowFunctions(
 		List<SelectColumn> columns,
 		List<Dictionary<string, object?>> rows,
@@ -800,216 +803,21 @@ internal class QueryExecutor
 		if (windowCols.Count == 0)
 			return rows;
 
+		// Reject unsupported window functions — real GCP Spanner returns Unimplemented
 		foreach (var col in windowCols)
 		{
 			var win = (WindowExpr)col.Expr;
-			var windowName = col.Alias ?? InferColumnName(win);
-
-			// Group rows by PARTITION BY expressions
-			var partitions = rows.GroupBy(r =>
+			var funcName = win.Function switch
 			{
-				if (win.PartitionBy == null || win.PartitionBy.Count == 0)
-					return "";
-				return string.Join("|", win.PartitionBy.Select(e => evaluator.Evaluate(e, r)?.ToString() ?? "NULL"));
-			}).ToList();
+				FunctionCallExpr f => f.Name.ToUpperInvariant(),
+				CountStarExpr => "$COUNT_STAR",
+				_ => ""
+			};
 
-			foreach (var partition in partitions)
-			{
-				var partitionRows = partition.ToList();
-
-				// Sort within partition by ORDER BY
-				if (win.OrderBy != null && win.OrderBy.Count > 0)
-				{
-					partitionRows = OrderRows(win.OrderBy, partitionRows, evaluator);
-				}
-
-				// Evaluate the window function for each row in the partition
-				var funcName = win.Function switch
-				{
-					FunctionCallExpr f => f.Name.ToUpperInvariant(),
-					CountStarExpr => "COUNT",
-					_ => ""
-				};
-
-				for (var i = 0; i < partitionRows.Count; i++)
-				{
-					var row = partitionRows[i];
-					object? value = funcName switch
-					{
-						"ROW_NUMBER" => (long)(i + 1),
-						"RANK" => ComputeRank(partitionRows, i, win.OrderBy, evaluator),
-						"DENSE_RANK" => ComputeDenseRank(partitionRows, i, win.OrderBy, evaluator),
-						"LAG" => EvalLag(win.Function, partitionRows, i, evaluator),
-						"LEAD" => EvalLead(win.Function, partitionRows, i, evaluator),
-						"FIRST_VALUE" => GetWindowFuncArg(win.Function, GetFrameRows(partitionRows, i, win.Frame)[0], evaluator),
-						"LAST_VALUE" => GetWindowFuncArg(win.Function, GetFrameRows(partitionRows, i, win.Frame)[^1], evaluator),
-						// Aggregate window functions (SUM, COUNT, AVG, MIN, MAX OVER ...)
-						_ => EvaluateAggregateWindow(win.Function, GetFrameRows(partitionRows, i, win.Frame), evaluator)
-					};
-					row[windowName] = value;
-				}
-			}
+			throw new NotSupportedException($"Unsupported built-in function: {funcName}.");
 		}
 
 		return rows;
-	}
-
-	private static object? GetWindowFuncArg(SqlExpression func, Dictionary<string, object?> row, ExpressionEvaluator evaluator)
-	{
-		if (func is FunctionCallExpr f && f.Arguments.Count > 0)
-			return evaluator.Evaluate(f.Arguments[0], row);
-		return null;
-	}
-
-	private static object? GetWindowFuncDefault(SqlExpression func, ExpressionEvaluator evaluator)
-	{
-		if (func is FunctionCallExpr f && f.Arguments.Count >= 3)
-			return evaluator.Evaluate(f.Arguments[2], new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase));
-		return null;
-	}
-
-	private static object? EvalLag(SqlExpression func, List<Dictionary<string, object?>> partitionRows,
-		int i, ExpressionEvaluator evaluator)
-	{
-		int offset = 1;
-		if (func is FunctionCallExpr f && f.Arguments.Count >= 2)
-		{
-			var offsetVal = evaluator.Evaluate(f.Arguments[1], partitionRows[i]);
-			if (offsetVal != null) offset = Convert.ToInt32(offsetVal);
-		}
-		var targetIdx = i - offset;
-		if (targetIdx >= 0 && targetIdx < partitionRows.Count)
-			return GetWindowFuncArg(func, partitionRows[targetIdx], evaluator);
-		return GetWindowFuncDefault(func, evaluator);
-	}
-
-	private static object? EvalLead(SqlExpression func, List<Dictionary<string, object?>> partitionRows,
-		int i, ExpressionEvaluator evaluator)
-	{
-		int offset = 1;
-		if (func is FunctionCallExpr f && f.Arguments.Count >= 2)
-		{
-			var offsetVal = evaluator.Evaluate(f.Arguments[1], partitionRows[i]);
-			if (offsetVal != null) offset = Convert.ToInt32(offsetVal);
-		}
-		var targetIdx = i + offset;
-		if (targetIdx >= 0 && targetIdx < partitionRows.Count)
-			return GetWindowFuncArg(func, partitionRows[targetIdx], evaluator);
-		return GetWindowFuncDefault(func, evaluator);
-	}
-
-	private static List<Dictionary<string, object?>> GetFrameRows(
-		List<Dictionary<string, object?>> partitionRows, int currentIndex, WindowFrameClause? frame)
-	{
-		if (frame == null)
-			return partitionRows; // Default: entire partition
-
-		int start = frame.Start.Type switch
-		{
-			FrameBoundType.UnboundedPreceding => 0,
-			FrameBoundType.CurrentRow => currentIndex,
-			FrameBoundType.OffsetPreceding => Math.Max(0, currentIndex - (int)frame.Start.Offset),
-			FrameBoundType.OffsetFollowing => Math.Min(partitionRows.Count - 1, currentIndex + (int)frame.Start.Offset),
-			_ => 0
-		};
-		int end = frame.End.Type switch
-		{
-			FrameBoundType.UnboundedFollowing => partitionRows.Count - 1,
-			FrameBoundType.CurrentRow => currentIndex,
-			FrameBoundType.OffsetPreceding => Math.Max(0, currentIndex - (int)frame.End.Offset),
-			FrameBoundType.OffsetFollowing => Math.Min(partitionRows.Count - 1, currentIndex + (int)frame.End.Offset),
-			_ => partitionRows.Count - 1
-		};
-
-		if (start > end) return new List<Dictionary<string, object?>>();
-		return partitionRows.GetRange(start, end - start + 1);
-	}
-
-	private static long ComputeRank(
-		List<Dictionary<string, object?>> partitionRows, int index,
-		List<OrderByColumn>? orderBy, ExpressionEvaluator evaluator)
-	{
-		if (orderBy == null || orderBy.Count == 0 || index == 0)
-			return 1L;
-
-		long rank = 1;
-		for (var j = 0; j < index; j++)
-		{
-			if (!RowsEqualByOrderBy(partitionRows[j], partitionRows[index], orderBy, evaluator))
-			{
-				rank = j + 2;
-			}
-		}
-		return rank;
-	}
-
-	private static long ComputeDenseRank(
-		List<Dictionary<string, object?>> partitionRows, int index,
-		List<OrderByColumn>? orderBy, ExpressionEvaluator evaluator)
-	{
-		if (orderBy == null || orderBy.Count == 0 || index == 0)
-			return 1L;
-
-		var distinctRank = 1L;
-		for (var j = 1; j <= index; j++)
-		{
-			if (!RowsEqualByOrderBy(partitionRows[j - 1], partitionRows[j], orderBy, evaluator))
-			{
-				distinctRank++;
-			}
-		}
-		return distinctRank;
-	}
-
-	private static bool RowsEqualByOrderBy(
-		Dictionary<string, object?> a, Dictionary<string, object?> b,
-		List<OrderByColumn> orderBy, ExpressionEvaluator evaluator)
-	{
-		foreach (var col in orderBy)
-		{
-			var va = evaluator.Evaluate(col.Expr, a);
-			var vb = evaluator.Evaluate(col.Expr, b);
-			if (!Equals(va, vb))
-				return false;
-		}
-		return true;
-	}
-
-	private static object? EvaluateAggregateWindow(
-		SqlExpression func, List<Dictionary<string, object?>> partitionRows, ExpressionEvaluator evaluator)
-	{
-		var funcName = func switch
-		{
-			FunctionCallExpr f => f.Name.ToUpperInvariant(),
-			CountStarExpr => "COUNT",
-			_ => ""
-		};
-
-		var values = func switch
-		{
-			FunctionCallExpr f when f.Arguments.Count > 0 =>
-				partitionRows.Select(r => evaluator.Evaluate(f.Arguments[0], r)).ToList(),
-			CountStarExpr => partitionRows.Select(_ => (object?)(long)1).ToList(),
-			_ => new List<object?>()
-		};
-
-		return funcName switch
-		{
-			"COUNT" => func is CountStarExpr
-				? (long)partitionRows.Count
-				: (long)values.Count(v => v != null),
-			"SUM" => values.Where(v => v != null).Aggregate(0.0, (acc, v) => acc + Convert.ToDouble(v)) is var sum
-				? (values.Any(v => v is long) ? (object)(long)sum : sum)
-				: null,
-			"AVG" => values.Where(v => v != null) is var nonNull && nonNull.Any()
-				? nonNull.Average(v => Convert.ToDouble(v))
-				: null,
-			"MIN" => values.Where(v => v != null).DefaultIfEmpty(null)
-				.Min(v => v is IComparable ? v : null),
-			"MAX" => values.Where(v => v != null).DefaultIfEmpty(null)
-				.Max(v => v is IComparable ? v : null),
-			_ => null
-		};
 	}
 
 	private List<Dictionary<string, object?>> ExecuteGroupBy(

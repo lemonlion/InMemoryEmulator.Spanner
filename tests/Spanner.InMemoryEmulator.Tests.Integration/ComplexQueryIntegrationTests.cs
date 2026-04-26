@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
@@ -52,9 +52,9 @@ public class ComplexQueryIntegrationTests : IntegrationTestBase
 		catch { }
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Multi-table JOINs
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task Join_TwoTables_EmployeeDept()
@@ -127,9 +127,9 @@ public class ComplexQueryIntegrationTests : IntegrationTestBase
 		rows.Where(r => (string)r["Emp1"]! == "Alice" && (string)r["Emp2"]! == "Bob").Should().HaveCount(1);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// GROUP BY + HAVING + ORDER BY + LIMIT combinations
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task GroupBy_Having_OrderBy()
@@ -200,9 +200,9 @@ public class ComplexQueryIntegrationTests : IntegrationTestBase
 		rows.Should().HaveCount(2);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Nested subqueries
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task Subquery_InWhere_ScalarComparison()
@@ -284,9 +284,9 @@ public class ComplexQueryIntegrationTests : IntegrationTestBase
 		// Engineering (1M) and Marketing (500K) budgets > 400K
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// CTEs (WITH clauses)
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task Cte_SingleCte()
@@ -335,70 +335,9 @@ public class ComplexQueryIntegrationTests : IntegrationTestBase
 		rows[0]["Name"].Should().Be("Engineering");
 	}
 
-	// ═══════════════════════════════════════════════════════════════
-	// Window functions combined with other clauses
-	// ═══════════════════════════════════════════════════════════════
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Window_RowNumber_WithJoin()
-	{
-		await EnsureTablesAsync();
-		var rows = await QueryAsync(@"
-			SELECT e.Name, d.Name AS Dept,
-				ROW_NUMBER() OVER (PARTITION BY e.DeptId ORDER BY e.Salary DESC) AS Rank
-			FROM CqEmployees e
-			JOIN CqDepartments d ON e.DeptId = d.Id
-			ORDER BY Dept, Rank");
-		rows.Should().HaveCount(6);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Window_Rank_DeptSalary()
-	{
-		await EnsureTablesAsync();
-		var rows = await QueryAsync(@"
-			SELECT Name, Salary,
-				RANK() OVER (ORDER BY Salary DESC) AS SalRank
-			FROM CqEmployees
-			ORDER BY SalRank");
-		rows.Should().HaveCount(6);
-		rows[0]["Name"].Should().Be("Alice");
-		rows[0]["SalRank"].Should().Be(1L);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Window_RunningTotal()
-	{
-		await EnsureTablesAsync();
-		var rows = await QueryAsync(@"
-			SELECT Name, Salary,
-				SUM(Salary) OVER (ORDER BY Salary DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS RunTotal
-			FROM CqEmployees
-			ORDER BY Salary DESC");
-		rows.Should().HaveCount(6);
-		rows[0]["RunTotal"].Should().Be(120000L); // Just Alice
-		((long)rows[1]["RunTotal"]!).Should().BeGreaterThan(120000L); // Alice + Bob
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Window_DeptAvg_Comparison()
-	{
-		await EnsureTablesAsync();
-		var rows = await QueryAsync(@"
-			SELECT Name, Salary,
-				AVG(Salary) OVER (PARTITION BY DeptId) AS DeptAvg
-			FROM CqEmployees
-			ORDER BY Name");
-		rows.Should().HaveCount(6);
-	}
-
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// DISTINCT queries
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task Distinct_SingleColumn()
@@ -426,9 +365,9 @@ public class ComplexQueryIntegrationTests : IntegrationTestBase
 		rows[0]["DeptId"].Should().Be(3L);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Set operations
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task UnionAll_TwoQueries()
@@ -478,9 +417,9 @@ public class ComplexQueryIntegrationTests : IntegrationTestBase
 		rows.Should().HaveCount(2); // 1 and 3
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Complex expression combinations
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task Complex_CaseWithAggregate()
@@ -499,39 +438,6 @@ public class ComplexQueryIntegrationTests : IntegrationTestBase
 			ORDER BY d.Name");
 		rows.Should().HaveCount(3);
 		rows[0]["Size"].Should().Be("Large"); // Engineering: 325000
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Complex_SubqueryWithWindow()
-	{
-		await EnsureTablesAsync();
-		var rows = await QueryAsync(@"
-			SELECT Name, Salary, Rank FROM (
-				SELECT Name, Salary,
-					RANK() OVER (ORDER BY Salary DESC) AS Rank
-				FROM CqEmployees
-			) ranked
-			WHERE Rank <= 3
-			ORDER BY Rank");
-		rows.Should().HaveCount(3);
-		rows[0]["Name"].Should().Be("Alice");
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Complex_CteWithWindowAndFilter()
-	{
-		await EnsureTablesAsync();
-		var rows = await QueryAsync(@"
-			WITH Ranked AS (
-				SELECT Name, Salary, DeptId,
-					ROW_NUMBER() OVER (PARTITION BY DeptId ORDER BY Salary DESC) AS Rn
-				FROM CqEmployees
-			)
-			SELECT Name, Salary FROM Ranked WHERE Rn = 1 ORDER BY Salary DESC");
-		rows.Should().HaveCount(3); // Top earner from each dept
-		rows[0]["Name"].Should().Be("Alice"); // 120K
 	}
 
 	[Fact]
@@ -575,8 +481,8 @@ public class ComplexQueryIntegrationTests : IntegrationTestBase
 			SELECT Name, Salary FROM CqEmployees
 			ORDER BY Salary * -1");
 		rows.Should().HaveCount(6);
-		// ORDER BY Salary * -1 ASC: most negative first → highest salary first
-		rows[0]["Name"].Should().Be("Alice"); // Salary 120000 → -120000 (most negative)
+		// ORDER BY Salary * -1 ASC: most negative first â†’ highest salary first
+		rows[0]["Name"].Should().Be("Alice"); // Salary 120000 â†’ -120000 (most negative)
 	}
 
 	[Fact]

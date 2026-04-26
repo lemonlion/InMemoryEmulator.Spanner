@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
@@ -25,9 +25,9 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 		return reader.IsDBNull(0) ? null : reader.GetValue(0);
 	}
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Integer arithmetic edge cases
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("1 + 2 + 3 + 4 + 5", 15L)]
@@ -62,9 +62,9 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 	public async Task IntArithmeticEdgeCases(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Float arithmetic edge cases
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("1.1 + 2.2 + 3.3", 6.6)]
@@ -100,9 +100,9 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 	public async Task FloatArithmeticEdgeCases(string expr, double expected) =>
 		((double)(await Eval(expr))!).Should().BeApproximately(expected, 1e-4);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Boolean expression combinations
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("TRUE AND TRUE AND TRUE", true)]
@@ -134,9 +134,9 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 	public async Task BooleanCombinations(string expr, bool expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Comparison operators comprehensive
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("0 = 0", true)]
@@ -166,9 +166,9 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 	public async Task ComparisonOperators(string expr, bool expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// BETWEEN comprehensive
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("0 BETWEEN 0 AND 10", true)]
@@ -186,9 +186,9 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 	public async Task BetweenComprehensive(string expr, bool expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// IN comprehensive
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("1 IN (1)", true)]
@@ -211,9 +211,9 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 	public async Task InComprehensive(string expr, bool expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Conditional expression variations
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("IF(1 = 1, 10, 20)", 10L)]
@@ -238,9 +238,9 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 	public async Task ConditionalVariations(string expr, object? expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// CASE expression variations
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("CASE 1 WHEN 1 THEN 10 WHEN 2 THEN 20 END", 10L)]
@@ -256,9 +256,9 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 	public async Task CaseVariations(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Deeply nested expressions
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("IF(IF(TRUE, TRUE, FALSE), 1, 2)", 1L)]
@@ -280,9 +280,9 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 	public async Task DeeplyNested(string expr, object expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// String comparison
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("'a' < 'b'", true)]
@@ -303,9 +303,9 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 	public async Task StringComparisons(string expr, bool expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Mixed type CAST chains
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
 	[InlineData("CAST(CAST(42 AS STRING) AS INT64)", 42L)]
@@ -326,9 +326,9 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 	public async Task CastChains(string expr, object expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// Data-driven table tests
-	// ═══════════════════════════════════════════════════════════════
+	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
 	public async Task MultiRow_SumGroupByHaving()
@@ -390,64 +390,6 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task MultiRow_WindowRowNumber()
-	{
-		var t = $"WRN_{Guid.NewGuid():N}";
-		await ExecuteDdlAsync($"CREATE TABLE {t} (K INT64 NOT NULL, V INT64) PRIMARY KEY (K)");
-		await InsertAsync(t, new Dictionary<string, object?> { ["K"] = 1L, ["V"] = 30L });
-		await InsertAsync(t, new Dictionary<string, object?> { ["K"] = 2L, ["V"] = 10L });
-		await InsertAsync(t, new Dictionary<string, object?> { ["K"] = 3L, ["V"] = 20L });
-		var rows = await QueryAsync($"SELECT K, ROW_NUMBER() OVER (ORDER BY V) AS RN FROM {t} ORDER BY RN");
-		rows[0]["K"].Should().Be(2L); rows[0]["RN"].Should().Be(1L);
-		rows[1]["K"].Should().Be(3L); rows[1]["RN"].Should().Be(2L);
-		rows[2]["K"].Should().Be(1L); rows[2]["RN"].Should().Be(3L);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task MultiRow_WindowRank()
-	{
-		var t = $"WR_{Guid.NewGuid():N}";
-		await ExecuteDdlAsync($"CREATE TABLE {t} (K INT64 NOT NULL, V INT64) PRIMARY KEY (K)");
-		await InsertAsync(t, new Dictionary<string, object?> { ["K"] = 1L, ["V"] = 10L });
-		await InsertAsync(t, new Dictionary<string, object?> { ["K"] = 2L, ["V"] = 10L });
-		await InsertAsync(t, new Dictionary<string, object?> { ["K"] = 3L, ["V"] = 20L });
-		var rows = await QueryAsync($"SELECT K, RANK() OVER (ORDER BY V) AS R FROM {t} ORDER BY K");
-		rows[0]["R"].Should().Be(1L);
-		rows[1]["R"].Should().Be(1L);
-		rows[2]["R"].Should().Be(3L);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task MultiRow_WindowDenseRank()
-	{
-		var t = $"WDR_{Guid.NewGuid():N}";
-		await ExecuteDdlAsync($"CREATE TABLE {t} (K INT64 NOT NULL, V INT64) PRIMARY KEY (K)");
-		await InsertAsync(t, new Dictionary<string, object?> { ["K"] = 1L, ["V"] = 10L });
-		await InsertAsync(t, new Dictionary<string, object?> { ["K"] = 2L, ["V"] = 10L });
-		await InsertAsync(t, new Dictionary<string, object?> { ["K"] = 3L, ["V"] = 20L });
-		var rows = await QueryAsync($"SELECT K, DENSE_RANK() OVER (ORDER BY V) AS DR FROM {t} ORDER BY K");
-		rows[0]["DR"].Should().Be(1L);
-		rows[1]["DR"].Should().Be(1L);
-		rows[2]["DR"].Should().Be(2L);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task MultiRow_WindowSumOver()
-	{
-		var t = $"WSO_{Guid.NewGuid():N}";
-		await ExecuteDdlAsync($"CREATE TABLE {t} (K INT64 NOT NULL, V INT64) PRIMARY KEY (K)");
-		await InsertAsync(t, new Dictionary<string, object?> { ["K"] = 1L, ["V"] = 10L });
-		await InsertAsync(t, new Dictionary<string, object?> { ["K"] = 2L, ["V"] = 20L });
-		await InsertAsync(t, new Dictionary<string, object?> { ["K"] = 3L, ["V"] = 30L });
-		var rows = await QueryAsync($"SELECT K, SUM(V) OVER () AS Total FROM {t} ORDER BY K");
-		rows.Should().AllSatisfy(r => r["Total"].Should().Be(60L));
-	}
-
-	[Fact]
 	public async Task MultiRow_UnionAll()
 	{
 		var t = $"UA_{Guid.NewGuid():N}";
@@ -473,7 +415,7 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task MultiRow_ExceptDistinct()
 	{
 		var rows = await QueryAsync("SELECT 1 AS V UNION ALL SELECT 2 UNION ALL SELECT 3 EXCEPT DISTINCT SELECT 2 AS V ORDER BY V");

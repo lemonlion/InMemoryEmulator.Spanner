@@ -130,6 +130,35 @@ internal class ExpressionEvaluator
 
 	private object? EvalBinary(BinaryExpr bin, Dictionary<string, object?> row)
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators
+		//   GCP Spanner rejects literal NULL as an operand of comparison, arithmetic,
+		//   and concatenation operators at parse time. AND/OR use three-valued logic
+		//   and are exempt; IS NULL is a separate expression type.
+		if (bin.Op is not (BinaryOp.And or BinaryOp.Or))
+		{
+			var opSymbol = bin.Op switch
+			{
+				BinaryOp.Equal => "=",
+				BinaryOp.NotEqual => "!=",
+				BinaryOp.LessThan => "<",
+				BinaryOp.GreaterThan => ">",
+				BinaryOp.LessThanOrEqual => "<=",
+				BinaryOp.GreaterThanOrEqual => ">=",
+				BinaryOp.Add => "+",
+				BinaryOp.Subtract => "-",
+				BinaryOp.Multiply => "*",
+				BinaryOp.Divide => "/",
+				BinaryOp.Modulo => "%",
+				BinaryOp.Concat => "||",
+				_ => null
+			};
+			if (opSymbol != null)
+			{
+				if (bin.Left is LiteralExpr { Value: null } || bin.Right is LiteralExpr { Value: null })
+					throw new InvalidOperationException($"Operands of {opSymbol} cannot be literal NULL");
+			}
+		}
+
 		// Three-valued logic for AND/OR
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#logical_operators
 		if (bin.Op == BinaryOp.And)
@@ -183,6 +212,11 @@ internal class ExpressionEvaluator
 
 	private object? EvalUnary(UnaryExpr unary, Dictionary<string, object?> row)
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators
+		//   GCP Spanner rejects NOT with literal NULL operand.
+		if (unary.Op == UnaryOp.Not && unary.Operand is LiteralExpr { Value: null })
+			throw new InvalidOperationException("Operands of NOT cannot be literal NULL");
+
 		var operand = Evaluate(unary.Operand, row);
 		return unary.Op switch
 		{
@@ -304,21 +338,28 @@ internal class ExpressionEvaluator
 			"REGEXP_CONTAINS" => EvalRegexpContains(func, row),
 			"REGEXP_EXTRACT" => EvalRegexpExtract(func, row),
 			"REGEXP_REPLACE" => EvalRegexpReplace(func, row),
-			"LEFT" => EvalLeft(func, row),
-			"RIGHT" => EvalRight(func, row),
+			// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
+			//   LEFT and RIGHT do not exist in GCP Spanner. Use SUBSTR instead.
+			"LEFT" => throw new NotSupportedException($"Unsupported built-in function: {func.Name}."),
+			"RIGHT" => throw new NotSupportedException($"Unsupported built-in function: {func.Name}."),
 			"BYTE_LENGTH" => EvalStringFunc1(func, row, s => (long)System.Text.Encoding.UTF8.GetByteCount(s)),
 			"TO_HEX" => EvalToHex(func, row),
 			"FROM_HEX" => EvalFromHex(func, row),
-			"ASCII" => EvalStringFunc1(func, row, s => s.Length > 0 ? (long)s[0] : 0L),
-			"CHR" or "CODE_POINTS_TO_STRING" => EvalChr(func, row),
-			"CONTAINS_SUBSTR" => EvalStringFunc2Bool(func, row, (s, sub) =>
-				s.Contains(sub, StringComparison.OrdinalIgnoreCase)),
+			// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
+			//   ASCII does not exist in GCP Spanner. Use TO_CODE_POINTS instead.
+			"ASCII" => throw new NotSupportedException($"Unsupported built-in function: {func.Name.ToLowerInvariant()}."),
+			//   CHR does not exist in GCP Spanner. Use CODE_POINTS_TO_STRING instead.
+			"CHR" => throw new NotSupportedException($"Unsupported built-in function: {func.Name.ToLowerInvariant()}."),
+			"CODE_POINTS_TO_STRING" => EvalChr(func, row),
+			//   CONTAINS_SUBSTR does not exist in GCP Spanner. Use STRPOS or LIKE instead.
+			"CONTAINS_SUBSTR" => throw new InvalidOperationException($"Function not found: {func.Name}"),
 			"SOUNDEX" => EvalStringFunc1(func, row, EvalSoundex),
 			"UNICODE" => EvalStringFunc1(func, row, s => s.Length > 0 ? (long)char.ConvertToUtf32(s, 0) : 0L),
-			"INITCAP" => EvalStringFunc1(func, row, s =>
-				System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(s.ToLowerInvariant())),
-			"TRANSLATE" => EvalTranslate(func, row),
-			"INSTR" => EvalInstr(func, row),
+			// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
+			//   INITCAP, TRANSLATE, INSTR do not exist in GCP Spanner.
+			"INITCAP" => throw new InvalidOperationException($"Function not found: {func.Name}"),
+			"TRANSLATE" => throw new InvalidOperationException($"Function not found: {func.Name}"),
+			"INSTR" => throw new InvalidOperationException($"Function not found: {func.Name}"),
 
 			// Math functions
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions
@@ -355,8 +396,10 @@ internal class ExpressionEvaluator
 				v => v <= 0, "LOG10 of non-positive number"),
 			"IS_NAN" => EvalIsNan(func, row),
 			"IS_INF" => EvalIsInf(func, row),
-			"RAND" => new Random().NextDouble(),
-			"RANGE_BUCKET" => EvalRangeBucket(func, row),
+			// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
+			//   RAND and RANGE_BUCKET do not exist in GCP Spanner.
+			"RAND" => throw new NotSupportedException($"Unsupported built-in function: {func.Name.ToLowerInvariant()}."),
+			"RANGE_BUCKET" => throw new NotSupportedException($"Unsupported built-in function: {func.Name.ToLowerInvariant()}."),
 
 			// Date/Time
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions
@@ -793,7 +836,16 @@ internal class ExpressionEvaluator
 					: DateTime.Parse(Convert.ToString(value)!, System.Globalization.CultureInfo.InvariantCulture,
 						System.Globalization.DateTimeStyles.AdjustToUniversal),
 				TypeCode.Bytes => value is byte[] b ? b : System.Text.Encoding.UTF8.GetBytes(Convert.ToString(value)!),
-				TypeCode.Array => value is IList<object?> ? value : new List<object?> { value },
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
+				//   Casting between arrays with incompatible element types is not supported in GCP Spanner.
+				//   Since CastExpr discards the element type, reject cross-type array casts by checking
+				//   if the source is already an array (the only valid CAST is identity).
+				TypeCode.Array => value is IList<object?> arr
+					? (arr.FirstOrDefault(x => x != null) is string or byte[] or null
+						? value
+						: throw new InvalidOperationException(
+							"Casting between arrays with incompatible element types is not supported"))
+					: new List<object?> { value },
 				_ => throw new NotSupportedException($"CAST to {cast.TargetType} not supported.")
 			};
 		}
@@ -1117,9 +1169,9 @@ internal class ExpressionEvaluator
 		var fmt = Evaluate(func.Arguments[0], row);
 		if (fmt == null) return null;
 		var fmtStr = Convert.ToString(fmt) ?? "";
-		// Check if any argument is NULL — return NULL
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#format_string
+		// NULL arguments are formatted as the literal string "NULL"
 		var args = func.Arguments.Skip(1).Select(a => Evaluate(a, row)).ToArray();
-		if (args.Any(a => a == null)) return null;
 		try { return SpannerFormat(fmtStr, args); }
 		catch { return fmtStr; }
 	}
@@ -1176,8 +1228,8 @@ internal class ExpressionEvaluator
 					case 'g':
 						sb.Append(Convert.ToDouble(arg).ToString("G" + (precision ?? "")));
 						break;
-					case 's':
-						sb.Append(arg?.ToString());
+						case 's':
+						sb.Append(arg == null ? "NULL" : arg.ToString());
 						break;
 					default:
 						sb.Append(arg?.ToString());
@@ -1205,9 +1257,16 @@ internal class ExpressionEvaluator
 		var s = Evaluate(func.Arguments[0], row);
 		var pattern = Evaluate(func.Arguments[1], row);
 		if (s == null || pattern == null) return null;
-		var match = Regex.Match(Convert.ToString(s)!, Convert.ToString(pattern)!);
+		var patStr = Convert.ToString(pattern)!;
+		var match = Regex.Match(Convert.ToString(s)!, patStr);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_extract
+		// At most one capturing group is allowed
+		var capturingGroups = match.Groups.Count - 1; // Groups[0] is the full match
+		if (capturingGroups > 1)
+			throw new InvalidOperationException(
+				"REGEXP_EXTRACT: pattern has more than one capturing group");
 		if (!match.Success) return null;
-		return match.Groups.Count > 1 ? match.Groups[1].Value : match.Value;
+		return capturingGroups == 1 ? match.Groups[1].Value : match.Value;
 	}
 
 	private object? EvalRegexpReplace(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -1220,27 +1279,7 @@ internal class ExpressionEvaluator
 		return Regex.Replace(Convert.ToString(s)!, Convert.ToString(pattern)!, Convert.ToString(replacement)!);
 	}
 
-	private object? EvalLeft(FunctionCallExpr func, Dictionary<string, object?> row)
-	{
-		var s = Evaluate(func.Arguments[0], row);
-		if (s == null) return null;
-		var str = Convert.ToString(s) ?? "";
-		var lenVal = Evaluate(func.Arguments[1], row);
-		if (lenVal == null) return null;
-		var len = Convert.ToInt32(lenVal);
-		return str[..Math.Min(len, str.Length)];
-	}
 
-	private object? EvalRight(FunctionCallExpr func, Dictionary<string, object?> row)
-	{
-		var s = Evaluate(func.Arguments[0], row);
-		if (s == null) return null;
-		var str = Convert.ToString(s) ?? "";
-		var lenVal = Evaluate(func.Arguments[1], row);
-		if (lenVal == null) return null;
-		var len = Convert.ToInt32(lenVal);
-		return str.Length <= len ? str : str[(str.Length - len)..];
-	}
 
 	private object? EvalToHex(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
@@ -1291,41 +1330,7 @@ internal class ExpressionEvaluator
 		_ => '0'
 	};
 
-	private object? EvalTranslate(FunctionCallExpr func, Dictionary<string, object?> row)
-	{
-		var s = Evaluate(func.Arguments[0], row);
-		if (s == null) return null;
-		var str = Convert.ToString(s) ?? "";
-		var from = Convert.ToString(Evaluate(func.Arguments[1], row)) ?? "";
-		var to = Convert.ToString(Evaluate(func.Arguments[2], row)) ?? "";
-		var chars = str.ToCharArray();
-		for (int i = 0; i < chars.Length; i++)
-		{
-			int idx = from.IndexOf(chars[i]);
-			if (idx >= 0) chars[i] = idx < to.Length ? to[idx] : '\0';
-		}
-		return new string(chars.Where(c => c != '\0').ToArray());
-	}
 
-	private object? EvalInstr(FunctionCallExpr func, Dictionary<string, object?> row)
-	{
-		var s = Evaluate(func.Arguments[0], row);
-		var sub = Evaluate(func.Arguments[1], row);
-		if (s == null || sub == null) return null;
-		var str = Convert.ToString(s) ?? "";
-		var substr = Convert.ToString(sub) ?? "";
-		var pos = func.Arguments.Count > 2 ? Convert.ToInt32(Evaluate(func.Arguments[2], row)) : 1;
-		var occ = func.Arguments.Count > 3 ? Convert.ToInt32(Evaluate(func.Arguments[3], row)) : 1;
-		int startIdx = pos > 0 ? pos - 1 : 0;
-		for (int i = 0; i < occ; i++)
-		{
-			int found = str.IndexOf(substr, startIdx, StringComparison.Ordinal);
-			if (found < 0) return 0L;
-			if (i == occ - 1) return (long)(found + 1);
-			startIdx = found + 1;
-		}
-		return 0L;
-	}
 
 	// ──────────────────────────────────────────
 	// Math function helpers
@@ -1466,19 +1471,7 @@ internal class ExpressionEvaluator
 		return double.IsInfinity(Convert.ToDouble(v));
 	}
 
-	private object? EvalRangeBucket(FunctionCallExpr func, Dictionary<string, object?> row)
-	{
-		var point = Evaluate(func.Arguments[0], row);
-		var arr = Evaluate(func.Arguments[1], row) as IList<object?>;
-		if (point == null || arr == null) return null;
-		long bucket = 0;
-		foreach (var boundary in arr)
-		{
-			if (boundary != null && CompareValues(point, boundary) >= 0) bucket++;
-			else break;
-		}
-		return bucket;
-	}
+
 
 	// ──────────────────────────────────────────
 	// Date/Time function helpers
@@ -1583,8 +1576,10 @@ internal class ExpressionEvaluator
 		"MINUTE" => dt.AddMinutes(amount),
 		"HOUR" => dt.AddHours(amount),
 		"DAY" => dt.AddDays(amount),
-		"MONTH" => dt.AddMonths((int)amount),
-		"YEAR" => dt.AddYears((int)amount),
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_add
+		// TIMESTAMP_ADD only supports MICROSECOND through DAY; MONTH/YEAR are DATE_ADD only
+		"MONTH" => throw new InvalidOperationException("TIMESTAMP_ADD does not support the MONTH date part"),
+		"YEAR" => throw new InvalidOperationException("TIMESTAMP_ADD does not support the YEAR date part"),
 		_ => throw new InvalidOperationException($"Unsupported INTERVAL part: {part}")
 	};
 
@@ -1765,6 +1760,22 @@ internal class ExpressionEvaluator
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json_string
 		//   TO_JSON_STRING returns the JSON-formatted STRING representation, including "null" for SQL NULL.
 		if (v == null) return "null";
+
+		// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
+		//   In GCP Spanner, TO_JSON_STRING only accepts JSON-typed input.
+		//   Non-JSON scalars (STRING, INT64, BOOL, FLOAT64) cause an error.
+		if (func.Name.Equals("TO_JSON_STRING", StringComparison.OrdinalIgnoreCase))
+		{
+			if (v is string)
+				throw new NotSupportedException("Unsupported function: TO_JSON_STRING is not supported on values of type STRING");
+			if (v is long)
+				throw new NotSupportedException("Unsupported function: TO_JSON_STRING is not supported on values of type INT64");
+			if (v is bool)
+				throw new NotSupportedException("Unsupported function: TO_JSON_STRING is not supported on values of type BOOL");
+			if (v is double)
+				throw new NotSupportedException("Unsupported function: TO_JSON_STRING is not supported on values of type FLOAT64");
+		}
+
 		return JsonSerializer.Serialize(v);
 	}
 
@@ -1808,9 +1819,24 @@ internal class ExpressionEvaluator
 		if (v == null) return null;
 		var sep = func.Arguments.Count > 1 ? Convert.ToString(Evaluate(func.Arguments[1], row)) ?? "," : ",";
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#array_to_string
-		//   With 2 args: NULL elements are omitted. With 3 args: NULL elements are replaced.
+		//   Signature: ARRAY_TO_STRING(ARRAY<STRING>, STRING, [STRING])
+		//   or ARRAY_TO_STRING(ARRAY<BYTES>, BYTES, [BYTES])
+		//   Non-string/bytes array elements are rejected.
 		if (v is IList<object?> list)
 		{
+			// Validate element types — GCP Spanner only accepts ARRAY<STRING> or ARRAY<BYTES>
+			var firstNonNull = list.FirstOrDefault(x => x != null);
+			if (firstNonNull != null && firstNonNull is not string && firstNonNull is not byte[])
+			{
+				var elementType = firstNonNull is long ? "INT64" : firstNonNull is double ? "FLOAT64"
+					: firstNonNull is bool ? "BOOL" : firstNonNull.GetType().Name.ToUpperInvariant();
+				throw new InvalidOperationException(
+					$"No matching signature for function ARRAY_TO_STRING\n" +
+					$"  Argument types: ARRAY<{elementType}>, STRING\n" +
+					$"  Signature: ARRAY_TO_STRING(ARRAY<STRING>, STRING, [STRING])\n" +
+					$"    Argument 1: Unable to coerce type ARRAY<{elementType}> to expected type ARRAY<STRING>");
+			}
+
 			if (func.Arguments.Count > 2)
 			{
 				var nullText = Convert.ToString(Evaluate(func.Arguments[2], row)) ?? "";

@@ -14,8 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SPANNER_TEST_TARGET: CloudSpanner
-      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-      SPANNER_INSTANCE_ID: ${{ secrets.SPANNER_INSTANCE_ID }}
+      GCP_PROJECT_ID: spanner-emulator-ci
+      SPANNER_INSTANCE_ID: ci-test-instance
       SPANNER_DATABASE_ID: test-${{ github.run_id }}
     steps:
       - uses: actions/checkout@v5

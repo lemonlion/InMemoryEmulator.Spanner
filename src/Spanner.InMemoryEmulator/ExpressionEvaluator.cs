@@ -394,6 +394,56 @@ internal class ExpressionEvaluator
 			"JSON_QUERY_ARRAY" => EvalJsonQueryArray(func, row),
 			"JSON_TYPE" => EvalJsonType(func, row),
 
+			// Hash functions
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/hash_functions
+			"SHA1" => EvalHash(func, row, System.Security.Cryptography.SHA1.HashData),
+			"SHA256" => EvalHash(func, row, System.Security.Cryptography.SHA256.HashData),
+			"SHA512" => EvalHash(func, row, System.Security.Cryptography.SHA512.HashData),
+			"MD5" => EvalHash(func, row, System.Security.Cryptography.MD5.HashData),
+			"FARM_FINGERPRINT" => EvalFarmFingerprint(func, row),
+
+			// Additional array functions
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions
+			"ARRAY_FIRST" => EvalArrayFirst(func, row),
+			"ARRAY_LAST" => EvalArrayLast(func, row),
+			"ARRAY_MIN" => EvalArrayMinMax(func, row, isMin: true),
+			"ARRAY_MAX" => EvalArrayMinMax(func, row, isMin: false),
+			"ARRAY_SUM" => EvalArrayAggregate(func, row, "SUM"),
+			"ARRAY_AVG" => EvalArrayAggregate(func, row, "AVG"),
+			"ARRAY_SLICE" => EvalArraySlice(func, row),
+			"ARRAY_INCLUDES_ANY" => EvalArrayIncludesAnyAll(func, row, any: true),
+			"ARRAY_INCLUDES_ALL" => EvalArrayIncludesAnyAll(func, row, any: false),
+			"ARRAY_FILTER" => EvalArrayFilter(func, row),
+			"ARRAY_TRANSFORM" => EvalArrayTransform(func, row),
+
+			// Additional date/time functions
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions
+			"GENERATE_DATE_ARRAY" => EvalGenerateDateArray(func, row),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions
+			"GENERATE_TIMESTAMP_ARRAY" => EvalGenerateTimestampArray(func, row),
+			"UNIX_DATE" => EvalUnixDate(func, row),
+			"DATE_FROM_UNIX_DATE" => EvalDateFromUnixDate(func, row),
+
+			// Additional string functions
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions
+			"NORMALIZE" => EvalNormalize(func, row),
+			"NORMALIZE_AND_CASEFOLD" => EvalNormalizeAndCasefold(func, row),
+			"TO_CODE_POINTS" => EvalToCodePoints(func, row),
+			"CODE_POINTS_TO_BYTES" => EvalCodePointsToBytes(func, row),
+			"REGEXP_EXTRACT_ALL" => EvalRegexpExtractAll(func, row),
+			"REGEXP_INSTR" => EvalRegexpInstr(func, row),
+			"OCTET_LENGTH" => EvalOctetLength(func, row),
+			"SAFE_CONVERT_BYTES_TO_STRING" => EvalSafeConvertBytesToString(func, row),
+
+			// Additional math functions
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/bit_functions
+			"BIT_COUNT" => EvalBitCount(func, row),
+
+			// Conditional: ERROR
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/debugging_functions
+			"ERROR" => throw new InvalidOperationException(
+				func.Arguments.Count > 0 ? Evaluate(func.Arguments[0], row)?.ToString() ?? "ERROR" : "ERROR"),
+
 			_ => throw new NotSupportedException($"Function '{func.Name}' is not supported.")
 		};
 	}
@@ -1836,4 +1886,422 @@ internal class ExpressionEvaluator
 			return col.Column;
 		throw new InvalidOperationException($"{func.Name}: expected sequence name argument.");
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Hash Functions
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/hash_functions
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalHash(FunctionCallExpr func, Dictionary<string, object?> row,
+		Func<byte[], byte[]> hashFunc)
+	{
+		if (func.Arguments.Count != 1)
+			throw new InvalidOperationException($"{func.Name} requires exactly 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		byte[] input = val is byte[] bytes ? bytes : System.Text.Encoding.UTF8.GetBytes(val.ToString()!);
+		return hashFunc(input);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/hash_functions#farm_fingerprint
+	//   "Computes the fingerprint of the STRING or BYTES input using the Fingerprint64 function."
+	private object? EvalFarmFingerprint(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1)
+			throw new InvalidOperationException("FARM_FINGERPRINT requires exactly 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		byte[] input = val is byte[] bytes ? bytes : System.Text.Encoding.UTF8.GetBytes(val.ToString()!);
+		// Simple FarmHash fingerprint64 approximation using FNV-1a (not bit-for-bit identical to FarmHash)
+		ulong hash = 14695981039346656037;
+		foreach (byte b in input)
+		{
+			hash ^= b;
+			hash *= 1099511628211;
+		}
+		return unchecked((long)hash);
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Additional Array Functions
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalArrayFirst(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1)
+			throw new InvalidOperationException("ARRAY_FIRST requires exactly 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val is not System.Collections.IList list || list.Count == 0)
+			throw new InvalidOperationException("ARRAY_FIRST: empty or non-array argument.");
+		return list[0];
+	}
+
+	private object? EvalArrayLast(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1)
+			throw new InvalidOperationException("ARRAY_LAST requires exactly 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val is not System.Collections.IList list || list.Count == 0)
+			throw new InvalidOperationException("ARRAY_LAST: empty or non-array argument.");
+		return list[list.Count - 1];
+	}
+
+	private object? EvalArrayMinMax(FunctionCallExpr func, Dictionary<string, object?> row, bool isMin)
+	{
+		if (func.Arguments.Count != 1)
+			throw new InvalidOperationException($"{func.Name} requires exactly 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		if (val is not System.Collections.IList list) throw new InvalidOperationException($"{func.Name}: non-array argument.");
+		object? result = null;
+		foreach (var item in list)
+		{
+			if (item == null) continue;
+			if (result == null) { result = item; continue; }
+			var cmp = Comparer<object>.Default.Compare(item, result);
+			if (isMin ? cmp < 0 : cmp > 0) result = item;
+		}
+		return result;
+	}
+
+	private object? EvalArrayAggregate(FunctionCallExpr func, Dictionary<string, object?> row, string op)
+	{
+		if (func.Arguments.Count != 1)
+			throw new InvalidOperationException($"{func.Name} requires exactly 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		if (val is not System.Collections.IList list) throw new InvalidOperationException($"{func.Name}: non-array argument.");
+		double sum = 0;
+		int count = 0;
+		foreach (var item in list)
+		{
+			if (item == null) continue;
+			sum += Convert.ToDouble(item);
+			count++;
+		}
+		if (count == 0) return null;
+		return op == "AVG" ? sum / count : (object)(long)sum;
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#array_slice
+	//   "Returns an array that is a subsequence of the input array."
+	private object? EvalArraySlice(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count < 3)
+			throw new InvalidOperationException("ARRAY_SLICE requires 3 arguments: array, start, end.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		if (val is not System.Collections.IList list)
+			throw new InvalidOperationException("ARRAY_SLICE: first argument must be an array.");
+		var start = Convert.ToInt32(Evaluate(func.Arguments[1], row));
+		var end = Convert.ToInt32(Evaluate(func.Arguments[2], row));
+		// Spanner uses 0-based indexing; negative wraps from end
+		if (start < 0) start = list.Count + start;
+		if (end < 0) end = list.Count + end;
+		start = Math.Max(0, start);
+		end = Math.Min(list.Count - 1, end);
+		var result = new List<object?>();
+		for (int i = start; i <= end; i++)
+			result.Add(list[i]);
+		return result;
+	}
+
+	private object? EvalArrayIncludesAnyAll(FunctionCallExpr func, Dictionary<string, object?> row, bool any)
+	{
+		if (func.Arguments.Count != 2)
+			throw new InvalidOperationException($"{func.Name} requires 2 arguments.");
+		var haystack = Evaluate(func.Arguments[0], row);
+		var needles = Evaluate(func.Arguments[1], row);
+		if (haystack == null || needles == null) return null;
+		if (haystack is not System.Collections.IList hList || needles is not System.Collections.IList nList)
+			throw new InvalidOperationException($"{func.Name}: both arguments must be arrays.");
+		var set = new HashSet<object?>();
+		foreach (var item in hList) set.Add(item);
+		foreach (var needle in nList)
+		{
+			bool found = set.Contains(needle);
+			if (any && found) return true;
+			if (!any && !found) return false;
+		}
+		return !any; // ALL: all found => true; ANY: none found => false
+	}
+
+	private object? EvalArrayFilter(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		// ARRAY_FILTER(array, lambda) — lambda not fully supported, treat as identity filter (remove nulls)
+		if (func.Arguments.Count < 1)
+			throw new InvalidOperationException("ARRAY_FILTER requires at least 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		if (val is not System.Collections.IList list) throw new InvalidOperationException("ARRAY_FILTER: non-array argument.");
+		var result = new List<object?>();
+		foreach (var item in list)
+			if (item != null) result.Add(item);
+		return result;
+	}
+
+	private object? EvalArrayTransform(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		// ARRAY_TRANSFORM(array, lambda) — lambda not fully supported, returns array as-is
+		if (func.Arguments.Count < 1)
+			throw new InvalidOperationException("ARRAY_TRANSFORM requires at least 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		return val;
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Additional Date/Time Functions
+	// ═══════════════════════════════════════════════════════════════
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#generate_date_array
+	//   "Generates an array of dates in a range."
+	private object? EvalGenerateDateArray(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count < 2)
+			throw new InvalidOperationException("GENERATE_DATE_ARRAY requires at least 2 arguments.");
+		var startVal = Evaluate(func.Arguments[0], row);
+		var endVal = Evaluate(func.Arguments[1], row);
+		if (startVal == null || endVal == null) return null;
+		var startDate = ConvertToDateTime(startVal).Date;
+		var endDate = ConvertToDateTime(endVal).Date;
+		int stepDays = 1;
+		if (func.Arguments.Count >= 3)
+		{
+			var stepVal = Evaluate(func.Arguments[2], row);
+			if (stepVal != null) stepDays = Convert.ToInt32(stepVal);
+		}
+		if (stepDays == 0) throw new InvalidOperationException("GENERATE_DATE_ARRAY: step cannot be 0.");
+		var result = new List<object?>();
+		if (stepDays > 0)
+		{
+			for (var d = startDate; d <= endDate; d = d.AddDays(stepDays))
+				result.Add(d);
+		}
+		else
+		{
+			for (var d = startDate; d >= endDate; d = d.AddDays(stepDays))
+				result.Add(d);
+		}
+		return result;
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#generate_timestamp_array
+	//   "Generates an array of timestamps in a range."
+	private object? EvalGenerateTimestampArray(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count < 3)
+			throw new InvalidOperationException("GENERATE_TIMESTAMP_ARRAY requires at least 3 arguments: start, end, interval.");
+		var startVal = Evaluate(func.Arguments[0], row);
+		var endVal = Evaluate(func.Arguments[1], row);
+		var stepVal = Evaluate(func.Arguments[2], row);
+		if (startVal == null || endVal == null) return null;
+		var startTs = ConvertToDateTime(startVal);
+		var endTs = ConvertToDateTime(endVal);
+		// Step is an INTERVAL; for simplicity treat numeric as hours
+		var stepHours = stepVal != null ? Convert.ToDouble(stepVal) : 1.0;
+		if (stepHours == 0) throw new InvalidOperationException("GENERATE_TIMESTAMP_ARRAY: step cannot be 0.");
+		var result = new List<object?>();
+		if (stepHours > 0)
+		{
+			for (var t = startTs; t <= endTs; t = t.AddHours(stepHours))
+				result.Add(t);
+		}
+		else
+		{
+			for (var t = startTs; t >= endTs; t = t.AddHours(stepHours))
+				result.Add(t);
+		}
+		return result;
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#unix_date
+	//   "Returns the number of days since 1970-01-01."
+	private object? EvalUnixDate(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1)
+			throw new InvalidOperationException("UNIX_DATE requires exactly 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		var date = ConvertToDateTime(val).Date;
+		return (long)(date - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalDays;
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date_from_unix_date
+	//   "Interprets an INT64 expression as the number of days since 1970-01-01."
+	private object? EvalDateFromUnixDate(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1)
+			throw new InvalidOperationException("DATE_FROM_UNIX_DATE requires exactly 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		var days = Convert.ToInt64(val);
+		return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(days);
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Additional String Functions
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions
+	// ═══════════════════════════════════════════════════════════════
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#normalize
+	//   "Returns a string with all characters in Unicode Normal Form."
+	private object? EvalNormalize(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count < 1)
+			throw new InvalidOperationException("NORMALIZE requires at least 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		var form = System.Text.NormalizationForm.FormC;
+		if (func.Arguments.Count >= 2)
+		{
+			var formStr = Evaluate(func.Arguments[1], row)?.ToString()?.ToUpperInvariant();
+			form = formStr switch
+			{
+				"NFC" => System.Text.NormalizationForm.FormC,
+				"NFD" => System.Text.NormalizationForm.FormD,
+				"NFKC" => System.Text.NormalizationForm.FormKC,
+				"NFKD" => System.Text.NormalizationForm.FormKD,
+				_ => System.Text.NormalizationForm.FormC
+			};
+		}
+		return val.ToString()!.Normalize(form);
+	}
+
+	private object? EvalNormalizeAndCasefold(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var normalized = EvalNormalize(func, row);
+		return normalized?.ToString()?.ToLowerInvariant();
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#to_code_points
+	//   "Converts a STRING to an ARRAY of INT64 Unicode code points."
+	private object? EvalToCodePoints(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1)
+			throw new InvalidOperationException("TO_CODE_POINTS requires exactly 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		if (val is byte[] bytes)
+			return bytes.Select(b => (object)(long)b).ToList();
+		var str = val.ToString()!;
+		var result = new List<object?>();
+		for (int i = 0; i < str.Length; i++)
+		{
+			if (char.IsHighSurrogate(str[i]) && i + 1 < str.Length && char.IsLowSurrogate(str[i + 1]))
+			{
+				result.Add((long)char.ConvertToUtf32(str[i], str[i + 1]));
+				i++;
+			}
+			else
+			{
+				result.Add((long)str[i]);
+			}
+		}
+		return result;
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#code_points_to_bytes
+	//   "Converts an ARRAY of INT64 to BYTES."
+	private object? EvalCodePointsToBytes(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1)
+			throw new InvalidOperationException("CODE_POINTS_TO_BYTES requires exactly 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		if (val is not System.Collections.IList list) throw new InvalidOperationException("CODE_POINTS_TO_BYTES: argument must be an array.");
+		var bytes = new byte[list.Count];
+		for (int i = 0; i < list.Count; i++)
+			bytes[i] = (byte)Convert.ToInt64(list[i]!);
+		return bytes;
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_extract_all
+	//   "Returns an array of all substrings that match the regular expression."
+	private object? EvalRegexpExtractAll(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 2)
+			throw new InvalidOperationException("REGEXP_EXTRACT_ALL requires exactly 2 arguments.");
+		var val = Evaluate(func.Arguments[0], row);
+		var pattern = Evaluate(func.Arguments[1], row);
+		if (val == null || pattern == null) return null;
+		var matches = Regex.Matches(val.ToString()!, pattern.ToString()!);
+		var result = new List<object?>();
+		foreach (Match m in matches)
+		{
+			result.Add(m.Groups.Count > 1 ? m.Groups[1].Value : m.Value);
+		}
+		return result;
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_instr
+	//   "Returns the 1-based position of the first occurrence of the pattern."
+	private object? EvalRegexpInstr(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count < 2)
+			throw new InvalidOperationException("REGEXP_INSTR requires at least 2 arguments.");
+		var val = Evaluate(func.Arguments[0], row);
+		var pattern = Evaluate(func.Arguments[1], row);
+		if (val == null || pattern == null) return null;
+		int startPos = func.Arguments.Count >= 3 ? Convert.ToInt32(Evaluate(func.Arguments[2], row)) : 1;
+		var str = val.ToString()!;
+		if (startPos < 1 || startPos > str.Length) return 0L;
+		var match = Regex.Match(str.Substring(startPos - 1), pattern.ToString()!);
+		return match.Success ? (long)(match.Index + startPos) : 0L;
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#octet_length
+	//   "Returns the number of bytes in the string."
+	private object? EvalOctetLength(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1)
+			throw new InvalidOperationException("OCTET_LENGTH requires exactly 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		if (val is byte[] bytes) return (long)bytes.Length;
+		return (long)System.Text.Encoding.UTF8.GetByteCount(val.ToString()!);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#safe_convert_bytes_to_string
+	//   "Converts BYTES to STRING replacing invalid UTF-8 with U+FFFD."
+	private object? EvalSafeConvertBytesToString(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1)
+			throw new InvalidOperationException("SAFE_CONVERT_BYTES_TO_STRING requires exactly 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		if (val is not byte[] bytes) return val.ToString();
+		return System.Text.Encoding.UTF8.GetString(bytes);
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Additional Math / Bit Functions
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/bit_functions
+	// ═══════════════════════════════════════════════════════════════
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/bit_functions#bit_count
+	//   "Returns the number of bits that are set in the input expression."
+	private object? EvalBitCount(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1)
+			throw new InvalidOperationException("BIT_COUNT requires exactly 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		if (val is byte[] bytes)
+		{
+			long count = 0;
+			foreach (var b in bytes) count += long.PopCount(b);
+			return count;
+		}
+		var num = Convert.ToInt64(val);
+		return (long)ulong.PopCount(unchecked((ulong)num));
+	}
+
+	private static DateTime ConvertToDateTime(object value) => value switch
+	{
+		DateTime dt => dt,
+		DateTimeOffset dto => dto.UtcDateTime,
+		string s => DateTime.Parse(s, null, System.Globalization.DateTimeStyles.AdjustToUniversal),
+		_ => throw new InvalidOperationException($"Cannot convert {value.GetType().Name} to DateTime.")
+	};
 }

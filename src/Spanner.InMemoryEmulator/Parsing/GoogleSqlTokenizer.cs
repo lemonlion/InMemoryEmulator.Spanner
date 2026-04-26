@@ -121,6 +121,8 @@ internal static class GoogleSqlTokenizer
 		["STORING"] = GoogleSqlToken.Storing,
 		["NULL_FILTERED"] = GoogleSqlToken.NullFiltered,
 		["REPLACE"] = GoogleSqlToken.Replace,
+		["RETURN"] = GoogleSqlToken.Return,
+		["QUALIFY"] = GoogleSqlToken.Qualify,
 		["OVER"] = GoogleSqlToken.Over,
 		["PARTITION"] = GoogleSqlToken.Partition,
 		["ROWS"] = GoogleSqlToken.Rows,
@@ -141,6 +143,11 @@ internal static class GoogleSqlTokenizer
 		return new TokenizerBuilder<GoogleSqlToken>()
 			// Whitespace — must be ignored explicitly
 			.Ignore(Span.WhiteSpace)
+
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#table_hints
+			//   "Query hints use @{key=value} syntax and are not part of the SQL standard."
+			// Skip query hints @{...} since the in-memory emulator doesn't use indexes or other hints.
+			.Ignore(QueryHintToken)
 
 			// Multi-char operators (must come before single-char)
 			.Match(Span.EqualTo("!="), GoogleSqlToken.NotEqual)
@@ -225,6 +232,15 @@ internal static class GoogleSqlTokenizer
 		from at in Character.EqualTo('@')
 		from name in Character.LetterOrDigit.Or(Character.EqualTo('_')).AtLeastOnce()
 		select "@" + new string(name);
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#table_hints
+	//   "Query hints like @{FORCE_INDEX=IndexName} are stripped during tokenization."
+	private static TextParser<string> QueryHintToken { get; } =
+		from at in Character.EqualTo('@')
+		from open in Character.EqualTo('{')
+		from content in Character.Except('}').Many()
+		from close in Character.EqualTo('}')
+		select "@{" + new string(content) + "}";
 
 	// Numbers: integer, decimal, or scientific notation (e.g. 1e10, 1.5e-2)
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#floating_point_literals

@@ -72,23 +72,28 @@ internal record IndexColumnDef(string ColumnName, SortOrder Order = SortOrder.As
 // DML Statements
 // ──────────────────────────────────────────────
 
+// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#then_return
+internal record ReturningClause(bool WithAction, string? ActionAlias, List<SelectColumn> Columns);
+
 internal record InsertStatement(
 	string Table,
 	List<string> Columns,
 	List<List<SqlExpression>>? ValueRows,
 	InsertMode Mode = InsertMode.Insert,
-	SelectStatement? SelectSource = null);
+	SelectStatement? SelectSource = null,
+	ReturningClause? Returning = null);
 
 internal enum InsertMode { Insert, InsertOrUpdate, InsertOrIgnore }
 
 internal record UpdateStatement(
 	string Table,
 	List<SetClause> Sets,
-	SqlExpression? Where);
+	SqlExpression? Where,
+	ReturningClause? Returning = null);
 
 internal record SetClause(string Column, SqlExpression Value);
 
-internal record DeleteStatement(string Table, SqlExpression? Where);
+internal record DeleteStatement(string Table, SqlExpression? Where, ReturningClause? Returning = null);
 
 // ──────────────────────────────────────────────
 // SELECT / Query

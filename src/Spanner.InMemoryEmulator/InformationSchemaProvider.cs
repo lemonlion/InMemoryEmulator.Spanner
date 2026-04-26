@@ -39,6 +39,14 @@ internal class InformationSchemaProvider
 			"VIEWS" => GetViews(),
 			"SEQUENCES" => GetSequences(),
 			"SEQUENCE_OPTIONS" => GetSequenceOptions(),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/information-schema#column_options
+			"COLUMN_OPTIONS" => GetColumnOptions(),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/information-schema#key_column_usage
+			"KEY_COLUMN_USAGE" => GetKeyColumnUsage(),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/information-schema#database_options
+			"DATABASE_OPTIONS" => GetDatabaseOptions(),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/information-schema#constraint_table_usage
+			"CONSTRAINT_TABLE_USAGE" => GetConstraintTableUsage(),
 			_ => throw new InvalidOperationException($"INFORMATION_SCHEMA.{tableName} is not supported.")
 		};
 
@@ -446,6 +454,83 @@ internal class InformationSchemaProvider
 				["OPTION_NAME"] = "sequence_kind",
 				["OPTION_TYPE"] = "STRING",
 				["OPTION_VALUE"] = $"'{seq.SequenceKind}'"
+			});
+		}
+		return (cols, rows);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/information-schema#column_options
+	//   "Contains the options set on columns via ALTER COLUMN ... SET OPTIONS."
+	private (List<string>, List<Dictionary<string, object?>>) GetColumnOptions()
+	{
+		var cols = new List<string> { "TABLE_CATALOG", "TABLE_SCHEMA", "TABLE_NAME", "COLUMN_NAME", "OPTION_NAME", "OPTION_TYPE", "OPTION_VALUE" };
+		var rows = new List<Dictionary<string, object?>>();
+		// Column options (e.g., allow_commit_timestamp) are not currently tracked in schema,
+		// so return an empty result set with correct schema.
+		return (cols, rows);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/information-schema#key_column_usage
+	//   "Contains the columns that make up the primary key and foreign key constraints."
+	private (List<string>, List<Dictionary<string, object?>>) GetKeyColumnUsage()
+	{
+		var cols = new List<string> { "CONSTRAINT_CATALOG", "CONSTRAINT_SCHEMA", "CONSTRAINT_NAME", "TABLE_CATALOG", "TABLE_SCHEMA", "TABLE_NAME", "COLUMN_NAME", "ORDINAL_POSITION", "POSITION_IN_UNIQUE_CONSTRAINT" };
+		var rows = new List<Dictionary<string, object?>>();
+		foreach (var name in _schema.GetTableNames())
+		{
+			var table = _schema.GetTableDefinition(name);
+			if (table == null) continue;
+			// Primary key columns
+			for (int i = 0; i < table.PrimaryKeyColumns.Count; i++)
+			{
+				rows.Add(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+				{
+					["CONSTRAINT_CATALOG"] = "", ["CONSTRAINT_SCHEMA"] = "",
+					["CONSTRAINT_NAME"] = $"PK_{table.Name}",
+					["TABLE_CATALOG"] = "", ["TABLE_SCHEMA"] = "",
+					["TABLE_NAME"] = table.Name,
+					["COLUMN_NAME"] = table.PrimaryKeyColumns[i],
+					["ORDINAL_POSITION"] = (long)(i + 1),
+					["POSITION_IN_UNIQUE_CONSTRAINT"] = null
+				});
+			}
+		}
+		return (cols, rows);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/information-schema#database_options
+	//   "Contains the database options set via ALTER DATABASE."
+	private (List<string>, List<Dictionary<string, object?>>) GetDatabaseOptions()
+	{
+		var cols = new List<string> { "CATALOG_NAME", "SCHEMA_NAME", "OPTION_NAME", "OPTION_TYPE", "OPTION_VALUE" };
+		var rows = new List<Dictionary<string, object?>>
+		{
+			new(StringComparer.OrdinalIgnoreCase)
+			{
+				["CATALOG_NAME"] = "", ["SCHEMA_NAME"] = "",
+				["OPTION_NAME"] = "version_retention_period",
+				["OPTION_TYPE"] = "STRING",
+				["OPTION_VALUE"] = "'1h'"
+			}
+		};
+		return (cols, rows);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/information-schema#constraint_table_usage
+	//   "Contains the tables that constraints are defined on."
+	private (List<string>, List<Dictionary<string, object?>>) GetConstraintTableUsage()
+	{
+		var cols = new List<string> { "TABLE_CATALOG", "TABLE_SCHEMA", "TABLE_NAME", "CONSTRAINT_CATALOG", "CONSTRAINT_SCHEMA", "CONSTRAINT_NAME" };
+		var rows = new List<Dictionary<string, object?>>();
+		foreach (var tname in _schema.GetTableNames())
+		{
+			// Primary key constraint
+			rows.Add(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+			{
+				["TABLE_CATALOG"] = "", ["TABLE_SCHEMA"] = "",
+				["TABLE_NAME"] = tname,
+				["CONSTRAINT_CATALOG"] = "", ["CONSTRAINT_SCHEMA"] = "",
+				["CONSTRAINT_NAME"] = $"PK_{tname}"
 			});
 		}
 		return (cols, rows);

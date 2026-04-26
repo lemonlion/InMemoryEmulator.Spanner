@@ -85,6 +85,27 @@ internal static class TypeConverter
 		return type;
 	}
 
+	/// <summary>
+	/// Infers the Spanner <see cref="TypeCode"/> from a .NET runtime value.
+	/// </summary>
+	public static TypeCode InferTypeCodeFromValue(object? value) => value switch
+	{
+		null => TypeCode.String,
+		bool => TypeCode.Bool,
+		long or int or short or byte or sbyte => TypeCode.Int64,
+		float => TypeCode.Float32,
+		double => TypeCode.Float64,
+		decimal => TypeCode.Numeric,
+		string => TypeCode.String,
+		DateTime dt when dt.Date == dt => TypeCode.Date,
+		DateTime => TypeCode.Timestamp,
+		DateTimeOffset => TypeCode.Timestamp,
+		DateOnly => TypeCode.Date,
+		byte[] => TypeCode.Bytes,
+		System.Collections.IList => TypeCode.Array,
+		_ => TypeCode.String
+	};
+
 	private static string FormatAsString(object value) => value switch
 	{
 		DateTime dt when dt.Date == dt => dt.ToString("yyyy-MM-dd"),

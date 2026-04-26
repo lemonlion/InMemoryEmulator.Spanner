@@ -3,6 +3,11 @@ using Spanner.InMemoryEmulator.Parsing;
 namespace Spanner.InMemoryEmulator;
 
 /// <summary>
+/// Result from a DML operation that optionally includes returned rows from a THEN RETURN clause.
+/// </summary>
+internal record DmlResult(int RowCount, List<Dictionary<string, object?>>? ReturnedRows = null);
+
+/// <summary>
 /// Executes parsed DML statements (INSERT, UPDATE, DELETE) against the in-memory database.
 /// </summary>
 internal class DmlExecutor
@@ -25,11 +30,11 @@ internal class DmlExecutor
 	}
 
 	/// <summary>
-	/// Executes an INSERT statement. Returns the number of rows inserted.
+	/// Executes an INSERT statement. Returns the number of rows inserted and optionally returned rows.
 	/// </summary>
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#insert_statement
 	//   "Inserts one or more rows into a table."
-	public int ExecuteInsert(InsertStatement insert, IDictionary<string, object?>? parameters)
+	public DmlResult ExecuteInsert(InsertStatement insert, IDictionary<string, object?>? parameters)
 	{
 		if (!_database.Schema.TryGetTable(insert.Table, out var table) || table == null)
 			throw new InvalidOperationException($"Table '{insert.Table}' not found.");
@@ -37,6 +42,8 @@ internal class DmlExecutor
 		var queryExecutor = new QueryExecutor(_database);
 		var evaluator = new ExpressionEvaluator(parameters, queryExecutor);
 		int count = 0;
+		List<(Dictionary<string, object?> Row, string Action)>? affectedRows =
+			insert.Returning != null ? new() : null;
 
 		// Build value rows from VALUES clause or SELECT source
 		var allValueExprs = insert.ValueRows;
@@ -113,6 +120,7 @@ internal class DmlExecutor
 						existing[kvp.Key] = kvp.Value;
 					_database.Schema.ValidateWriteConstraints(insert.Table, existing, rowKey);
 					table.Rows[rowKey] = new RowData(existing, DateTimeOffset.UtcNow);
+					affectedRows?.Add((new Dictionary<string, object?>(existing, StringComparer.OrdinalIgnoreCase), "UPDATE"));
 					count++;
 					continue;
 				}
@@ -137,24 +145,27 @@ internal class DmlExecutor
 			_database.Schema.ValidateWriteConstraints(insert.Table, rowValues);
 			RecordUndo(insert.Table, rowKey, null); // INSERT → undo = delete
 			table.Rows[rowKey] = new RowData(rowValues, DateTimeOffset.UtcNow);
+			affectedRows?.Add((new Dictionary<string, object?>(rowValues, StringComparer.OrdinalIgnoreCase), "INSERT"));
 			count++;
 		}
 
-		return count;
+		return new DmlResult(count, BuildReturnedRows(insert.Returning, affectedRows, parameters));
 	}
 
 	/// <summary>
-	/// Executes an UPDATE statement. Returns the number of rows updated.
+	/// Executes an UPDATE statement. Returns the number of rows updated and optionally returned rows.
 	/// </summary>
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#update_statement
 	//   "Updates existing rows in a table."
-	public int ExecuteUpdate(UpdateStatement update, IDictionary<string, object?>? parameters)
+	public DmlResult ExecuteUpdate(UpdateStatement update, IDictionary<string, object?>? parameters)
 	{
 		if (!_database.Schema.TryGetTable(update.Table, out var table) || table == null)
 			throw new InvalidOperationException($"Table '{update.Table}' not found.");
 
 		var evaluator = new ExpressionEvaluator(parameters, new QueryExecutor(_database));
 		int count = 0;
+		List<(Dictionary<string, object?> Row, string Action)>? affectedRows =
+			update.Returning != null ? new() : null;
 
 		foreach (var kvp in table.Rows.ToList())
 		{
@@ -183,10 +194,11 @@ internal class DmlExecutor
 			_database.Schema.ValidateWriteConstraints(update.Table, row, kvp.Key);
 			RecordUndo(update.Table, kvp.Key, kvp.Value); // UPDATE → undo = restore original
 			table.Rows[kvp.Key] = new RowData(row, DateTimeOffset.UtcNow);
+			affectedRows?.Add((new Dictionary<string, object?>(row, StringComparer.OrdinalIgnoreCase), "UPDATE"));
 			count++;
 		}
 
-		return count;
+		return new DmlResult(count, BuildReturnedRows(update.Returning, affectedRows, parameters));
 	}
 
 	/// <summary>
@@ -194,17 +206,19 @@ internal class DmlExecutor
 	/// </summary>
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#delete_statement
 	//   "Deletes rows from a table."
-	public int ExecuteDelete(DeleteStatement delete, IDictionary<string, object?>? parameters)
+	public DmlResult ExecuteDelete(DeleteStatement delete, IDictionary<string, object?>? parameters)
 	{
 		if (!_database.Schema.TryGetTable(delete.Table, out var table) || table == null)
 			throw new InvalidOperationException($"Table '{delete.Table}' not found.");
 
 		var evaluator = new ExpressionEvaluator(parameters, new QueryExecutor(_database));
+		List<(Dictionary<string, object?> Row, string Action)>? affectedRows =
+			delete.Returning != null ? new() : null;
 
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#delete_statement
 		//   Subqueries in WHERE are evaluated once against the initial table state.
 		//   Collect matching keys first, then delete, to avoid re-evaluation against modified data.
-		var keysToDelete = new List<RowKey>();
+		var keysToDelete = new List<(RowKey Key, Dictionary<string, object?> Row)>();
 		foreach (var kvp in table.Rows.ToList())
 		{
 			var row = new Dictionary<string, object?>(kvp.Value.Columns, StringComparer.OrdinalIgnoreCase);
@@ -212,20 +226,72 @@ internal class DmlExecutor
 			if (delete.Where != null && !evaluator.EvaluateAsBool(delete.Where, row))
 				continue;
 
-			keysToDelete.Add(kvp.Key);
+			keysToDelete.Add((kvp.Key, row));
 		}
 
 		int count = 0;
-		foreach (var key in keysToDelete)
+		foreach (var (key, row) in keysToDelete)
 		{
 			_database.Schema.HandleInterleavedDelete(delete.Table, key);
 			if (table.Rows.TryRemove(key, out var removedRow))
 			{
 				RecordUndo(delete.Table, key, removedRow); // DELETE → undo = restore
+				affectedRows?.Add((row, "DELETE"));
 				count++;
 			}
 		}
 
-		return count;
+		return new DmlResult(count, BuildReturnedRows(delete.Returning, affectedRows, parameters));
+	}
+
+	/// <summary>
+	/// Evaluates a THEN RETURN clause against the affected rows, producing the returned result rows.
+	/// </summary>
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#then_return
+	//   "Returns data from rows that are modified by a DML statement."
+	private List<Dictionary<string, object?>>? BuildReturnedRows(
+		ReturningClause? returning,
+		List<(Dictionary<string, object?> Row, string Action)>? affectedRows,
+		IDictionary<string, object?>? parameters)
+	{
+		if (returning == null || affectedRows == null)
+			return null;
+
+		var evaluator = new ExpressionEvaluator(parameters, new QueryExecutor(_database));
+		var result = new List<Dictionary<string, object?>>();
+
+		foreach (var (row, action) in affectedRows)
+		{
+			var outputRow = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+			// Evaluate each column expression in the THEN RETURN clause
+			foreach (var col in returning.Columns)
+			{
+				if (col.Expr is StarExpr)
+				{
+					foreach (var kvp in row)
+						outputRow[kvp.Key] = kvp.Value;
+				}
+				else
+				{
+					var value = evaluator.Evaluate(col.Expr, row);
+					var alias = col.Alias
+						?? (col.Expr is ColumnRefExpr cr ? cr.Column : $"_col{outputRow.Count}");
+					outputRow[alias] = value;
+				}
+			}
+
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#with_action
+			//   "WITH ACTION adds an ACTION column that indicates the type of action performed."
+			if (returning.WithAction)
+			{
+				var actionAlias = returning.ActionAlias ?? "ACTION";
+				outputRow[actionAlias] = action;
+			}
+
+			result.Add(outputRow);
+		}
+
+		return result;
 	}
 }

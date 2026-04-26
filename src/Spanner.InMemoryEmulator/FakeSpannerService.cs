@@ -187,8 +187,33 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 			CommitTimestamp = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(commitTimestamp)
 		};
 
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.CommitResponse
+		//   "commit_stats: The statistics about this Commit. Not returned by default."
+		if (request.ReturnCommitStats)
+		{
+			response.CommitStats = new CommitResponse.Types.CommitStats
+			{
+				MutationCount = allMutations.Sum(m => CountMutationOperations(m))
+			};
+		}
+
 		return Task.FromResult(response);
 	}
+
+	/// <summary>
+	/// Counts the number of mutation operations in a single Mutation message.
+	/// </summary>
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.CommitResponse.CommitStats
+	//   "mutation_count: The total number of mutations for the transaction."
+	private static int CountMutationOperations(Mutation m) => m.OperationCase switch
+	{
+		Mutation.OperationOneofCase.Insert => m.Insert.Values.Count,
+		Mutation.OperationOneofCase.InsertOrUpdate => m.InsertOrUpdate.Values.Count,
+		Mutation.OperationOneofCase.Replace => m.Replace.Values.Count,
+		Mutation.OperationOneofCase.Update => m.Update.Values.Count,
+		Mutation.OperationOneofCase.Delete => m.Delete.KeySet.Keys.Count + (m.Delete.KeySet.All ? 1 : 0),
+		_ => 0
+	};
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.Rollback
 	public override Task<Empty> Rollback(RollbackRequest request, ServerCallContext context)
@@ -318,6 +343,14 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 			case TransactionSelector.SelectorOneofCase.Id:
 				_transactionManager.TryGetByBytes(selector.Id, out var existingState);
 				return existingState;
+
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.TransactionSelector
+			//   "Execute the read or SQL query in a temporary transaction.
+			//    This is the most efficient way to execute a transaction that consists of a single SQL query."
+			case TransactionSelector.SelectorOneofCase.SingleUse:
+				// In-memory emulator always returns current data regardless of staleness settings.
+				// We accept the staleness parameters without error to allow client code to run.
+				return null;
 
 			default:
 				return null;

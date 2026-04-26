@@ -55,25 +55,39 @@ internal class SqlEngine
 		{
 			FullQuery fullQuery => _queryExecutor.Execute(fullQuery, parameters),
 			SelectStatement select => _queryExecutor.Execute(select, parameters),
-			InsertStatement insert => ExecuteDml(() => _dmlExecutor.ExecuteInsert(insert, parameters)),
-			UpdateStatement update => ExecuteDml(() => _dmlExecutor.ExecuteUpdate(update, parameters)),
-			DeleteStatement delete => ExecuteDml(() => _dmlExecutor.ExecuteDelete(delete, parameters)),
+			InsertStatement insert => ExecuteDml(_dmlExecutor.ExecuteInsert(insert, parameters)),
+			UpdateStatement update => ExecuteDml(_dmlExecutor.ExecuteUpdate(update, parameters)),
+			DeleteStatement delete => ExecuteDml(_dmlExecutor.ExecuteDelete(delete, parameters)),
 			_ => throw new InvalidOperationException($"Unknown SQL statement type: {result.Value.GetType().Name}")
 		};
 	}
 
-	private static ResultSet ExecuteDml(Func<int> executor)
+	private static ResultSet ExecuteDml(DmlResult dmlResult)
 	{
-		var rowCount = executor();
 		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ResultSet
 		//   "For DML statements, stats.row_count_exact contains the number of rows modified."
 		var resultSet = new ResultSet
 		{
 			Stats = new ResultSetStats
 			{
-				RowCountExact = rowCount
+				RowCountExact = dmlResult.RowCount
 			}
 		};
+
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#then_return
+		//   "THEN RETURN returns data from rows that are modified by a DML statement."
+		if (dmlResult.ReturnedRows is { Count: > 0 })
+		{
+			// Build column definitions from the first row's keys
+			var firstRow = dmlResult.ReturnedRows[0];
+			var columns = firstRow.Keys.Select(name =>
+				new ColumnDef(name, TypeConverter.InferTypeCodeFromValue(firstRow[name]))).ToList();
+
+			var returnedResultSet = ResultSetBuilder.Build(columns, dmlResult.ReturnedRows);
+			resultSet.Metadata = returnedResultSet.Metadata;
+			resultSet.Rows.Add(returnedResultSet.Rows);
+		}
+
 		return resultSet;
 	}
 

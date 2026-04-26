@@ -23,6 +23,25 @@ internal class MutationExecutor
 	/// </summary>
 	public void ApplyMutations(IReadOnlyList<Mutation> mutations, DateTimeOffset commitTimestamp)
 	{
+		// Ref: https://cloud.google.com/spanner/quotas#limits_for_creating_reading_updating_and_deleting_data
+		//   "Maximum number of mutations per commit: 80,000"
+		long totalMutations = 0;
+		foreach (var m in mutations)
+		{
+			totalMutations += m.OperationCase switch
+			{
+				Mutation.OperationOneofCase.Insert => m.Insert.Values.Count * m.Insert.Columns.Count,
+				Mutation.OperationOneofCase.Update => m.Update.Values.Count * m.Update.Columns.Count,
+				Mutation.OperationOneofCase.InsertOrUpdate => m.InsertOrUpdate.Values.Count * m.InsertOrUpdate.Columns.Count,
+				Mutation.OperationOneofCase.Replace => m.Replace.Values.Count * m.Replace.Columns.Count,
+				Mutation.OperationOneofCase.Delete => m.Delete.KeySet.All ? 1 : m.Delete.KeySet.Keys.Count,
+				_ => 0
+			};
+		}
+		if (totalMutations > 80_000)
+			throw new InvalidOperationException(
+				$"The transaction exceeds the mutation limit. Number of mutations: {totalMutations}. Limit: 80000.");
+
 		foreach (var mutation in mutations)
 		{
 			switch (mutation.OperationCase)

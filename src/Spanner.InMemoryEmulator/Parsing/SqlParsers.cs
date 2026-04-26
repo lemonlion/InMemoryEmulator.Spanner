@@ -903,10 +903,26 @@ internal static class SqlParsers
 	// DML Statements
 	// ──────────────────────────────────────────
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#then_return
+	//   "THEN RETURN [WITH ACTION [AS alias]] { select_all | expression [AS alias] } [, ...]"
+	private static TokenListParser<GoogleSqlToken, ReturningClause> ReturningClause { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.Then)
+		from __ in Token.EqualTo(GoogleSqlToken.Return)
+		from withAction in (
+			from ___ in Token.EqualTo(GoogleSqlToken.With)
+			from ____ in Token.EqualTo(GoogleSqlToken.Action)
+			from alias in (from _____ in Token.EqualTo(GoogleSqlToken.As) from name in AnyIdentifier select name)
+				.AsNullable()
+				.OptionalOrDefault()
+			select (HasAction: true, ActionAlias: alias)
+		).OptionalOrDefault((HasAction: false, ActionAlias: (string?)null))
+		from columns in SelectColumnItem.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
+		select new ReturningClause(withAction.HasAction, withAction.ActionAlias, columns.ToList());
+
 	// INSERT INTO table (col, ...) VALUES (val, ...), ...
 	// INSERT [OR UPDATE | OR IGNORE] INTO table (col, ...) VALUES (...) | SELECT ...
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#insert_statement
-	public static TokenListParser<GoogleSqlToken, InsertStatement> InsertStatement { get; } =
+	private static TokenListParser<GoogleSqlToken, InsertStatement> InsertStatementBase { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.Insert)
 		from mode in
 			(from _or in Token.EqualTo(GoogleSqlToken.Or)
@@ -938,8 +954,13 @@ internal static class SqlParsers
 			_ => throw new InvalidOperationException("Unexpected INSERT source type.")
 		};
 
+	public static TokenListParser<GoogleSqlToken, InsertStatement> InsertStatement { get; } =
+		from baseInsert in InsertStatementBase
+		from returning in ReturningClause.AsNullable().OptionalOrDefault()
+		select baseInsert with { Returning = returning };
+
 	// UPDATE table SET col = expr, ... WHERE ...
-	public static TokenListParser<GoogleSqlToken, UpdateStatement> UpdateStatement { get; } =
+	private static TokenListParser<GoogleSqlToken, UpdateStatement> UpdateStatementBase { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.Update)
 		from table in AnyIdentifier
 		from __ in Token.EqualTo(GoogleSqlToken.Set)
@@ -953,14 +974,24 @@ internal static class SqlParsers
 			.AsNullable().OptionalOrDefault()
 		select new UpdateStatement(table, sets.ToList(), whereExpr);
 
+	public static TokenListParser<GoogleSqlToken, UpdateStatement> UpdateStatement { get; } =
+		from baseUpdate in UpdateStatementBase
+		from returning in ReturningClause.AsNullable().OptionalOrDefault()
+		select baseUpdate with { Returning = returning };
+
 	// DELETE FROM table WHERE ...
-	public static TokenListParser<GoogleSqlToken, DeleteStatement> DeleteStatement { get; } =
+	private static TokenListParser<GoogleSqlToken, DeleteStatement> DeleteStatementBase { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.Delete)
 		from __ in Token.EqualTo(GoogleSqlToken.From)
 		from table in AnyIdentifier
 		from whereExpr in (from ___ in Token.EqualTo(GoogleSqlToken.Where) from expr in Expression select expr)
 			.AsNullable().OptionalOrDefault()
 		select new DeleteStatement(table, whereExpr);
+
+	public static TokenListParser<GoogleSqlToken, DeleteStatement> DeleteStatement { get; } =
+		from baseDelete in DeleteStatementBase
+		from returning in ReturningClause.AsNullable().OptionalOrDefault()
+		select baseDelete with { Returning = returning };
 
 	// ──────────────────────────────────────────
 	// Top-level SQL dispatcher

@@ -435,4 +435,14 @@ internal enum GoogleSqlToken
 
 	[Token(Example = "SEQUENCE")]
 	Sequence,
+
+	// ── THEN RETURN support ──
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#then_return
+	[Token(Example = "RETURN")]
+	Return,
+
+	// ── QUALIFY support ──
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#qualify_clause
+	[Token(Example = "QUALIFY")]
+	Qualify,
 }

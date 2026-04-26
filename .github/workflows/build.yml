@@ -73,13 +73,13 @@ jobs:
           # Create database
           curl -s -X POST http://localhost:9020/v1/projects/test-project/instances/test-instance/databases \
             -H "Content-Type: application/json" \
-            -d '{"createStatement":"CREATE DATABASE \"test-db\""}'
+            -d '{"createStatement":"CREATE DATABASE `test-db`"}'
       - name: Run integration tests (emulator)
         run: |
           dotnet test tests/Spanner.InMemoryEmulator.Tests.Integration/ \
             --configuration Release \
             --logger "trx;LogFileName=emulator.trx" \
-            --filter "Target!=InMemoryOnly"
+            --filter "Target!=InMemoryOnly&Target!=GoEmulatorUnsupported"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

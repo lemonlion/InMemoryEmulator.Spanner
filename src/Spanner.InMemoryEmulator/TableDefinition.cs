@@ -19,7 +19,38 @@ public class TableDefinition
 	/// <summary>FOREIGN KEY constraints defined on this table (this table is the referencing table).</summary>
 	public List<ForeignKeyConstraint> ForeignKeys { get; } = [];
 
+	/// <summary>
+	/// Row deletion policy for this table. If set, rows where the timestamp column is older than
+	/// the specified interval are considered expired and are not visible in reads/queries.
+	/// Ref: https://cloud.google.com/spanner/docs/ttl/working-with-ttl
+	/// </summary>
+	public RowDeletionPolicy? RowDeletionPolicy { get; set; }
+
 	internal ConcurrentDictionary<RowKey, RowData> Rows { get; } = new();
+
+	/// <summary>
+	/// Returns true if the given row is expired according to this table's row deletion policy.
+	/// Ref: https://cloud.google.com/spanner/docs/ttl/working-with-ttl
+	///   "A row is considered expired if: column_value + INTERVAL num_days DAY &lt; CURRENT_TIMESTAMP()"
+	/// </summary>
+	internal bool IsRowExpired(RowData row)
+	{
+		if (RowDeletionPolicy == null) return false;
+
+		if (!row.Columns.TryGetValue(RowDeletionPolicy.Column, out var value) || value is null)
+			return false;
+
+		var timestamp = value switch
+		{
+			DateTime dt => dt.Kind == DateTimeKind.Utc ? dt : dt.ToUniversalTime(),
+			DateTimeOffset dto => dto.UtcDateTime,
+			_ => (DateTime?)null
+		};
+
+		if (timestamp == null) return false;
+
+		return timestamp.Value.AddDays(RowDeletionPolicy.IntervalDays) < DateTime.UtcNow;
+	}
 
 	public TableDefinition(
 		string name,
@@ -79,6 +110,15 @@ public enum ForeignKeyDeleteAction
 	NoAction,
 	Cascade
 }
+
+/// <summary>
+/// Row deletion policy for TTL-based row expiration.
+/// Ref: https://cloud.google.com/spanner/docs/ttl/working-with-ttl
+///   "Spanner considers a row expired when the timestamp value plus the interval is older than the current time."
+/// </summary>
+/// <param name="Column">The TIMESTAMP column to evaluate.</param>
+/// <param name="IntervalDays">The number of days after which rows are considered expired.</param>
+public record RowDeletionPolicy(string Column, int IntervalDays);
 
 /// <summary>
 /// Definition of a stored view.

@@ -21,6 +21,9 @@ internal static class DdlParser
 		if (string.IsNullOrWhiteSpace(trimmed))
 			throw new InvalidOperationException("Empty DDL statement.");
 
+		// Clear proto FQN placeholder mapping from previous DDL calls
+		ProtoFqnPlaceholders.Clear();
+
 		// Handle CREATE VIEW / CREATE OR REPLACE VIEW with string parsing
 		// (view body is arbitrary SQL that's hard to parse with the DDL tokenizer)
 		if (TryParseView(trimmed, schema)) return;
@@ -43,7 +46,15 @@ internal static class DdlParser
 		// Ref: https://cloud.google.com/spanner/docs/graph/schema-overview
 		if (TryParsePropertyGraph(trimmed)) return;
 
-		var tokens = GoogleSqlTokenizer.Tokenize(trimmed);
+		// Handle CREATE/ALTER/DROP PROTO BUNDLE with string parsing.
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#proto_bundle_statements
+		if (TryParseProtoBundle(trimmed, schema)) return;
+
+		// Handle proto/enum column types — DDL with dotted FQN type names
+		// must be pre-processed before tokenization since the tokenizer splits dots.
+		var preprocessed = PreprocessProtoBundleColumnTypes(trimmed, schema);
+
+		var tokens = GoogleSqlTokenizer.Tokenize(preprocessed);
 		var result = DdlParsers.DdlStatement.AtEnd().TryParse(tokens);
 
 		if (!result.HasValue)
@@ -102,7 +113,8 @@ internal static class DdlParser
 			c.GeneratedExpression,
 			c.IsStored,
 			c.DefaultExpression,
-			c.IsHidden
+			c.IsHidden,
+			c.ProtoTypeFqn
 		)).ToList();
 
 		var pkColumnNames = stmt.PrimaryKey.Select(pk => pk.ColumnName).ToList();
@@ -123,6 +135,14 @@ internal static class DdlParser
 			pkColumnNames.AsReadOnly(),
 			stmt.ParentTable,
 			stmt.OnDelete ?? OnDeleteAction.NoAction);
+
+		// Store row deletion policy if specified
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#row_deletion_policy
+		if (stmt.RowDeletionPolicy != null)
+		{
+			table.RowDeletionPolicy = new RowDeletionPolicy(
+				stmt.RowDeletionPolicy.Column, stmt.RowDeletionPolicy.IntervalDays);
+		}
 
 		// Add CHECK constraints
 		if (stmt.CheckConstraints != null)
@@ -187,7 +207,8 @@ internal static class DdlParser
 					add.Column.GeneratedExpression,
 					add.Column.IsStored,
 					add.Column.DefaultExpression,
-					add.Column.IsHidden);
+					add.Column.IsHidden,
+					add.Column.ProtoTypeFqn);
 
 				var newColumns = table.Columns.ToList();
 				newColumns.Add(newCol);
@@ -266,7 +287,8 @@ internal static class DdlParser
 					alter.NewDefinition.GeneratedExpression ?? existingCol.GeneratedExpression,
 					alter.NewDefinition.IsStored || existingCol.IsStored,
 					alter.NewDefinition.DefaultExpression ?? existingCol.DefaultExpression,
-					alter.NewDefinition.IsHidden || existingCol.IsHidden);
+					alter.NewDefinition.IsHidden || existingCol.IsHidden,
+					alter.NewDefinition.ProtoTypeFqn ?? existingCol.ProtoTypeFqn);
 
 				var newColumns = table.Columns.Select(c =>
 					string.Equals(c.Name, alter.ColumnName, StringComparison.OrdinalIgnoreCase) ? newCol : c)
@@ -313,10 +335,15 @@ internal static class DdlParser
 			}
 
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#row_deletion_policy
-			//   Row deletion policies are parsed but not enforced at runtime — DDL compatibility only.
-			case AddRowDeletionPolicyAction:
-			case ReplaceRowDeletionPolicyAction:
+			//   Row deletion policies — stored on the table and enforced at runtime.
+			case AddRowDeletionPolicyAction addPolicy:
+				table.RowDeletionPolicy = new RowDeletionPolicy(addPolicy.Policy.Column, addPolicy.Policy.IntervalDays);
+				break;
+			case ReplaceRowDeletionPolicyAction replacePolicy:
+				table.RowDeletionPolicy = new RowDeletionPolicy(replacePolicy.Policy.Column, replacePolicy.Policy.IntervalDays);
+				break;
 			case DropRowDeletionPolicyAction:
+				table.RowDeletionPolicy = null;
 				break;
 
 			default:
@@ -345,6 +372,9 @@ internal static class DdlParser
 			newTable.CheckConstraints.Add(check);
 		foreach (var fk in table.ForeignKeys)
 			newTable.ForeignKeys.Add(fk);
+
+		// Preserve row deletion policy
+		newTable.RowDeletionPolicy = table.RowDeletionPolicy;
 
 		schema.AddTable(newTable);
 		return newTable;
@@ -498,6 +528,156 @@ internal static class DdlParser
 		if (upper.StartsWith("CREATE SEARCH INDEX") || upper.StartsWith("DROP SEARCH INDEX"))
 			return true;
 		return false;
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#proto_bundle_statements
+	//   CREATE PROTO BUNDLE (type1, type2, ...)
+	//   ALTER PROTO BUNDLE [INSERT (...)] [UPDATE (...)] [DELETE (...)]
+	//   DROP PROTO BUNDLE
+	private static bool TryParseProtoBundle(string ddl, SchemaRegistry schema)
+	{
+		var upper = ddl.ToUpperInvariant();
+
+		if (upper.StartsWith("DROP PROTO BUNDLE"))
+		{
+			schema.DropProtoBundle();
+			return true;
+		}
+
+		if (upper.StartsWith("CREATE PROTO BUNDLE"))
+		{
+			var rest = ddl["CREATE PROTO BUNDLE".Length..].Trim();
+			var types = ParseParenthesizedTypeList(rest);
+			schema.SetProtoBundleTypes(types);
+			return true;
+		}
+
+		if (upper.StartsWith("ALTER PROTO BUNDLE"))
+		{
+			var rest = ddl["ALTER PROTO BUNDLE".Length..].Trim();
+			ParseAlterProtoBundle(rest, schema);
+			return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>Parses a parenthesized, comma-separated list of dotted type names.</summary>
+	private static List<string> ParseParenthesizedTypeList(string input)
+	{
+		input = input.Trim();
+		if (input.StartsWith('(') && input.EndsWith(')'))
+			input = input[1..^1];
+		return input.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+			.Select(t => t.Trim('`'))
+			.ToList();
+	}
+
+	/// <summary>
+	/// Parses ALTER PROTO BUNDLE clauses: INSERT (...), UPDATE (...), DELETE (...).
+	/// All three are optional and execute atomically.
+	/// </summary>
+	private static void ParseAlterProtoBundle(string rest, SchemaRegistry schema)
+	{
+		var upper = rest.ToUpperInvariant();
+		int pos = 0;
+
+		while (pos < upper.Length)
+		{
+			// Skip whitespace
+			while (pos < upper.Length && char.IsWhiteSpace(upper[pos])) pos++;
+			if (pos >= upper.Length) break;
+
+			string? action = null;
+			foreach (var keyword in new[] { "INSERT", "UPDATE", "DELETE" })
+			{
+				if (upper[pos..].StartsWith(keyword))
+				{
+					action = keyword;
+					pos += keyword.Length;
+					break;
+				}
+			}
+
+			if (action == null) break;
+
+			// Skip whitespace to opening paren
+			while (pos < upper.Length && char.IsWhiteSpace(upper[pos])) pos++;
+			if (pos >= upper.Length || rest[pos] != '(') break;
+
+			// Find matching closing paren (using original case for type names)
+			var parenStart = pos;
+			int depth = 0;
+			int parenEnd = pos;
+			for (int i = pos; i < rest.Length; i++)
+			{
+				if (rest[i] == '(') depth++;
+				else if (rest[i] == ')')
+				{
+					depth--;
+					if (depth == 0) { parenEnd = i; break; }
+				}
+			}
+
+			var typeListStr = rest[(parenStart)..(parenEnd + 1)];
+			var types = ParseParenthesizedTypeList(typeListStr);
+			pos = parenEnd + 1;
+
+			switch (action)
+			{
+				case "INSERT":
+					schema.InsertProtoBundleTypes(types);
+					break;
+				case "UPDATE":
+					// UPDATE refreshes proto type info — for the emulator this is a no-op
+					// since we don't hold actual proto file descriptors.
+					break;
+				case "DELETE":
+					schema.DeleteProtoBundleTypes(types);
+					break;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Pre-processes DDL to replace dotted proto/enum type names with a placeholder
+	/// token that the DDL tokenizer can handle. Dotted names like "examples.music.SingerInfo"
+	/// become "__PROTO_FQN_0__" (sequentially numbered) before tokenization.
+	/// The mapping from placeholder to original FQN is stored for later decoding.
+	/// </summary>
+	private static string PreprocessProtoBundleColumnTypes(string ddl, SchemaRegistry schema)
+	{
+		if (!schema.HasProtoBundle) return ddl;
+
+		var bundleTypes = schema.GetProtoBundleTypes();
+		var result = ddl;
+		// Replace longer FQNs first to avoid partial matches
+		int index = 0;
+		foreach (var fqn in bundleTypes.OrderByDescending(t => t.Length))
+		{
+			if (result.Contains(fqn))
+			{
+				var placeholder = $"__PROTO_FQN_{index}__";
+				ProtoFqnPlaceholders[placeholder] = fqn;
+				result = result.Replace(fqn, placeholder);
+				index++;
+			}
+		}
+		return result;
+	}
+
+	// Thread-safe mapping from placeholder identifiers back to original proto FQNs.
+	// Populated by PreprocessProtoBundleColumnTypes, consumed by DecodeProtoFqnPlaceholder.
+	[ThreadStatic] private static Dictionary<string, string>? _protoFqnPlaceholders;
+	private static Dictionary<string, string> ProtoFqnPlaceholders =>
+		_protoFqnPlaceholders ??= new Dictionary<string, string>(StringComparer.Ordinal);
+
+	/// <summary>Reverses the FQN placeholder encoding back to the original dotted name.</summary>
+	internal static string? DecodeProtoFqnPlaceholder(string? identifier)
+	{
+		if (identifier == null || !identifier.StartsWith("__PROTO_FQN_") || !identifier.EndsWith("__"))
+			return null;
+		return ProtoFqnPlaceholders.TryGetValue(identifier, out var fqn) ? fqn : null;
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/graph/schema-overview

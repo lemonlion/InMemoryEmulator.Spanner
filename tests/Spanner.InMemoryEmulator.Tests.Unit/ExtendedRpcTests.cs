@@ -287,6 +287,242 @@ public class ExtendedRpcTests
 
 		_service.RequestLog.Should().Contain(entry => entry.MethodName == "PartitionQuery");
 	}
+
+	// ─── PartitionQuery — Transaction Echoing ───
+
+	[Fact]
+	public async Task PartitionQuery_WithBeginTransaction_ReturnsTransaction()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#partitionresponse
+		//   "transaction: Transaction created by this request."
+		_database.ExecuteDdl("CREATE TABLE PQ3 (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+
+		var request = new PartitionQueryRequest
+		{
+			Session = _sessionName,
+			Sql = "SELECT Id FROM PQ3",
+			Transaction = new TransactionSelector
+			{
+				Begin = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() }
+			}
+		};
+
+		var response = await _service.PartitionQuery(request, TestServerCallContext.Create());
+
+		response.Transaction.Should().NotBeNull();
+		response.Transaction.Id.Should().NotBeEmpty();
+	}
+
+	[Fact]
+	public async Task PartitionQuery_WithExistingTransaction_ReturnsTransaction()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#partitionqueryrequest
+		//   "The same session and read-only transaction must be used"
+		_database.ExecuteDdl("CREATE TABLE PQ4 (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+
+		// Begin a read-only transaction first
+		var beginTxn = await _service.BeginTransaction(
+			new BeginTransactionRequest
+			{
+				Session = _sessionName,
+				Options = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() }
+			},
+			TestServerCallContext.Create());
+
+		var request = new PartitionQueryRequest
+		{
+			Session = _sessionName,
+			Sql = "SELECT Id FROM PQ4",
+			Transaction = new TransactionSelector { Id = beginTxn.Id }
+		};
+
+		var response = await _service.PartitionQuery(request, TestServerCallContext.Create());
+
+		response.Transaction.Should().NotBeNull();
+		response.Transaction.Id.Should().Equal(beginTxn.Id);
+	}
+
+	// ─── PartitionRead — Transaction Echoing ───
+
+	[Fact]
+	public async Task PartitionRead_WithBeginTransaction_ReturnsTransaction()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#partitionresponse
+		//   "transaction: Transaction created by this request."
+		_database.ExecuteDdl("CREATE TABLE PR2 (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+
+		var request = new PartitionReadRequest
+		{
+			Session = _sessionName,
+			Table = "PR2",
+			Transaction = new TransactionSelector
+			{
+				Begin = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() }
+			}
+		};
+		request.Columns.Add("Id");
+		request.KeySet = new KeySet { All = true };
+
+		var response = await _service.PartitionRead(request, TestServerCallContext.Create());
+
+		response.Transaction.Should().NotBeNull();
+		response.Transaction.Id.Should().NotBeEmpty();
+	}
+
+	// ─── QueryMode: PLAN ───
+
+	[Fact]
+	public async Task ExecuteSql_PlanMode_ReturnsEmptyPlanWithNoRows()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteSqlRequest.QueryMode
+		//   "PLAN: This mode returns only the query plan, without any results or execution statistics information."
+		_database.ExecuteDdl("CREATE TABLE QM1 (Id INT64 NOT NULL, Name STRING(MAX)) PRIMARY KEY (Id)");
+		_database.ExecuteDml("INSERT INTO QM1 (Id, Name) VALUES (1, 'Alice')");
+
+		var request = new ExecuteSqlRequest
+		{
+			Session = _sessionName,
+			Sql = "SELECT Id, Name FROM QM1",
+			QueryMode = ExecuteSqlRequest.Types.QueryMode.Plan
+		};
+
+		var result = await _service.ExecuteSql(request, TestServerCallContext.Create());
+
+		// Should have metadata (column types)
+		result.Metadata.Should().NotBeNull();
+		result.Metadata.RowType.Fields.Should().HaveCount(2);
+		// Should have NO rows
+		result.Rows.Should().BeEmpty();
+		// Should have stats with a query plan
+		result.Stats.Should().NotBeNull();
+		result.Stats.QueryPlan.Should().NotBeNull();
+	}
+
+	[Fact]
+	public async Task ExecuteStreamingSql_PlanMode_ReturnsEmptyPlanWithNoRows()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteSqlRequest.QueryMode
+		//   "PLAN: This mode returns only the query plan, without any results."
+		_database.ExecuteDdl("CREATE TABLE QM2 (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+		_database.ExecuteDml("INSERT INTO QM2 (Id) VALUES (1)");
+
+		var request = new ExecuteSqlRequest
+		{
+			Session = _sessionName,
+			Sql = "SELECT Id FROM QM2",
+			QueryMode = ExecuteSqlRequest.Types.QueryMode.Plan
+		};
+
+		var responses = new List<PartialResultSet>();
+		await _service.ExecuteStreamingSql(request, new TestServerStreamWriter<PartialResultSet>(responses), TestServerCallContext.Create());
+
+		responses.Should().HaveCount(1);
+		responses[0].Metadata.Should().NotBeNull();
+		responses[0].Values.Should().BeEmpty();
+		responses[0].Stats.Should().NotBeNull();
+		responses[0].Stats.QueryPlan.Should().NotBeNull();
+	}
+
+	// ─── QueryMode: PROFILE ───
+
+	[Fact]
+	public async Task ExecuteSql_ProfileMode_ReturnsPlanAndRows()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteSqlRequest.QueryMode
+		//   "PROFILE: This mode returns the query plan, overall execution statistics, operator level execution statistics along with the results."
+		_database.ExecuteDdl("CREATE TABLE QM3 (Id INT64 NOT NULL, Name STRING(MAX)) PRIMARY KEY (Id)");
+		_database.ExecuteDml("INSERT INTO QM3 (Id, Name) VALUES (1, 'Alice')");
+
+		var request = new ExecuteSqlRequest
+		{
+			Session = _sessionName,
+			Sql = "SELECT Id, Name FROM QM3",
+			QueryMode = ExecuteSqlRequest.Types.QueryMode.Profile
+		};
+
+		var result = await _service.ExecuteSql(request, TestServerCallContext.Create());
+
+		// Should have rows
+		result.Rows.Should().NotBeEmpty();
+		// Should have stats with a query plan
+		result.Stats.Should().NotBeNull();
+		result.Stats.QueryPlan.Should().NotBeNull();
+		result.Stats.QueryStats.Should().NotBeNull();
+	}
+
+	// ─── QueryMode: WITH_STATS ───
+
+	[Fact]
+	public async Task ExecuteSql_WithStatsMode_ReturnsStatsAndRows()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteSqlRequest.QueryMode
+		//   "WITH_STATS: This mode returns the overall execution statistics along with the results."
+		_database.ExecuteDdl("CREATE TABLE QM4 (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+		_database.ExecuteDml("INSERT INTO QM4 (Id) VALUES (1)");
+
+		var request = new ExecuteSqlRequest
+		{
+			Session = _sessionName,
+			Sql = "SELECT Id FROM QM4",
+			QueryMode = ExecuteSqlRequest.Types.QueryMode.WithStats
+		};
+
+		var result = await _service.ExecuteSql(request, TestServerCallContext.Create());
+
+		result.Rows.Should().NotBeEmpty();
+		result.Stats.Should().NotBeNull();
+		result.Stats.QueryStats.Should().NotBeNull();
+		// No query plan for WITH_STATS
+		result.Stats.QueryPlan.Should().BeNull();
+	}
+
+	// ─── QueryMode: WITH_PLAN_AND_STATS ───
+
+	[Fact]
+	public async Task ExecuteSql_WithPlanAndStatsMode_ReturnsPlanStatsAndRows()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteSqlRequest.QueryMode
+		//   "WITH_PLAN_AND_STATS: This mode returns the query plan, overall execution statistics along with the results."
+		_database.ExecuteDdl("CREATE TABLE QM5 (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+		_database.ExecuteDml("INSERT INTO QM5 (Id) VALUES (1)");
+
+		var request = new ExecuteSqlRequest
+		{
+			Session = _sessionName,
+			Sql = "SELECT Id FROM QM5",
+			QueryMode = ExecuteSqlRequest.Types.QueryMode.WithPlanAndStats
+		};
+
+		var result = await _service.ExecuteSql(request, TestServerCallContext.Create());
+
+		result.Rows.Should().NotBeEmpty();
+		result.Stats.Should().NotBeNull();
+		result.Stats.QueryPlan.Should().NotBeNull();
+		result.Stats.QueryStats.Should().NotBeNull();
+	}
+
+	// ─── QueryMode: NORMAL (default) ───
+
+	[Fact]
+	public async Task ExecuteSql_NormalMode_ReturnsRowsWithoutStats()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteSqlRequest.QueryMode
+		//   "NORMAL: The default mode. Only the statement results are returned."
+		_database.ExecuteDdl("CREATE TABLE QM6 (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+		_database.ExecuteDml("INSERT INTO QM6 (Id) VALUES (1)");
+
+		var request = new ExecuteSqlRequest
+		{
+			Session = _sessionName,
+			Sql = "SELECT Id FROM QM6",
+			QueryMode = ExecuteSqlRequest.Types.QueryMode.Normal
+		};
+
+		var result = await _service.ExecuteSql(request, TestServerCallContext.Create());
+
+		result.Rows.Should().NotBeEmpty();
+		result.Stats.Should().BeNull();
+	}
 }
 
 /// <summary>

@@ -173,6 +173,11 @@ internal class DmlExecutor
 
 		foreach (var kvp in table.Rows.ToList())
 		{
+			// Ref: https://cloud.google.com/spanner/docs/ttl/working-with-ttl
+			//   Expired rows are not visible to DML statements.
+			if (table.IsRowExpired(kvp.Value))
+				continue;
+
 			var row = new Dictionary<string, object?>(kvp.Value.Columns, StringComparer.OrdinalIgnoreCase);
 
 			if (update.Where != null && !evaluator.EvaluateAsBool(update.Where, row))
@@ -230,6 +235,11 @@ internal class DmlExecutor
 		var keysToDelete = new List<(RowKey Key, Dictionary<string, object?> Row)>();
 		foreach (var kvp in table.Rows.ToList())
 		{
+			// Ref: https://cloud.google.com/spanner/docs/ttl/working-with-ttl
+			//   Expired rows are not visible to DML statements.
+			if (table.IsRowExpired(kvp.Value))
+				continue;
+
 			var row = new Dictionary<string, object?>(kvp.Value.Columns, StringComparer.OrdinalIgnoreCase);
 
 			if (delete.Where != null && !evaluator.EvaluateAsBool(delete.Where, row))

@@ -143,6 +143,13 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 		ValidateSession(request.Session);
 		var transaction = _transactionManager.BeginTransaction(request.Session, request.Options);
+
+		// Store proto on state so PartitionQuery/PartitionRead can echo it back
+		if (_transactionManager.TryGetByBytes(transaction.Id, out var txnState) && txnState != null)
+		{
+			txnState.ProtoTransaction = transaction;
+		}
+
 		return Task.FromResult(transaction);
 	}
 
@@ -264,6 +271,9 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 			SetTransactionMetadata(request.Transaction, txnState, resultSet);
 
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteSqlRequest.QueryMode
+			ApplyQueryMode(request.QueryMode, resultSet);
+
 			return Task.FromResult(resultSet);
 		}
 		catch (InvalidOperationException ex)
@@ -293,6 +303,9 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 			var resultSet = engine.ExecuteSql(request.Sql, parameters);
 
 			SetTransactionMetadata(request.Transaction, txnState, resultSet);
+
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteSqlRequest.QueryMode
+			ApplyQueryMode(request.QueryMode, resultSet);
 
 			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.PartialResultSet
 			//   "Stream the entire result set as a single PartialResultSet (simplification)."
@@ -377,6 +390,65 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 		{
 			resultSet.Metadata ??= new ResultSetMetadata();
 			resultSet.Metadata.Transaction = txnState.ProtoTransaction;
+		}
+	}
+
+	/// <summary>
+	/// Applies QueryMode semantics to a ResultSet.
+	/// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteSqlRequest.QueryMode
+	/// </summary>
+	private static void ApplyQueryMode(ExecuteSqlRequest.Types.QueryMode queryMode, ResultSet resultSet)
+	{
+		switch (queryMode)
+		{
+			// Ref: "NORMAL: The default mode. Only the statement results are returned."
+			case ExecuteSqlRequest.Types.QueryMode.Normal:
+				break;
+
+			// Ref: "PLAN: This mode returns only the query plan, without any results or execution statistics information."
+			case ExecuteSqlRequest.Types.QueryMode.Plan:
+				resultSet.Rows.Clear();
+				resultSet.Stats = new ResultSetStats
+				{
+					QueryPlan = new QueryPlan()
+				};
+				break;
+
+			// Ref: "PROFILE: This mode returns the query plan, overall execution statistics,
+			//   operator level execution statistics along with the results."
+			case ExecuteSqlRequest.Types.QueryMode.Profile:
+				resultSet.Stats = new ResultSetStats
+				{
+					QueryPlan = new QueryPlan(),
+					QueryStats = new Struct()
+				};
+				resultSet.Stats.QueryStats.Fields.Add("rows_returned", Value.ForString(resultSet.Rows.Count.ToString()));
+				resultSet.Stats.QueryStats.Fields.Add("elapsed_time", Value.ForString("0 msecs"));
+				resultSet.Stats.QueryStats.Fields.Add("cpu_time", Value.ForString("0 msecs"));
+				break;
+
+			// Ref: "WITH_STATS: This mode returns the overall execution statistics along with the results."
+			case ExecuteSqlRequest.Types.QueryMode.WithStats:
+				resultSet.Stats = new ResultSetStats
+				{
+					QueryStats = new Struct()
+				};
+				resultSet.Stats.QueryStats.Fields.Add("rows_returned", Value.ForString(resultSet.Rows.Count.ToString()));
+				resultSet.Stats.QueryStats.Fields.Add("elapsed_time", Value.ForString("0 msecs"));
+				resultSet.Stats.QueryStats.Fields.Add("cpu_time", Value.ForString("0 msecs"));
+				break;
+
+			// Ref: "WITH_PLAN_AND_STATS: This mode returns the query plan, overall execution statistics along with the results."
+			case ExecuteSqlRequest.Types.QueryMode.WithPlanAndStats:
+				resultSet.Stats = new ResultSetStats
+				{
+					QueryPlan = new QueryPlan(),
+					QueryStats = new Struct()
+				};
+				resultSet.Stats.QueryStats.Fields.Add("rows_returned", Value.ForString(resultSet.Rows.Count.ToString()));
+				resultSet.Stats.QueryStats.Fields.Add("elapsed_time", Value.ForString("0 msecs"));
+				resultSet.Stats.QueryStats.Fields.Add("cpu_time", Value.ForString("0 msecs"));
+				break;
 		}
 	}
 
@@ -487,7 +559,9 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 		if (request.KeySet != null && request.KeySet.All)
 		{
 			// KeySet.All — return all rows
-			matchingRows.AddRange(tableDef.Rows.Values.Select(
+			matchingRows.AddRange(tableDef.Rows.Values
+				.Where(r => !tableDef.IsRowExpired(r))
+				.Select(
 				r => new Dictionary<string, object?>(r.Columns, StringComparer.OrdinalIgnoreCase)));
 		}
 		else if (request.KeySet != null)
@@ -499,7 +573,7 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 					.Select((v, i) => TypeConverter.FromProtobufValue(v, tableDef.Columns[i].SpannerType))
 					.ToArray();
 				var rowKey = new RowKey(pkValues);
-				if (tableDef.Rows.TryGetValue(rowKey, out var rowData))
+				if (tableDef.Rows.TryGetValue(rowKey, out var rowData) && !tableDef.IsRowExpired(rowData))
 				{
 					matchingRows.Add(new Dictionary<string, object?>(rowData.Columns, StringComparer.OrdinalIgnoreCase));
 				}
@@ -526,7 +600,10 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 					if (afterStart && beforeEnd)
 					{
-						matchingRows.Add(new Dictionary<string, object?>(kvp.Value.Columns, StringComparer.OrdinalIgnoreCase));
+						if (!tableDef.IsRowExpired(kvp.Value))
+						{
+							matchingRows.Add(new Dictionary<string, object?>(kvp.Value.Columns, StringComparer.OrdinalIgnoreCase));
+						}
 					}
 				}
 			}
@@ -545,7 +622,7 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 				var colDef = tableDef.Columns.FirstOrDefault(c =>
 					string.Equals(c.Name, colName, StringComparison.OrdinalIgnoreCase));
 				return colDef != null
-					? new ColumnDef(colDef.Name, colDef.SpannerType)
+					? new ColumnDef(colDef.Name, colDef.SpannerType, protoTypeFqn: colDef.ProtoTypeFqn, arrayElementType: colDef.ArrayElementType)
 					: new ColumnDef(colName, Google.Cloud.Spanner.V1.TypeCode.String);
 			})
 			.ToList();
@@ -593,11 +670,23 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 		ValidateSession(request.Session);
 
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#partitionqueryrequest
+		//   "Read-only snapshot transactions are supported."
+		var txnState = ResolveTransactionState(request.Session, request.Transaction);
+
 		var response = new PartitionResponse();
 		response.Partitions.Add(new Partition
 		{
 			PartitionToken = Google.Protobuf.ByteString.CopyFromUtf8("partition-0")
 		});
+
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#partitionresponse
+		//   "transaction: Transaction created by this request."
+		if (txnState?.ProtoTransaction != null)
+		{
+			response.Transaction = txnState.ProtoTransaction;
+		}
+
 		return Task.FromResult(response);
 	}
 
@@ -611,11 +700,23 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 		ValidateSession(request.Session);
 
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#partitionreadrequest
+		//   "Read only snapshot transactions are supported."
+		var txnState = ResolveTransactionState(request.Session, request.Transaction);
+
 		var response = new PartitionResponse();
 		response.Partitions.Add(new Partition
 		{
 			PartitionToken = Google.Protobuf.ByteString.CopyFromUtf8("partition-0")
 		});
+
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#partitionresponse
+		//   "transaction: Transaction created by this request."
+		if (txnState?.ProtoTransaction != null)
+		{
+			response.Transaction = txnState.ProtoTransaction;
+		}
+
 		return Task.FromResult(response);
 	}
 

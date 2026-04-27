@@ -18,6 +18,13 @@ public class ColumnDef
 	public bool IsStored { get; }
 	public string? DefaultExpression { get; }
 	public bool IsHidden { get; }
+	/// <summary>
+	/// Fully-qualified proto type name for PROTO/ENUM columns (e.g. "examples.music.SingerInfo").
+	/// </summary>
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#type
+	//   "proto_type_fqn: If code == PROTO or code == ENUM, then proto_type_fqn is the fully
+	//    qualified name of the proto type representing the proto/enum definition."
+	public string? ProtoTypeFqn { get; }
 
 	public ColumnDef(
 		string name,
@@ -29,7 +36,8 @@ public class ColumnDef
 		string? generatedExpression = null,
 		bool isStored = false,
 		string? defaultExpression = null,
-		bool isHidden = false)
+		bool isHidden = false,
+		string? protoTypeFqn = null)
 	{
 		Name = name ?? throw new ArgumentNullException(nameof(name));
 		SpannerType = spannerType;
@@ -41,5 +49,6 @@ public class ColumnDef
 		IsStored = isStored;
 		DefaultExpression = defaultExpression;
 		IsHidden = isHidden;
+		ProtoTypeFqn = protoTypeFqn;
 	}
 }

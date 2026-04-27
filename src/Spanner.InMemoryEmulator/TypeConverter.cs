@@ -99,13 +99,22 @@ internal static class TypeConverter
 	/// <summary>
 	/// Builds a protobuf <c>Type</c> from a <see cref="TypeCode"/>.
 	/// </summary>
-	public static Google.Cloud.Spanner.V1.Type ToProtobufType(TypeCode typeCode, TypeCode? arrayElementType = null)
+	public static Google.Cloud.Spanner.V1.Type ToProtobufType(TypeCode typeCode, TypeCode? arrayElementType = null, string? protoTypeFqn = null)
 	{
 		var type = new Google.Cloud.Spanner.V1.Type { Code = typeCode };
 		if (typeCode == TypeCode.Array && arrayElementType.HasValue)
 		{
 			type.ArrayElementType = new Google.Cloud.Spanner.V1.Type { Code = arrayElementType.Value };
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#type
+			//   For ARRAY<PROTO> or ARRAY<ENUM>, the element type carries the proto_type_fqn.
+			if (protoTypeFqn != null)
+				type.ArrayElementType.ProtoTypeFqn = protoTypeFqn;
 		}
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#type
+		//   "proto_type_fqn: If code == PROTO or code == ENUM, then proto_type_fqn
+		//    is the fully qualified name of the proto type."
+		if (protoTypeFqn != null && typeCode is (TypeCode)13 or (TypeCode)14)
+			type.ProtoTypeFqn = protoTypeFqn;
 		return type;
 	}
 

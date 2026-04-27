@@ -412,8 +412,8 @@ internal class InformationSchemaProvider
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#uuid_type
 			(Google.Cloud.Spanner.V1.TypeCode)17 => "UUID",
 			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#typecode
-			(Google.Cloud.Spanner.V1.TypeCode)13 => "PROTO",
-			(Google.Cloud.Spanner.V1.TypeCode)14 => "ENUM",
+			(Google.Cloud.Spanner.V1.TypeCode)13 => col.ProtoTypeFqn ?? "PROTO",
+			(Google.Cloud.Spanner.V1.TypeCode)14 => col.ProtoTypeFqn ?? "ENUM",
 			Google.Cloud.Spanner.V1.TypeCode.Bytes => col.MaxLength > 0 ? $"BYTES({col.MaxLength})" : "BYTES(MAX)",
 			Google.Cloud.Spanner.V1.TypeCode.String => col.MaxLength > 0 ? $"STRING({col.MaxLength})" : "STRING(MAX)",
 			Google.Cloud.Spanner.V1.TypeCode.Array => $"ARRAY<{col.ArrayElementType}>",

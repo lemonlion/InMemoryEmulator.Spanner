@@ -16,6 +16,58 @@ internal class SchemaRegistry
 	private readonly ConcurrentDictionary<string, SequenceDefinition> _sequences = new(StringComparer.OrdinalIgnoreCase);
 	private readonly ConcurrentDictionary<string, ChangeStreamDefinition> _changeStreams = new(StringComparer.OrdinalIgnoreCase);
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#proto_bundle_statements
+	//   "PROTO BUNDLE makes proto types available for use by tables and queries."
+	private readonly HashSet<string> _protoBundleTypes = new(StringComparer.Ordinal);
+	private readonly object _protoBundleLock = new();
+
+	/// <summary>Gets whether a proto bundle exists.</summary>
+	public bool HasProtoBundle
+	{
+		get { lock (_protoBundleLock) return _protoBundleTypes.Count > 0; }
+	}
+
+	/// <summary>Gets the current set of proto bundle type names.</summary>
+	public IReadOnlySet<string> GetProtoBundleTypes()
+	{
+		lock (_protoBundleLock)
+			return new HashSet<string>(_protoBundleTypes, StringComparer.Ordinal);
+	}
+
+	/// <summary>Creates or replaces the proto bundle with the given type names.</summary>
+	public void SetProtoBundleTypes(IEnumerable<string> typeNames)
+	{
+		lock (_protoBundleLock)
+		{
+			_protoBundleTypes.Clear();
+			foreach (var t in typeNames) _protoBundleTypes.Add(t);
+		}
+	}
+
+	/// <summary>Inserts additional types into an existing proto bundle.</summary>
+	public void InsertProtoBundleTypes(IEnumerable<string> typeNames)
+	{
+		lock (_protoBundleLock)
+		{
+			foreach (var t in typeNames) _protoBundleTypes.Add(t);
+		}
+	}
+
+	/// <summary>Removes types from the proto bundle.</summary>
+	public void DeleteProtoBundleTypes(IEnumerable<string> typeNames)
+	{
+		lock (_protoBundleLock)
+		{
+			foreach (var t in typeNames) _protoBundleTypes.Remove(t);
+		}
+	}
+
+	/// <summary>Drops the entire proto bundle.</summary>
+	public void DropProtoBundle()
+	{
+		lock (_protoBundleLock) _protoBundleTypes.Clear();
+	}
+
 	public void AddTable(TableDefinition table)
 	{
 		if (!_tables.TryAdd(table.Name, table))
@@ -343,6 +395,7 @@ internal class SchemaRegistry
 		_views.Clear();
 		_sequences.Clear();
 		_changeStreams.Clear();
+		DropProtoBundle();
 	}
 
 	// ─── VIEWS ───

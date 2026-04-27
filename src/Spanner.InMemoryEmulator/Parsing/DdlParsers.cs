@@ -92,32 +92,46 @@ internal static class DdlParsers
 		from close in Token.EqualTo(GoogleSqlToken.CloseParen)
 		select (TypeCode.Bytes, len == -1 ? (long?)null : len);
 
-	private static TokenListParser<GoogleSqlToken, (TypeCode Type, long? MaxLength, TypeCode? ArrayElement)> SimpleType { get; } =
-		Token.EqualTo(GoogleSqlToken.Int64Type).Value((TypeCode.Int64, (long?)null, (TypeCode?)null))
-		.Or(Token.EqualTo(GoogleSqlToken.Float64Type).Value((TypeCode.Float64, (long?)null, (TypeCode?)null)))
-		.Or(Token.EqualTo(GoogleSqlToken.Float32Type).Value((TypeCode.Float32, (long?)null, (TypeCode?)null)))
-		.Or(Token.EqualTo(GoogleSqlToken.BoolType).Value((TypeCode.Bool, (long?)null, (TypeCode?)null)))
-		.Or(Token.EqualTo(GoogleSqlToken.TimestampType).Value((TypeCode.Timestamp, (long?)null, (TypeCode?)null)))
-		.Or(Token.EqualTo(GoogleSqlToken.DateType).Value((TypeCode.Date, (long?)null, (TypeCode?)null)))
-		.Or(Token.EqualTo(GoogleSqlToken.NumericType).Value((TypeCode.Numeric, (long?)null, (TypeCode?)null)))
-		.Or(Token.EqualTo(GoogleSqlToken.JsonType).Value((TypeCode.Json, (long?)null, (TypeCode?)null)))
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#protocol_buffers
+	//   Proto/Enum column types use __PROTO_FQN_N__ placeholders injected by DdlParser.PreprocessProtoBundleColumnTypes.
+	private static TokenListParser<GoogleSqlToken, (TypeCode Type, long? MaxLength, TypeCode? ArrayElement, string? ProtoTypeFqn)> ProtoFqnType { get; } =
+		Token.EqualTo(GoogleSqlToken.Identifier)
+			.Where(t => t.ToStringValue().StartsWith("__PROTO_FQN_"))
+			.Select(t =>
+			{
+				var fqn = DdlParser.DecodeProtoFqnPlaceholder(t.ToStringValue());
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#typecode
+				//   TypeCode 13 = PROTO. Without actual proto descriptors, all FQN types default to PROTO.
+				return ((TypeCode)13, (long?)null, (TypeCode?)null, (string?)fqn);
+			});
+
+	private static TokenListParser<GoogleSqlToken, (TypeCode Type, long? MaxLength, TypeCode? ArrayElement, string? ProtoTypeFqn)> SimpleType { get; } =
+		Token.EqualTo(GoogleSqlToken.Int64Type).Value((TypeCode.Int64, (long?)null, (TypeCode?)null, (string?)null))
+		.Or(Token.EqualTo(GoogleSqlToken.Float64Type).Value((TypeCode.Float64, (long?)null, (TypeCode?)null, (string?)null)))
+		.Or(Token.EqualTo(GoogleSqlToken.Float32Type).Value((TypeCode.Float32, (long?)null, (TypeCode?)null, (string?)null)))
+		.Or(Token.EqualTo(GoogleSqlToken.BoolType).Value((TypeCode.Bool, (long?)null, (TypeCode?)null, (string?)null)))
+		.Or(Token.EqualTo(GoogleSqlToken.TimestampType).Value((TypeCode.Timestamp, (long?)null, (TypeCode?)null, (string?)null)))
+		.Or(Token.EqualTo(GoogleSqlToken.DateType).Value((TypeCode.Date, (long?)null, (TypeCode?)null, (string?)null)))
+		.Or(Token.EqualTo(GoogleSqlToken.NumericType).Value((TypeCode.Numeric, (long?)null, (TypeCode?)null, (string?)null)))
+		.Or(Token.EqualTo(GoogleSqlToken.JsonType).Value((TypeCode.Json, (long?)null, (TypeCode?)null, (string?)null)))
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#uuid_type
 		//   "UUID is a universally unique identifier (RFC 9562)."
-		.Or(Token.EqualTo(GoogleSqlToken.UuidType).Value(((TypeCode)17, (long?)null, (TypeCode?)null)))
+		.Or(Token.EqualTo(GoogleSqlToken.UuidType).Value(((TypeCode)17, (long?)null, (TypeCode?)null, (string?)null)))
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#tokenlist_type
 		//   "TOKENLIST is a collection of tokens produced by one of the TOKENIZE_* functions."
-		.Or(Token.EqualTo(GoogleSqlToken.Tokenlist).Value((TypeCode.Unspecified, (long?)null, (TypeCode?)null)))
-		.Or(StringTypeWithLength.Select(t => (t.Type, t.MaxLength, (TypeCode?)null)))
-		.Or(BytesTypeWithLength.Select(t => (t.Type, t.MaxLength, (TypeCode?)null)));
+		.Or(Token.EqualTo(GoogleSqlToken.Tokenlist).Value((TypeCode.Unspecified, (long?)null, (TypeCode?)null, (string?)null)))
+		.Or(StringTypeWithLength.Select(t => (t.Type, t.MaxLength, (TypeCode?)null, (string?)null)))
+		.Or(BytesTypeWithLength.Select(t => (t.Type, t.MaxLength, (TypeCode?)null, (string?)null)))
+		.Or(ProtoFqnType);
 
-	private static TokenListParser<GoogleSqlToken, (TypeCode Type, long? MaxLength, TypeCode? ArrayElement)> ArrayType { get; } =
+	private static TokenListParser<GoogleSqlToken, (TypeCode Type, long? MaxLength, TypeCode? ArrayElement, string? ProtoTypeFqn)> ArrayType { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.Array)
 		from open in Token.EqualTo(GoogleSqlToken.LessThan)
 		from elementType in SimpleType
 		from close in Token.EqualTo(GoogleSqlToken.GreaterThan)
-		select (TypeCode.Array, (long?)null, (TypeCode?)elementType.Type);
+		select (TypeCode.Array, (long?)null, (TypeCode?)elementType.Type, elementType.ProtoTypeFqn);
 
-	public static TokenListParser<GoogleSqlToken, (TypeCode Type, long? MaxLength, TypeCode? ArrayElement)> SpannerType { get; } =
+	public static TokenListParser<GoogleSqlToken, (TypeCode Type, long? MaxLength, TypeCode? ArrayElement, string? ProtoTypeFqn)> SpannerType { get; } =
 		ArrayType.Or(SimpleType);
 
 	// ──────────────────────────────────────────
@@ -182,7 +196,8 @@ internal static class DdlParsers
 			type.ArrayElement,
 			generated?.Expression, generated?.IsStored ?? false, defaultExpr,
 			options,
-			generated?.IsHidden ?? false);
+			generated?.IsHidden ?? false,
+			type.ProtoTypeFqn);
 
 	// ──────────────────────────────────────────
 	// PRIMARY KEY

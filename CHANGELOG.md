@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.19] - 2025-07-04
+
+### Added
+- **QueryMode support**: PLAN, PROFILE, WITH_STATS, WITH_PLAN_AND_STATS modes return empty QueryPlan and/or QueryStats in ResultSetStats
+- **PartitionQuery/PartitionRead transaction echoing**: PartitionQuery and PartitionRead now resolve transactions and echo them in the response
+- **Row deletion policy runtime enforcement**: Expired rows (based on timestamp column + INTERVAL days) are automatically filtered from queries, reads, and DML operations
+- **Proto/Enum type system**: CREATE/ALTER/DROP PROTO BUNDLE DDL, proto/enum column types with FQN (`examples.music.SingerInfo`), INFORMATION_SCHEMA shows FQN, proto_type_fqn propagated in gRPC Type metadata, base64 PROTO and string ENUM wire encoding, ARRAY<proto_type> support
+- **State persistence**: RowDeletionPolicy and ProtoBundleTypes now exported/imported; ProtoTypeFqn preserved on columns
+- Unit tests: 12 new (QueryMode + PartitionQuery/Read)
+- Integration tests: 6 row deletion policy runtime, 14 proto/enum type system
+
 ## [1.0.18] - 2025-07-03
 
 ### Added

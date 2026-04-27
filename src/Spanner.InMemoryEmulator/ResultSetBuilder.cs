@@ -46,7 +46,7 @@ internal static class ResultSetBuilder
 			metadata.RowType.Fields.Add(new StructType.Types.Field
 			{
 				Name = col.Name,
-				Type = TypeConverter.ToProtobufType(col.SpannerType, col.ArrayElementType)
+				Type = TypeConverter.ToProtobufType(col.SpannerType, col.ArrayElementType, col.ProtoTypeFqn)
 			});
 		}
 

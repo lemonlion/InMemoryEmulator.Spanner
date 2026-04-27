@@ -219,6 +219,7 @@ internal class QueryExecutor
 
 				var leftAlias = select.From.Alias ?? select.From.Table;
 				rows = sourceTable.Rows.Values
+					.Where(r => !sourceTable.IsRowExpired(r))
 					.Select(r => PrefixRow(r.Columns, leftAlias))
 					.ToList();
 			}
@@ -412,9 +413,18 @@ internal class QueryExecutor
 		{
 			var typeCode = InferType(expr, sourceTable);
 			TypeCode? arrayElementType = null;
+			string? protoTypeFqn = null;
 			if (typeCode == TypeCode.Array)
 				arrayElementType = InferArrayElementType(expr, sourceTable);
-			outputColumns.Add(new ColumnDef(name, typeCode, arrayElementType: arrayElementType));
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#type
+			//   Propagate proto_type_fqn from source column when querying PROTO/ENUM columns.
+			if (sourceTable != null && expr is ColumnRefExpr colRef)
+			{
+				var srcCol = sourceTable.Columns.FirstOrDefault(c =>
+					string.Equals(c.Name, colRef.Column, StringComparison.OrdinalIgnoreCase));
+				if (srcCol != null) protoTypeFqn = srcCol.ProtoTypeFqn;
+			}
+			outputColumns.Add(new ColumnDef(name, typeCode, arrayElementType: arrayElementType, protoTypeFqn: protoTypeFqn));
 		}
 
 		// Determine if we're in a GROUP BY / aggregation context where rows have

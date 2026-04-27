@@ -102,7 +102,8 @@ internal record ParsedColumnDef(
 	bool IsStored,
 	string? DefaultExpression,
 	bool AllowCommitTimestamp,
-	bool IsHidden = false);
+	bool IsHidden = false,
+	string? ProtoTypeFqn = null);
 
 internal record PrimaryKeyPart(string ColumnName, SortOrder Order = SortOrder.Asc);
 

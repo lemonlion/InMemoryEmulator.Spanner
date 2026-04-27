@@ -27,7 +27,8 @@ internal static class StatePersistence
 			Tables = ExportTables(schema),
 			Indexes = ExportIndexes(schema),
 			Views = ExportViews(schema),
-			Sequences = ExportSequences(schema)
+			Sequences = ExportSequences(schema),
+			ProtoBundleTypes = schema.HasProtoBundle ? schema.GetProtoBundleTypes().ToList() : null
 		};
 		return JsonSerializer.Serialize(state, JsonOptions);
 	}
@@ -42,6 +43,10 @@ internal static class StatePersistence
 
 		schema.ClearAll();
 
+		// Restore proto bundle types
+		if (state.ProtoBundleTypes is { Count: > 0 })
+			schema.SetProtoBundleTypes(state.ProtoBundleTypes);
+
 		// 1. Recreate tables
 		foreach (var ts in state.Tables ?? [])
 		{
@@ -50,7 +55,8 @@ internal static class StatePersistence
 				Enum.TryParse<TypeCode>(c.Type, true, out var tc) ? tc : TypeCode.String,
 				c.IsNullable,
 				c.MaxLength,
-				c.AllowCommitTimestamp
+				c.AllowCommitTimestamp,
+				protoTypeFqn: c.ProtoTypeFqn
 			)).ToList() ?? [];
 
 			var table = new TableDefinition(
@@ -60,6 +66,13 @@ internal static class StatePersistence
 				ts.ParentTable,
 				Enum.TryParse<OnDeleteAction>(ts.OnDeleteAction, true, out var oda) ? oda : OnDeleteAction.NoAction
 			);
+
+			// Restore row deletion policy
+			if (ts.RowDeletionPolicyColumn != null && ts.RowDeletionPolicyIntervalDays != null)
+			{
+				table.RowDeletionPolicy = new RowDeletionPolicy(
+					ts.RowDeletionPolicyColumn, ts.RowDeletionPolicyIntervalDays.Value);
+			}
 
 			schema.AddTable(table);
 
@@ -153,11 +166,14 @@ internal static class StatePersistence
 					Type = c.SpannerType.ToString(),
 					IsNullable = c.IsNullable,
 					MaxLength = c.MaxLength,
-					AllowCommitTimestamp = c.AllowCommitTimestamp
+					AllowCommitTimestamp = c.AllowCommitTimestamp,
+					ProtoTypeFqn = c.ProtoTypeFqn
 				}).ToList(),
 				PrimaryKeyColumns = table.PrimaryKeyColumns.ToList(),
 				ParentTable = table.ParentTable,
 				OnDeleteAction = table.OnDeleteAction.ToString(),
+				RowDeletionPolicyColumn = table.RowDeletionPolicy?.Column,
+				RowDeletionPolicyIntervalDays = table.RowDeletionPolicy?.IntervalDays,
 				Rows = table.Rows.Values.Select(r => new RowState
 				{
 					Columns = r.Columns.ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
@@ -221,6 +237,7 @@ internal static class StatePersistence
 		public List<IndexState>? Indexes { get; set; }
 		public List<ViewState>? Views { get; set; }
 		public List<SequenceState>? Sequences { get; set; }
+		public List<string>? ProtoBundleTypes { get; set; }
 	}
 
 	internal class TableState
@@ -230,6 +247,8 @@ internal static class StatePersistence
 		public List<string>? PrimaryKeyColumns { get; set; }
 		public string? ParentTable { get; set; }
 		public string? OnDeleteAction { get; set; }
+		public string? RowDeletionPolicyColumn { get; set; }
+		public int? RowDeletionPolicyIntervalDays { get; set; }
 		public List<RowState>? Rows { get; set; }
 	}
 
@@ -240,6 +259,7 @@ internal static class StatePersistence
 		public bool IsNullable { get; set; }
 		public long? MaxLength { get; set; }
 		public bool AllowCommitTimestamp { get; set; }
+		public string? ProtoTypeFqn { get; set; }
 	}
 
 	internal class RowState

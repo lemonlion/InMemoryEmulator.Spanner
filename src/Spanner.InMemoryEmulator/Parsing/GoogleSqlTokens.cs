@@ -280,6 +280,10 @@ internal enum GoogleSqlToken
 	[Token(Example = "JSON")]
 	JsonType,
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#uuid_type
+	[Token(Example = "UUID")]
+	UuidType,
+
 	// ── DDL keywords ──
 	[Token(Example = "COLUMN")]
 	Column,

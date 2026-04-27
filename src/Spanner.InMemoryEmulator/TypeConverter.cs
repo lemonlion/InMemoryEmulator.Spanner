@@ -36,6 +36,13 @@ internal static class TypeConverter
 			TypeCode.Bytes => Google.Protobuf.WellKnownTypes.Value.ForString(Convert.ToBase64String((byte[])value)),
 			TypeCode.Numeric => Google.Protobuf.WellKnownTypes.Value.ForString(value.ToString()!),
 			TypeCode.Json => Google.Protobuf.WellKnownTypes.Value.ForString((string)value),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#uuid_type
+			//   "UUID values are encoded as lowercase hyphenated strings (RFC 9562)."
+			(TypeCode)17 => Google.Protobuf.WellKnownTypes.Value.ForString((string)value),
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#typecode
+			//   "PROTO: Encoded as a base64-encoded string." / "ENUM: Encoded as a string containing the enum's name."
+			(TypeCode)13 => Google.Protobuf.WellKnownTypes.Value.ForString(value is byte[] protoBytes ? Convert.ToBase64String(protoBytes) : value.ToString()!),
+			(TypeCode)14 => Google.Protobuf.WellKnownTypes.Value.ForString(value.ToString()!),
 			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#typecode
 			//   "ARRAY values are encoded as list_value."
 			TypeCode.Array => ToProtobufArrayValue(value),
@@ -71,6 +78,12 @@ internal static class TypeConverter
 			TypeCode.Bytes => Convert.FromBase64String(value.StringValue),
 			TypeCode.Numeric => decimal.Parse(value.StringValue),
 			TypeCode.Json => value.StringValue,
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#uuid_type
+			(TypeCode)17 => value.StringValue,
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#typecode
+			//   "PROTO: Encoded as a base64-encoded string." / "ENUM: Encoded as a string."
+			(TypeCode)13 => Convert.FromBase64String(value.StringValue),
+			(TypeCode)14 => value.StringValue,
 			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#typecode
 			//   "ARRAY values are encoded as list_value."
 			TypeCode.Array => FromProtobufArrayValue(value),

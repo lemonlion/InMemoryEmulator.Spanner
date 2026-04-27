@@ -101,6 +101,9 @@ internal static class DdlParsers
 		.Or(Token.EqualTo(GoogleSqlToken.DateType).Value((TypeCode.Date, (long?)null, (TypeCode?)null)))
 		.Or(Token.EqualTo(GoogleSqlToken.NumericType).Value((TypeCode.Numeric, (long?)null, (TypeCode?)null)))
 		.Or(Token.EqualTo(GoogleSqlToken.JsonType).Value((TypeCode.Json, (long?)null, (TypeCode?)null)))
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#uuid_type
+		//   "UUID is a universally unique identifier (RFC 9562)."
+		.Or(Token.EqualTo(GoogleSqlToken.UuidType).Value(((TypeCode)17, (long?)null, (TypeCode?)null)))
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#tokenlist_type
 		//   "TOKENLIST is a collection of tokens produced by one of the TOKENIZE_* functions."
 		.Or(Token.EqualTo(GoogleSqlToken.Tokenlist).Value((TypeCode.Unspecified, (long?)null, (TypeCode?)null)))

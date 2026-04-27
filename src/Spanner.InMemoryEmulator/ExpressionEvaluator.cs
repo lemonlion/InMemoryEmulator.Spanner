@@ -534,6 +534,9 @@ internal class ExpressionEvaluator
 			// UUID generation
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#generate_uuid
 			"GENERATE_UUID" => Guid.NewGuid().ToString(),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/uuid_functions#new_uuid
+			//   "NEW_UUID() returns a UUID value."
+			"NEW_UUID" => Guid.NewGuid().ToString(),
 
 			// Base64 encoding/decoding
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#from_base64
@@ -943,6 +946,9 @@ internal class ExpressionEvaluator
 						: throw new InvalidOperationException(
 							"Casting between arrays with incompatible element types is not supported"))
 					: new List<object?> { value },
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/uuid_functions
+				//   "CAST(string_expr AS UUID) converts a valid UUID string to UUID type."
+				(TypeCode)17 => value is string s ? s : throw new InvalidOperationException($"Cannot cast {value.GetType().Name} to UUID"),
 				_ => throw new NotSupportedException($"CAST to {cast.TargetType} not supported.")
 			};
 		}

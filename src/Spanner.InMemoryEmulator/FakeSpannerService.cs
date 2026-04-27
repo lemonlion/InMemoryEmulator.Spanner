@@ -348,9 +348,14 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 			//   "Execute the read or SQL query in a temporary transaction.
 			//    This is the most efficient way to execute a transaction that consists of a single SQL query."
 			case TransactionSelector.SelectorOneofCase.SingleUse:
-				// In-memory emulator always returns current data regardless of staleness settings.
-				// We accept the staleness parameters without error to allow client code to run.
-				return null;
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.TransactionOptions.ReadOnly
+				//   Stale reads use SingleUse with ReadOnly options. The in-memory emulator has no MVCC
+				//   so we always return current data, but we accept the staleness parameters and
+				//   create a proper transaction to return a valid ReadTimestamp.
+				var singleUseTxn = _transactionManager.BeginTransaction(sessionName, selector.SingleUse);
+				_transactionManager.TryGetByBytes(singleUseTxn.Id, out var singleUseState);
+				if (singleUseState != null) singleUseState.ProtoTransaction = singleUseTxn;
+				return singleUseState;
 
 			default:
 				return null;
@@ -358,15 +363,18 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 	}
 
 	/// <summary>
-	/// Sets transaction metadata on the result set for Begin transactions.
+	/// Sets transaction metadata on the result set for Begin and SingleUse transactions.
 	/// </summary>
 	private static void SetTransactionMetadata(TransactionSelector? selector, TransactionState? txnState, ResultSet resultSet)
 	{
-		if (selector?.SelectorCase == TransactionSelector.SelectorOneofCase.Begin && txnState?.ProtoTransaction != null)
+		if (selector == null || txnState?.ProtoTransaction == null) return;
+
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ResultSetMetadata
+		//   "If the read or SQL query began a transaction as a side-effect, the information
+		//    about the new transaction is yielded here."
+		if (selector.SelectorCase is TransactionSelector.SelectorOneofCase.Begin
+			or TransactionSelector.SelectorOneofCase.SingleUse)
 		{
-			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ResultSetMetadata
-			//   "If the read or SQL query began a transaction as a side-effect, the information
-			//    about the new transaction is yielded here."
 			resultSet.Metadata ??= new ResultSetMetadata();
 			resultSet.Metadata.Transaction = txnState.ProtoTransaction;
 		}

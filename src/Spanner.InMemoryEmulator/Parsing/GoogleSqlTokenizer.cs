@@ -108,6 +108,8 @@ internal static class GoogleSqlTokenizer
 		["TIMESTAMP"] = GoogleSqlToken.TimestampType,
 		["NUMERIC"] = GoogleSqlToken.NumericType,
 		["JSON"] = GoogleSqlToken.JsonType,
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#uuid_type
+		["UUID"] = GoogleSqlToken.UuidType,
 		["COLUMN"] = GoogleSqlToken.Column,
 		["ADD"] = GoogleSqlToken.Add,
 		["CASCADE"] = GoogleSqlToken.Cascade,

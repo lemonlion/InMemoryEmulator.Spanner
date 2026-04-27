@@ -300,7 +300,9 @@ internal static class SqlParsers
 		.Or(Token.EqualTo(GoogleSqlToken.TimestampType).Value(TypeCode.Timestamp))
 		.Or(Token.EqualTo(GoogleSqlToken.DateType).Value(TypeCode.Date))
 		.Or(Token.EqualTo(GoogleSqlToken.NumericType).Value(TypeCode.Numeric))
-		.Or(Token.EqualTo(GoogleSqlToken.JsonType).Value(TypeCode.Json));
+		.Or(Token.EqualTo(GoogleSqlToken.JsonType).Value(TypeCode.Json))
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#uuid_type
+		.Or(Token.EqualTo(GoogleSqlToken.UuidType).Value((TypeCode)17));
 
 	private static TokenListParser<GoogleSqlToken, SqlExpression> CastFunction { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.Cast)

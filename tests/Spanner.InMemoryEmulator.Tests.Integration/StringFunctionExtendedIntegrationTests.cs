@@ -515,6 +515,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Theory]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	[InlineData("CONTAINS_SUBSTR('hello world', 'hello')", true)]
 	[InlineData("CONTAINS_SUBSTR('hello world', 'HELLO')", true)]
 	[InlineData("CONTAINS_SUBSTR('hello world', 'World')", true)]
@@ -529,10 +530,12 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 		=> (await Eval(expr)).Should().Be(expected);
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ContainsSubstr_NullInput_ReturnsNull()
 		=> (await Eval("CONTAINS_SUBSTR(NULL, 'a')")).Should().BeNull();
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ContainsSubstr_NullSearch_ReturnsNull()
 		=> (await Eval("CONTAINS_SUBSTR('hello', NULL)")).Should().BeNull();
 

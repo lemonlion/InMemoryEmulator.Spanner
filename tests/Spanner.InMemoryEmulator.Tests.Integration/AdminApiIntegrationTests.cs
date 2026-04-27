@@ -3,6 +3,7 @@ using Google.Api.Gax;
 using Google.Cloud.Spanner.Admin.Database.V1;
 using Google.Cloud.Spanner.Admin.Instance.V1;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -13,6 +14,7 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 // ╚══════════════════════════════════════════════════════════════════════════╝
 
 [Collection(IntegrationCollection.Name)]
+[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 public class AdminApiIntegrationTests : IntegrationTestBase
 {
 	private readonly EmulatorSession _session;

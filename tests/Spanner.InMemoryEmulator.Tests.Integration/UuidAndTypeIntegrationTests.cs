@@ -9,6 +9,7 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 /// Integration tests for UUID type support, NEW_UUID function, and PROTO/ENUM DDL stubs.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
+[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 public class UuidAndTypeIntegrationTests : IntegrationTestBase
 {
 	public UuidAndTypeIntegrationTests(EmulatorSession session) : base(session) { }

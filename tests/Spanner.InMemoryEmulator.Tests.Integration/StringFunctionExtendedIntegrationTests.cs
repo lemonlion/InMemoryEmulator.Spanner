@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
@@ -506,6 +506,35 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("SOUNDEX('Smythe')", "S530")]
 	public async Task Soundex_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
+
+
+	// ═══════════════════════════════════════════════════════════════
+	// CONTAINS_SUBSTR
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#contains_substr
+	//   Performs a normalized, case-insensitive substring search.
+	// ═══════════════════════════════════════════════════════════════
+
+	[Theory]
+	[InlineData("CONTAINS_SUBSTR('hello world', 'hello')", true)]
+	[InlineData("CONTAINS_SUBSTR('hello world', 'HELLO')", true)]
+	[InlineData("CONTAINS_SUBSTR('hello world', 'World')", true)]
+	[InlineData("CONTAINS_SUBSTR('hello world', 'llo wo')", true)]
+	[InlineData("CONTAINS_SUBSTR('hello world', 'xyz')", false)]
+	[InlineData("CONTAINS_SUBSTR('hello world', '')", true)]
+	[InlineData("CONTAINS_SUBSTR('', '')", true)]
+	[InlineData("CONTAINS_SUBSTR('', 'a')", false)]
+	[InlineData("CONTAINS_SUBSTR('ABC', 'abc')", true)]
+	[InlineData("CONTAINS_SUBSTR('abc', 'ABC')", true)]
+	public async Task ContainsSubstr_ReturnsExpected(string expr, bool expected)
+		=> (await Eval(expr)).Should().Be(expected);
+
+	[Fact]
+	public async Task ContainsSubstr_NullInput_ReturnsNull()
+		=> (await Eval("CONTAINS_SUBSTR(NULL, 'a')")).Should().BeNull();
+
+	[Fact]
+	public async Task ContainsSubstr_NullSearch_ReturnsNull()
+		=> (await Eval("CONTAINS_SUBSTR('hello', NULL)")).Should().BeNull();
 
 	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// String concatenation operator ||

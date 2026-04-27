@@ -352,8 +352,9 @@ internal class ExpressionEvaluator
 			//   CHR does not exist in GCP Spanner. Use CODE_POINTS_TO_STRING instead.
 			"CHR" => throw new NotSupportedException($"Unsupported built-in function: {func.Name.ToLowerInvariant()}."),
 			"CODE_POINTS_TO_STRING" => EvalChr(func, row),
-			//   CONTAINS_SUBSTR does not exist in GCP Spanner. Use STRPOS or LIKE instead.
-			"CONTAINS_SUBSTR" => throw new InvalidOperationException($"Function not found: {func.Name}"),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#contains_substr
+			//   CONTAINS_SUBSTR(expression, search_value_literal) — case-insensitive substring search.
+			"CONTAINS_SUBSTR" => EvalContainsSubstr(func, row),
 			"SOUNDEX" => EvalStringFunc1(func, row, EvalSoundex),
 			"UNICODE" => EvalStringFunc1(func, row, s => s.Length > 0 ? (long)char.ConvertToUtf32(s, 0) : 0L),
 			// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
@@ -723,6 +724,18 @@ internal class ExpressionEvaluator
 		var b = Evaluate(func.Arguments[1], row);
 		if (a is null || b is null) return null;
 		return fn((string)a, (string)b);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#contains_substr
+	//   CONTAINS_SUBSTR performs a normalized, case-insensitive substring search.
+	private object? EvalContainsSubstr(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var a = Evaluate(func.Arguments[0], row);
+		var b = Evaluate(func.Arguments[1], row);
+		if (a is null || b is null) return null;
+		var haystack = a.ToString()!;
+		var needle = (string)b;
+		return haystack.Contains(needle, StringComparison.OrdinalIgnoreCase);
 	}
 
 	private object? EvalConcat(FunctionCallExpr func, Dictionary<string, object?> row)

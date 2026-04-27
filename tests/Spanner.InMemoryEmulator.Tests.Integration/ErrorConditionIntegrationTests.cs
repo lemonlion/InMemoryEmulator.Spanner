@@ -350,7 +350,7 @@ public class ErrorConditionIntegrationTests : IntegrationTestBase
 	// Non-GCP functions — must reject functions not in Cloud Spanner
 	// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
 	//   Functions like LEFT, RIGHT, ASCII, CHR, INITCAP, INSTR, TRANSLATE,
-	//   CONTAINS_SUBSTR, RANGE_BUCKET, RAND do not exist in GCP Spanner.
+	//   RANGE_BUCKET, RAND do not exist in GCP Spanner.
 	// ═══════════════════════════════════════════════════════════════
 
 	[Theory]
@@ -359,7 +359,6 @@ public class ErrorConditionIntegrationTests : IntegrationTestBase
 	[InlineData("SELECT INITCAP('hello world') AS R")]
 	[InlineData("SELECT INSTR('hello', 'l') AS R")]
 	[InlineData("SELECT TRANSLATE('abc', 'a', 'x') AS R")]
-	[InlineData("SELECT CONTAINS_SUBSTR('hello', 'ell') AS R")]
 	[InlineData("SELECT RANGE_BUCKET(5, [1, 10, 100]) AS R")]
 	[InlineData("SELECT RAND() AS R")]
 	[InlineData("SELECT ASCII('A') AS R")]

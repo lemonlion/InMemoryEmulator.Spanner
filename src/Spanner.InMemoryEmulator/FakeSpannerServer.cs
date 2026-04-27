@@ -17,6 +17,8 @@ public class FakeSpannerServer : IDisposable, IAsyncDisposable
 	private readonly InMemorySpannerDatabase _database;
 	private readonly FakeSpannerServerOptions _options;
 	private readonly FakeSpannerService _service;
+	private readonly FakeDatabaseAdminService _databaseAdminService;
+	private readonly FakeInstanceAdminService _instanceAdminService;
 	private WebApplication? _app;
 	private int _port;
 
@@ -40,6 +42,8 @@ public class FakeSpannerServer : IDisposable, IAsyncDisposable
 		_database = database ?? throw new ArgumentNullException(nameof(database));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_service = new FakeSpannerService(_database, _options);
+		_databaseAdminService = new FakeDatabaseAdminService(_database, _options);
+		_instanceAdminService = new FakeInstanceAdminService(_options);
 	}
 
 	/// <summary>The bound port after <see cref="Start"/> is called.</summary>
@@ -50,6 +54,12 @@ public class FakeSpannerServer : IDisposable, IAsyncDisposable
 
 	/// <summary>The gRPC service instance, for fault injection and request logging.</summary>
 	public FakeSpannerService Service => _service;
+
+	/// <summary>The Database Admin gRPC service instance.</summary>
+	public FakeDatabaseAdminService DatabaseAdminService => _databaseAdminService;
+
+	/// <summary>The Instance Admin gRPC service instance.</summary>
+	public FakeInstanceAdminService InstanceAdminService => _instanceAdminService;
 
 	/// <summary>
 	/// Spanner connection string pointing at this server.
@@ -79,9 +89,13 @@ public class FakeSpannerServer : IDisposable, IAsyncDisposable
 
 		builder.Services.AddGrpc();
 		builder.Services.AddSingleton(_service);
+		builder.Services.AddSingleton(_databaseAdminService);
+		builder.Services.AddSingleton(_instanceAdminService);
 
 		_app = builder.Build();
 		_app.MapGrpcService<FakeSpannerService>();
+		_app.MapGrpcService<FakeDatabaseAdminService>();
+		_app.MapGrpcService<FakeInstanceAdminService>();
 
 		await _app.StartAsync();
 

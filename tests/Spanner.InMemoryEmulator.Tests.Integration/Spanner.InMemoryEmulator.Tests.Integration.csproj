@@ -16,6 +16,8 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.*" PrivateAssets="all" />
     <PackageReference Include="FluentAssertions" Version="7.*" />
     <PackageReference Include="Google.Cloud.Spanner.Data" Version="5.*" />
+    <PackageReference Include="Google.Cloud.Spanner.Admin.Database.V1" Version="5.*" />
+    <PackageReference Include="Google.Cloud.Spanner.Admin.Instance.V1" Version="5.*" />
   </ItemGroup>
 
   <ItemGroup>

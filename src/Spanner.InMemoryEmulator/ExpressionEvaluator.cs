@@ -3056,27 +3056,28 @@ internal class ExpressionEvaluator
 
 	private object? EvalJsonArrayAppend(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
-		if (func.Arguments.Count < 2) throw new InvalidOperationException("JSON_ARRAY_APPEND requires at least 2 arguments.");
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_array_append
+		//   Signature: JSON_ARRAY_APPEND(json_expr, json_path STRING, value ANY, [[json_path STRING, value ANY], ...])
+		if (func.Arguments.Count < 3 || func.Arguments.Count % 2 == 0)
+			throw new InvalidOperationException("JSON_ARRAY_APPEND requires an odd number of arguments >= 3 (json, path, value, ...).");
 		var val = Evaluate(func.Arguments[0], row);
 		if (val == null) return null;
+
 		string jsonStr = val.ToString()!;
+		// Process path/value pairs — for now we support only the root "$" path
 		using var doc = System.Text.Json.JsonDocument.Parse(jsonStr);
-
-		// Arguments come in pairs: (path, value) or just a value if path is "$"
-		using var stream = new System.IO.MemoryStream();
-		using var writer = new System.Text.Json.Utf8JsonWriter(stream);
-
-		// Simple case: append value(s) to root array
 		if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Array)
 			throw new InvalidOperationException("JSON_ARRAY_APPEND: root element must be an array.");
 
+		using var stream = new System.IO.MemoryStream();
+		using var writer = new System.Text.Json.Utf8JsonWriter(stream);
 		writer.WriteStartArray();
 		foreach (var item in doc.RootElement.EnumerateArray())
 			item.WriteTo(writer);
-		// Append each new value
-		for (int i = 1; i < func.Arguments.Count; i++)
+		// Append values from each (path, value) pair
+		for (int i = 1; i < func.Arguments.Count; i += 2)
 		{
-			var appendVal = Evaluate(func.Arguments[i], row);
+			var appendVal = Evaluate(func.Arguments[i + 1], row);
 			WriteJsonValue(writer, appendVal);
 		}
 		writer.WriteEndArray();

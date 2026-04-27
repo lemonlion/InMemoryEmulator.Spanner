@@ -30,6 +30,7 @@ public class NewFunctionParityIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Theory]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	[InlineData("ADDDATE(DATE '2023-01-15', INTERVAL 10 DAY)", "2023-01-25")]
 	[InlineData("ADDDATE(DATE '2023-12-28', INTERVAL 5 DAY)", "2024-01-02")]
 	[InlineData("SUBDATE(DATE '2023-01-15', INTERVAL 10 DAY)", "2023-01-05")]
@@ -48,6 +49,7 @@ public class NewFunctionParityIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Theory]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	[InlineData("SPLIT_SUBSTR('www.abc.xyz.com', '.', 1, 2)", "www.abc")]
 	[InlineData("SPLIT_SUBSTR('www.abc.xyz.com', '.', 1, 1)", "www")]
 	[InlineData("SPLIT_SUBSTR('www.abc.xyz.com', '.', -1, 1)", "com")]
@@ -60,6 +62,7 @@ public class NewFunctionParityIntegrationTests : IntegrationTestBase
 		=> (await Eval(expr)).Should().Be(expected);
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task SplitSubstr_Null_ReturnsNull()
 		=> (await Eval("SPLIT_SUBSTR(NULL, '.', 1)")).Should().BeNull();
 
@@ -162,22 +165,24 @@ public class NewFunctionParityIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task JsonArrayAppend_AppendsToArray()
 	{
-		var result = await Eval("JSON_ARRAY_APPEND('[1, 2]', 3)");
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_array_append
+		//   Signature: JSON_ARRAY_APPEND(json_expr, json_path, value, ...)
+		var result = await Eval("JSON_ARRAY_APPEND(JSON '[1, 2]', '$', 3)");
 		result.Should().NotBeNull();
 		result!.ToString().Should().Be("[1,2,3]");
 	}
 
 	[Fact]
-	public async Task JsonArrayAppend_MultipleValues()
+	public async Task JsonArrayAppend_MultiplePathValuePairs()
 	{
-		var result = await Eval("JSON_ARRAY_APPEND('[\"a\"]', 'b', 'c')");
+		var result = await Eval("JSON_ARRAY_APPEND(JSON '[\"a\"]', '$', 'b', '$', 'c')");
 		result.Should().NotBeNull();
 		result!.ToString().Should().Contain("a").And.Contain("b").And.Contain("c");
 	}
 
 	[Fact]
 	public async Task JsonArrayAppend_Null_ReturnsNull()
-		=> (await Eval("JSON_ARRAY_APPEND(NULL, 1)")).Should().BeNull();
+		=> (await Eval("JSON_ARRAY_APPEND(NULL, '$', 1)")).Should().BeNull();
 
 	// ═══════════════════════════════════════════════════════════════
 	// JSON_ARRAY_INSERT
@@ -187,7 +192,7 @@ public class NewFunctionParityIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task JsonArrayInsert_InsertsAtIndex()
 	{
-		var result = await Eval("JSON_ARRAY_INSERT('[1, 3]', '$[1]', 2)");
+		var result = await Eval("JSON_ARRAY_INSERT(JSON '[1, 3]', '$[1]', 2)");
 		result.Should().NotBeNull();
 		result!.ToString().Should().Be("[1,2,3]");
 	}
@@ -195,7 +200,7 @@ public class NewFunctionParityIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task JsonArrayInsert_AtEnd()
 	{
-		var result = await Eval("JSON_ARRAY_INSERT('[1, 2]', '$[2]', 3)");
+		var result = await Eval("JSON_ARRAY_INSERT(JSON '[1, 2]', '$[2]', 3)");
 		result.Should().NotBeNull();
 		result!.ToString().Should().Be("[1,2,3]");
 	}
@@ -210,16 +215,16 @@ public class NewFunctionParityIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Theory]
-	[InlineData("JSON_CONTAINS('{\"a\": 1, \"b\": 2}', '{\"a\": 1}')", true)]
-	[InlineData("JSON_CONTAINS('{\"a\": 1}', '{\"a\": 1, \"b\": 2}')", false)]
-	[InlineData("JSON_CONTAINS('[1, 2, 3]', '[1, 2]')", true)]
-	[InlineData("JSON_CONTAINS('[1, 2]', '[1, 3]')", false)]
+	[InlineData("JSON_CONTAINS(JSON '{\"a\": 1, \"b\": 2}', JSON '{\"a\": 1}')", true)]
+	[InlineData("JSON_CONTAINS(JSON '{\"a\": 1}', JSON '{\"a\": 1, \"b\": 2}')", false)]
+	[InlineData("JSON_CONTAINS(JSON '[1, 2, 3]', JSON '[1, 2]')", true)]
+	[InlineData("JSON_CONTAINS(JSON '[1, 2]', JSON '[1, 3]')", false)]
 	public async Task JsonContains_ReturnsExpected(string expr, bool expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
 	[Fact]
 	public async Task JsonContains_Null_ReturnsNull()
-		=> (await Eval("JSON_CONTAINS(NULL, '{\"a\": 1}')")).Should().BeNull();
+		=> (await Eval("JSON_CONTAINS(CAST(NULL AS JSON), JSON '{\"a\": 1}')")).Should().BeNull();
 
 	// ═══════════════════════════════════════════════════════════════
 	// JSON_REMOVE
@@ -229,7 +234,7 @@ public class NewFunctionParityIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task JsonRemove_RemovesKey()
 	{
-		var result = await Eval("JSON_REMOVE('{\"a\": 1, \"b\": 2}', '$.a')");
+		var result = await Eval("JSON_REMOVE(JSON '{\"a\": 1, \"b\": 2}', '$.a')");
 		result.Should().NotBeNull();
 		result!.ToString().Should().Be("{\"b\":2}");
 	}
@@ -237,7 +242,7 @@ public class NewFunctionParityIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task JsonRemove_RemovesArrayElement()
 	{
-		var result = await Eval("JSON_REMOVE('[1, 2, 3]', '$[1]')");
+		var result = await Eval("JSON_REMOVE(JSON '[1, 2, 3]', '$[1]')");
 		result.Should().NotBeNull();
 		result!.ToString().Should().Be("[1,3]");
 	}
@@ -259,6 +264,7 @@ public class NewFunctionParityIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task SafeToJson_Null_ReturnsNull()
 		=> (await Eval("SAFE_TO_JSON(NULL)")).Should().BeNull();
 
@@ -320,6 +326,7 @@ public class NewFunctionParityIntegrationTests : IntegrationTestBase
 		=> (await Eval("INT64_ARRAY(NULL)")).Should().BeNull();
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task JsonArrayConversion_WithNullElements_ReturnsMixedArray()
 	{
 		// Null elements in typed arrays are valid in GCP Spanner.

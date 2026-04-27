@@ -428,6 +428,13 @@ internal class ExpressionEvaluator
 			"TIMESTAMP_MICROS" => EvalTimestampFromUnix(func, row, "MICROS"),
 			"PENDING_COMMIT_TIMESTAMP" => DateTime.UtcNow,
 
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/interval_functions
+			"__INTERVAL__" => EvalIntervalLiteral(func, row),
+			"MAKE_INTERVAL" => EvalMakeInterval(func, row),
+			"JUSTIFY_DAYS" => EvalJustifyDays(func, row),
+			"JUSTIFY_HOURS" => EvalJustifyHours(func, row),
+			"JUSTIFY_INTERVAL" => EvalJustifyInterval(func, row),
+
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/functions-and-operators#get_next_sequence_value
 			"GET_NEXT_SEQUENCE_VALUE" => EvalGetNextSequenceValue(func),
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/functions-and-operators#get_internal_sequence_state
@@ -1565,6 +1572,15 @@ internal class ExpressionEvaluator
 		var part = Evaluate(func.Arguments[0], row);
 		var ts = Evaluate(func.Arguments[1], row);
 		if (ts == null) return null;
+
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/interval_functions#extract
+		//   EXTRACT can also extract parts from an INTERVAL value.
+		if (ts is SpannerInterval interval)
+		{
+			var intervalPart = Convert.ToString(part)?.ToUpperInvariant() ?? "";
+			return interval.Extract(intervalPart);
+		}
+
 		var dt = ts is DateTime d ? d : DateTime.Parse(Convert.ToString(ts)!);
 
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#extract
@@ -1796,6 +1812,74 @@ internal class ExpressionEvaluator
 			"MICROS" => DateTimeOffset.FromUnixTimeMilliseconds(n / 1000).UtcDateTime,
 			_ => throw new NotSupportedException()
 		};
+	}
+
+	// ──────────────────────────────────────────
+	// INTERVAL function helpers
+	// ──────────────────────────────────────────
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#interval_type
+	//   "INTERVAL int64_expression datetime_part"
+	private object? EvalIntervalLiteral(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var amount = Convert.ToInt64(Evaluate(func.Arguments[0], row));
+		var part = Convert.ToString(Evaluate(func.Arguments[1], row))?.ToUpperInvariant();
+		return part switch
+		{
+			"YEAR" => SpannerInterval.FromYears(amount),
+			"QUARTER" => SpannerInterval.FromMonths(amount * 3),
+			"MONTH" => SpannerInterval.FromMonths(amount),
+			"WEEK" => SpannerInterval.FromDays(amount * 7),
+			"DAY" => SpannerInterval.FromDays(amount),
+			"HOUR" => SpannerInterval.FromHours(amount),
+			"MINUTE" => SpannerInterval.FromMinutes(amount),
+			"SECOND" => SpannerInterval.FromSeconds(amount),
+			"MILLISECOND" => SpannerInterval.FromMilliseconds(amount),
+			"MICROSECOND" => SpannerInterval.FromMicroseconds(amount),
+			"NANOSECOND" => SpannerInterval.FromNanoseconds(amount),
+			_ => throw new InvalidOperationException($"Unsupported INTERVAL datetime part: {part}")
+		};
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/interval_functions#make_interval
+	//   MAKE_INTERVAL(year, month, day, hour, minute, second)
+	//   All arguments optional, default 0. Supports named arguments.
+	private object? EvalMakeInterval(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		long Arg(int index) => func.Arguments.Count > index
+			? Convert.ToInt64(Evaluate(func.Arguments[index], row) ?? 0L)
+			: 0L;
+
+		return SpannerInterval.Make(
+			year: Arg(0), month: Arg(1), day: Arg(2),
+			hour: Arg(3), minute: Arg(4), second: Arg(5));
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/interval_functions#justify_days
+	private object? EvalJustifyDays(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var v = Evaluate(func.Arguments[0], row);
+		if (v is not SpannerInterval interval)
+			throw new InvalidOperationException("JUSTIFY_DAYS requires an INTERVAL argument");
+		return interval.JustifyDays();
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/interval_functions#justify_hours
+	private object? EvalJustifyHours(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var v = Evaluate(func.Arguments[0], row);
+		if (v is not SpannerInterval interval)
+			throw new InvalidOperationException("JUSTIFY_HOURS requires an INTERVAL argument");
+		return interval.JustifyHours();
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/interval_functions#justify_interval
+	private object? EvalJustifyInterval(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var v = Evaluate(func.Arguments[0], row);
+		if (v is not SpannerInterval interval)
+			throw new InvalidOperationException("JUSTIFY_INTERVAL requires an INTERVAL argument");
+		return interval.JustifyInterval();
 	}
 
 	// ──────────────────────────────────────────

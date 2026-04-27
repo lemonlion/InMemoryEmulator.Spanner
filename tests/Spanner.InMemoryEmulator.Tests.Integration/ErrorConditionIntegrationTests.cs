@@ -373,19 +373,15 @@ public class ErrorConditionIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 	// Window / Analytic functions — not supported in Cloud Spanner
 	// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
-	//   Cloud Spanner does not support ROW_NUMBER, RANK, DENSE_RANK,
-	//   LAG, LEAD, FIRST_VALUE, LAST_VALUE, or aggregate OVER().
+	//   Cloud Spanner does not support LAG, LEAD, FIRST_VALUE, LAST_VALUE.
+	//   ROW_NUMBER, RANK, DENSE_RANK, and aggregate OVER() are now implemented.
 	// ═══════════════════════════════════════════════════════════════
 
 	[Theory]
-	[InlineData("SELECT ROW_NUMBER() OVER (ORDER BY Id) AS RN FROM ErrTest")]
-	[InlineData("SELECT RANK() OVER (ORDER BY Id) AS R FROM ErrTest")]
-	[InlineData("SELECT DENSE_RANK() OVER (ORDER BY Id) AS DR FROM ErrTest")]
 	[InlineData("SELECT LAG(Val) OVER (ORDER BY Id) AS L FROM ErrTest")]
 	[InlineData("SELECT LEAD(Val) OVER (ORDER BY Id) AS L FROM ErrTest")]
 	[InlineData("SELECT FIRST_VALUE(Val) OVER (ORDER BY Id) AS FV FROM ErrTest")]
 	[InlineData("SELECT LAST_VALUE(Val) OVER (ORDER BY Id) AS LV FROM ErrTest")]
-	[InlineData("SELECT SUM(Val) OVER (PARTITION BY Name) AS S FROM ErrTest")]
 	public async Task WindowFunction_Throws(string sql)
 	{
 		await EnsureErrorTableAsync();

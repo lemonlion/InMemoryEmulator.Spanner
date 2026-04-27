@@ -294,6 +294,13 @@ internal static class DdlParser
 				break;
 			}
 
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#row_deletion_policy
+			//   Row deletion policies are parsed but not enforced at runtime — DDL compatibility only.
+			case AddRowDeletionPolicyAction:
+			case ReplaceRowDeletionPolicyAction:
+			case DropRowDeletionPolicyAction:
+				break;
+
 			default:
 				throw new InvalidOperationException($"Unknown alter action: {stmt.Action.GetType().Name}");
 		}

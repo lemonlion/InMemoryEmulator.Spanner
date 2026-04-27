@@ -62,6 +62,8 @@ internal static class DdlParsers
 		.Or(Token.EqualTo(GoogleSqlToken.Min).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.Max).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.Row).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Day).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Percent).Select(t => t.ToStringValue()))
 		.Named("identifier");
 
 	// ──────────────────────────────────────────
@@ -302,6 +304,30 @@ internal static class DdlParsers
 		.Or(ColumnDefinition.Select(c => (TableBodyItem)new ColumnItem(c)));
 
 	// ──────────────────────────────────────────
+	// ROW DELETION POLICY
+	// ──────────────────────────────────────────
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#row_deletion_policy
+	//   ROW DELETION POLICY (OLDER_THAN(column, INTERVAL n DAY))
+	//   Parsed but not enforced at runtime — DDL compatibility only.
+	private static TokenListParser<GoogleSqlToken, RowDeletionPolicyDef> RowDeletionPolicyClause { get; } =
+		from _comma in Token.EqualTo(GoogleSqlToken.Comma)
+		from _row in Token.EqualTo(GoogleSqlToken.Row)
+		from _deletion in Token.EqualTo(GoogleSqlToken.Deletion)
+		from _policy in Token.EqualTo(GoogleSqlToken.Policy)
+		from _open in Token.EqualTo(GoogleSqlToken.OpenParen)
+		from _olderThan in Token.EqualTo(GoogleSqlToken.OlderThan)
+		from _open2 in Token.EqualTo(GoogleSqlToken.OpenParen)
+		from column in IdentifierOrKeywordAsName
+		from _comma2 in Token.EqualTo(GoogleSqlToken.Comma)
+		from _interval in Token.EqualTo(GoogleSqlToken.Interval)
+		from days in Token.EqualTo(GoogleSqlToken.Number).Apply(Numerics.IntegerInt64)
+		from _day in Token.EqualTo(GoogleSqlToken.Day)
+		from _close2 in Token.EqualTo(GoogleSqlToken.CloseParen)
+		from _close in Token.EqualTo(GoogleSqlToken.CloseParen)
+		select new RowDeletionPolicyDef(column, (int)days);
+
+	// ──────────────────────────────────────────
 	// CREATE TABLE
 	// ──────────────────────────────────────────
 
@@ -318,7 +344,8 @@ internal static class DdlParsers
 		from items in TableBodyItemParser.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
 		from close in Token.EqualTo(GoogleSqlToken.CloseParen)
 		from pk in PrimaryKeyClause
-		from interleave in InterleaveClause.Select(x => (InterleaveInfo?)x).OptionalOrDefault()
+		from interleave in InterleaveClause.Try().Select(x => (InterleaveInfo?)x).OptionalOrDefault()
+		from rowDeletionPolicy in RowDeletionPolicyClause.Try().Select(x => (RowDeletionPolicyDef?)x).OptionalOrDefault()
 		select new CreateTableStatement(
 			name,
 			items.OfType<ColumnItem>().Select(c => c.Column).ToList(),
@@ -327,7 +354,8 @@ internal static class DdlParsers
 			interleave?.OnDelete,
 			items.OfType<CheckItem>().Select(c => c.Check).ToList(),
 			items.OfType<ForeignKeyItem>().Select(fk => fk.ForeignKey).ToList(),
-			ifNotExists);
+			ifNotExists,
+			rowDeletionPolicy);
 
 	// ──────────────────────────────────────────
 	// DROP TABLE
@@ -392,14 +420,52 @@ internal static class DdlParsers
 		from onDelete in OnDeleteClause
 		select (AlterAction)new SetOnDeleteAction(onDelete);
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#row_deletion_policy
+	//   ALTER TABLE t ADD ROW DELETION POLICY (OLDER_THAN(col, INTERVAL n DAY))
+	private static TokenListParser<GoogleSqlToken, RowDeletionPolicyDef> RowDeletionPolicyBody { get; } =
+		from _row in Token.EqualTo(GoogleSqlToken.Row)
+		from _deletion in Token.EqualTo(GoogleSqlToken.Deletion)
+		from _policy in Token.EqualTo(GoogleSqlToken.Policy)
+		from _open in Token.EqualTo(GoogleSqlToken.OpenParen)
+		from _olderThan in Token.EqualTo(GoogleSqlToken.OlderThan)
+		from _open2 in Token.EqualTo(GoogleSqlToken.OpenParen)
+		from column in IdentifierOrKeywordAsName
+		from _comma in Token.EqualTo(GoogleSqlToken.Comma)
+		from _interval in Token.EqualTo(GoogleSqlToken.Interval)
+		from days in Token.EqualTo(GoogleSqlToken.Number).Apply(Numerics.IntegerInt64)
+		from _day in Token.EqualTo(GoogleSqlToken.Day)
+		from _close2 in Token.EqualTo(GoogleSqlToken.CloseParen)
+		from _close in Token.EqualTo(GoogleSqlToken.CloseParen)
+		select new RowDeletionPolicyDef(column, (int)days);
+
+	private static TokenListParser<GoogleSqlToken, AlterAction> AddRowDeletionPolicyAction { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.Add)
+		from policy in RowDeletionPolicyBody
+		select (AlterAction)new AddRowDeletionPolicyAction(policy);
+
+	private static TokenListParser<GoogleSqlToken, AlterAction> ReplaceRowDeletionPolicyAction { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.Replace)
+		from policy in RowDeletionPolicyBody
+		select (AlterAction)new ReplaceRowDeletionPolicyAction(policy);
+
+	private static TokenListParser<GoogleSqlToken, AlterAction> DropRowDeletionPolicyAction { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.Drop)
+		from _row in Token.EqualTo(GoogleSqlToken.Row)
+		from _deletion in Token.EqualTo(GoogleSqlToken.Deletion)
+		from _policy in Token.EqualTo(GoogleSqlToken.Policy)
+		select (AlterAction)new DropRowDeletionPolicyAction();
+
 	public static TokenListParser<GoogleSqlToken, AlterTableStatement> AlterTable { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.Alter)
 		from __ in Token.EqualTo(GoogleSqlToken.Table)
 		from name in IdentifierOrKeywordAsName
-		from action in AddColumnAction.Try()
+		from action in AddRowDeletionPolicyAction.Try()
+			.Or(AddColumnAction.Try())
 			.Or(AlterColumnAction.Try())
+			.Or(DropRowDeletionPolicyAction.Try())
 			.Or(DropConstraintAction.Try())
 			.Or(DropColumnAction.Try())
+			.Or(ReplaceRowDeletionPolicyAction.Try())
 			.Or(AddConstraintAction.Try())
 			.Or(SetOnDeleteActionParser)
 		select new AlterTableStatement(name, action);

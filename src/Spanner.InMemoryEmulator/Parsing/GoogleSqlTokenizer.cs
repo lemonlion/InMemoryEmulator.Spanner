@@ -133,6 +133,15 @@ internal static class GoogleSqlTokenizer
 		["CURRENT"] = GoogleSqlToken.Current,
 		["ROW"] = GoogleSqlToken.Row,
 		["USING"] = GoogleSqlToken.Using,
+		["TABLESAMPLE"] = GoogleSqlToken.Tablesample,
+		["BERNOULLI"] = GoogleSqlToken.Bernoulli,
+		["RESERVOIR"] = GoogleSqlToken.Reservoir,
+		["PERCENT"] = GoogleSqlToken.Percent,
+		["DELETION"] = GoogleSqlToken.Deletion,
+		["POLICY"] = GoogleSqlToken.Policy,
+		["OLDER_THAN"] = GoogleSqlToken.OlderThan,
+		["INTERVAL"] = GoogleSqlToken.Interval,
+		["DAY"] = GoogleSqlToken.Day,
 	};
 
 	// Note: Instance MUST be declared AFTER all parser properties to ensure

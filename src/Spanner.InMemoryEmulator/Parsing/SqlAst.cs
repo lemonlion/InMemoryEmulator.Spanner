@@ -15,7 +15,12 @@ internal record CreateTableStatement(
 	OnDeleteAction? OnDelete,
 	List<ParsedCheckConstraint>? CheckConstraints = null,
 	List<ParsedForeignKey>? ForeignKeys = null,
-	bool IfNotExists = false);
+	bool IfNotExists = false,
+	RowDeletionPolicyDef? RowDeletionPolicy = null);
+
+// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#row_deletion_policy
+//   ROW DELETION POLICY (OLDER_THAN(column, INTERVAL n DAY))
+internal record RowDeletionPolicyDef(string Column, int IntervalDays);
 
 internal record ParsedCheckConstraint(string? Name, string Expression);
 internal record ParsedForeignKey(
@@ -46,6 +51,14 @@ internal record DropConstraintAction(string ConstraintName) : AlterAction;
 // Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_table
 //   ALTER TABLE t SET ON DELETE CASCADE | NO ACTION
 internal record SetOnDeleteAction(OnDeleteAction OnDelete) : AlterAction;
+
+// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#row_deletion_policy
+//   ALTER TABLE t ADD ROW DELETION POLICY (OLDER_THAN(col, INTERVAL n DAY))
+//   ALTER TABLE t REPLACE ROW DELETION POLICY (OLDER_THAN(col, INTERVAL n DAY))
+//   ALTER TABLE t DROP ROW DELETION POLICY
+internal record AddRowDeletionPolicyAction(RowDeletionPolicyDef Policy) : AlterAction;
+internal record ReplaceRowDeletionPolicyAction(RowDeletionPolicyDef Policy) : AlterAction;
+internal record DropRowDeletionPolicyAction() : AlterAction;
 
 internal record CreateIndexStatement(
 	string Name,
@@ -133,7 +146,13 @@ internal record SelectColumn(SqlExpression Expr, string? Alias);
 internal record FromClause(
 	string Table,
 	string? Alias,
-	List<JoinClause>? Joins);
+	List<JoinClause>? Joins,
+	TableSampleClause? TableSample = null);
+
+// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#tablesample_operator
+internal enum TableSampleMethod { Bernoulli, Reservoir }
+internal enum TableSampleUnit { Percent, Rows }
+internal record TableSampleClause(TableSampleMethod Method, double Size, TableSampleUnit Unit);
 
 internal record JoinClause(
 	JoinType Type,

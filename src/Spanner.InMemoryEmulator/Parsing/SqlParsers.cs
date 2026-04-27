@@ -131,7 +131,14 @@ internal static class SqlParsers
 		.Or(Token.EqualTo(GoogleSqlToken.Float32Type).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.StringType).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.BytesType).Select(t => t.ToStringValue()))
-		.Or(Token.EqualTo(GoogleSqlToken.NumericType).Select(t => t.ToStringValue()));
+		.Or(Token.EqualTo(GoogleSqlToken.NumericType).Select(t => t.ToStringValue()))
+		// Allow new keyword tokens as identifiers (used as date parts, column names, etc.)
+		.Or(Token.EqualTo(GoogleSqlToken.Day).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Interval).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Deletion).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Policy).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.OlderThan).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Percent).Select(t => t.ToStringValue()));
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls#def_window_frame
@@ -373,13 +380,23 @@ internal static class SqlParsers
 		from open in Token.EqualTo(GoogleSqlToken.OpenParen)
 		from expr in ExpressionRef
 		from c in Token.EqualTo(GoogleSqlToken.Comma)
-		from __ in Token.EqualTo(GoogleSqlToken.Identifier)
-			.Where(t => t.ToStringValue().Equals("INTERVAL", StringComparison.OrdinalIgnoreCase))
+		from __ in Token.EqualTo(GoogleSqlToken.Interval)
 		from amount in ExpressionRef
 		from part in DatePartKeyword
 		from close in Token.EqualTo(GoogleSqlToken.CloseParen)
 		select (SqlExpression)new FunctionCallExpr(name.ToStringValue().ToUpperInvariant(),
 			new List<SqlExpression> { expr, amount, part });
+
+	// Standalone INTERVAL literal expression: INTERVAL expr PART
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#interval_type
+	//   "INTERVAL int64_expression datetime_part"
+	// Produces an internal __INTERVAL__ function call node evaluated in ExpressionEvaluator.
+	private static TokenListParser<GoogleSqlToken, SqlExpression> IntervalLiteral { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.Interval)
+		from amount in ExpressionRef
+		from part in DatePartKeyword
+		select (SqlExpression)new FunctionCallExpr("__INTERVAL__",
+			new List<SqlExpression> { amount, part });
 
 	// DATE_DIFF/TIMESTAMP_DIFF(expr, expr, part)
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date_diff
@@ -534,6 +551,7 @@ internal static class SqlParsers
 		.Or(DateTypedLiteral.Try())
 		.Or(TimestampTypedLiteral.Try())
 		.Or(JsonTypedLiteral.Try())
+		.Or(IntervalLiteral.Try())
 		.Or(IntervalFunction.Try())
 		.Or(DiffFunction.Try())
 		.Or(TruncFunction.Try())
@@ -844,6 +862,19 @@ internal static class SqlParsers
 						.Or(AnyIdentifier)
 						.AsNullable()
 						.OptionalOrDefault()
+					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#tablesample_operator
+					//   TABLESAMPLE { BERNOULLI | RESERVOIR } ( size { PERCENT | ROWS } )
+					from tableSample in (
+						from ____ in Token.EqualTo(GoogleSqlToken.Tablesample)
+						from method in Token.EqualTo(GoogleSqlToken.Bernoulli).Value(TableSampleMethod.Bernoulli)
+							.Or(Token.EqualTo(GoogleSqlToken.Reservoir).Value(TableSampleMethod.Reservoir))
+						from open in Token.EqualTo(GoogleSqlToken.OpenParen)
+						from size in Token.EqualTo(GoogleSqlToken.Number).Apply(Numerics.DecimalDouble)
+						from unit in Token.EqualTo(GoogleSqlToken.Percent).Value(TableSampleUnit.Percent)
+							.Or(Token.EqualTo(GoogleSqlToken.Rows).Value(TableSampleUnit.Rows))
+						from close in Token.EqualTo(GoogleSqlToken.CloseParen)
+						select new TableSampleClause(method, size, unit)
+					).AsNullable().OptionalOrDefault()
 					from joins in JoinItem.Many()
 					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#comma_cross_join
 					//   "FROM table, UNNEST(array_col) AS alias" is an implicit CROSS JOIN with UNNEST
@@ -872,7 +903,8 @@ internal static class SqlParsers
 					select new FromClause(schema + table, alias,
 						joins.Length > 0 || commaUnnests.Length > 0
 							? joins.Concat(commaUnnests).ToList()
-							: null))
+							: null,
+						tableSample))
 			select source
 		).AsNullable().OptionalOrDefault()
 		from whereExpr in (from __ in Token.EqualTo(GoogleSqlToken.Where) from expr in Expression select expr)

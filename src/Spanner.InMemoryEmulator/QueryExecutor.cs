@@ -223,6 +223,13 @@ internal class QueryExecutor
 					.ToList();
 			}
 
+			// 1a½. TABLESAMPLE — random sampling
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#tablesample_operator
+			if (select.From.TableSample is { } sample)
+			{
+				rows = ApplyTableSample(rows, sample);
+			}
+
 			// 1b. JOINs — combine rows from multiple tables
 			if (select.From.Joins != null)
 			{
@@ -670,7 +677,11 @@ internal class QueryExecutor
 
 			// Window functions returning INT64
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions
-			"ROW_NUMBER" or "RANK" or "DENSE_RANK" => TypeCode.Int64,
+			"ROW_NUMBER" or "RANK" or "DENSE_RANK" or "NTILE" => TypeCode.Int64,
+
+			// Window functions returning FLOAT64
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions
+			"PERCENT_RANK" or "CUME_DIST" => TypeCode.Float64,
 
 			// String functions returning INT64
 			"LENGTH" or "CHAR_LENGTH" or "CHARACTER_LENGTH" or "STRPOS" or "INSTR"
@@ -703,6 +714,10 @@ internal class QueryExecutor
 				or "TIMESTAMP_MILLIS" or "TIMESTAMP_MICROS" or "PENDING_COMMIT_TIMESTAMP" => TypeCode.Timestamp,
 			"CURRENT_DATE" or "DATE" or "DATE_ADD" or "DATE_SUB" or "DATE_TRUNC"
 				or "PARSE_DATE" => TypeCode.Date,
+
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/interval_functions
+			"__INTERVAL__" or "MAKE_INTERVAL" or "JUSTIFY_DAYS" or "JUSTIFY_HOURS"
+				or "JUSTIFY_INTERVAL" => TypeCode.Interval,
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#extract
 			// EXTRACT(DATE FROM ...) returns DATE; all other parts return INT64.
 			"EXTRACT" when func.Arguments.Count > 0 && func.Arguments[0] is LiteralExpr lit
@@ -790,13 +805,11 @@ internal class QueryExecutor
 		_ => false
 	};
 
-	// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
-	//   GCP Spanner does not support standard SQL analytic/window functions
-	//   (ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
-	//   or aggregate OVER). It only supports IS_FIRST.
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#is_first
-	//   IS_FIRST(k) returns TRUE if the current row is among the first k rows
-	//   in its partition, ordered by the ORDER BY clause.
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions
+	//   Supported numbering / window functions:
+	//   IS_FIRST(k) — GCP Spanner native
+	//   ROW_NUMBER, RANK, DENSE_RANK, NTILE, PERCENT_RANK, CUME_DIST — standard SQL
+	//   (supported by Go emulator via ZetaSQL; not supported by real GCP Spanner)
 	private List<Dictionary<string, object?>> EvaluateWindowFunctions(
 		List<SelectColumn> columns,
 		List<Dictionary<string, object?>> rows,
@@ -816,30 +829,169 @@ internal class QueryExecutor
 				_ => ""
 			};
 
-			// Only IS_FIRST is supported — reject all others
-			if (funcName != "IS_FIRST")
-				throw new NotSupportedException($"Unsupported built-in function: {funcName}.");
-
-			// IS_FIRST(k) — k is the first argument
-			var isFirstFunc = (FunctionCallExpr)win.Function;
-			if (isFirstFunc.Arguments.Count != 1)
-				throw new InvalidOperationException("IS_FIRST requires exactly 1 argument.");
-			var kVal = evaluator.Evaluate(isFirstFunc.Arguments[0], rows.FirstOrDefault() ?? new Dictionary<string, object?>());
-			int k = Convert.ToInt32(kVal ?? throw new InvalidOperationException("IS_FIRST: argument cannot be NULL."));
-			if (k < 0) throw new InvalidOperationException("IS_FIRST: argument must be non-negative.");
-
-			// Partition rows
 			var partitions = PartitionRows(rows, win.PartitionBy, evaluator);
 			var resultAlias = col.Alias ?? InferColumnNameStatic(col.Expr);
 
 			foreach (var partition in partitions)
 			{
-				// Sort partition by ORDER BY
 				var sorted = SortRows(partition, win.OrderBy, evaluator);
 
-				// Assign IS_FIRST value: true for first k rows, false for rest
-				for (int i = 0; i < sorted.Count; i++)
-					sorted[i][resultAlias] = i < k;
+				switch (funcName)
+				{
+					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#is_first
+					//   IS_FIRST(k) returns TRUE if the current row is among the first k rows
+					//   in its partition, ordered by the ORDER BY clause.
+					case "IS_FIRST":
+					{
+						var isFirstFunc = (FunctionCallExpr)win.Function;
+						if (isFirstFunc.Arguments.Count != 1)
+							throw new InvalidOperationException("IS_FIRST requires exactly 1 argument.");
+						var kVal = evaluator.Evaluate(isFirstFunc.Arguments[0], rows.FirstOrDefault() ?? new Dictionary<string, object?>());
+						int k = Convert.ToInt32(kVal ?? throw new InvalidOperationException("IS_FIRST: argument cannot be NULL."));
+						if (k < 0) throw new InvalidOperationException("IS_FIRST: argument must be non-negative.");
+						for (int i = 0; i < sorted.Count; i++)
+							sorted[i][resultAlias] = i < k;
+						break;
+					}
+
+					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#row_number
+					//   ROW_NUMBER() returns a sequential integer starting at 1.
+					//   Note: Not supported by real GCP Spanner — Go emulator parity via ZetaSQL.
+					case "ROW_NUMBER":
+						for (int i = 0; i < sorted.Count; i++)
+							sorted[i][resultAlias] = (long)(i + 1);
+						break;
+
+					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#rank
+					//   RANK() returns the rank with gaps for ties.
+					//   Note: Not supported by real GCP Spanner — Go emulator parity via ZetaSQL.
+					case "RANK":
+					{
+						for (int i = 0; i < sorted.Count; i++)
+						{
+							if (i == 0)
+							{
+								sorted[i][resultAlias] = 1L;
+							}
+							else
+							{
+								bool tie = win.OrderBy != null && win.OrderBy.All(ob =>
+								{
+									var prev = evaluator.Evaluate(ob.Expr, sorted[i - 1]);
+									var curr = evaluator.Evaluate(ob.Expr, sorted[i]);
+									return CompareNullable(prev, curr) == 0;
+								});
+								sorted[i][resultAlias] = tie ? (long)sorted[i - 1][resultAlias]! : (long)(i + 1);
+							}
+						}
+						break;
+					}
+
+					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#dense_rank
+					//   DENSE_RANK() returns the rank without gaps for ties.
+					//   Note: Not supported by real GCP Spanner — Go emulator parity via ZetaSQL.
+					case "DENSE_RANK":
+					{
+						long currentRank = 0;
+						for (int i = 0; i < sorted.Count; i++)
+						{
+							if (i == 0)
+							{
+								currentRank = 1;
+							}
+							else
+							{
+								bool tie = win.OrderBy != null && win.OrderBy.All(ob =>
+								{
+									var prev = evaluator.Evaluate(ob.Expr, sorted[i - 1]);
+									var curr = evaluator.Evaluate(ob.Expr, sorted[i]);
+									return CompareNullable(prev, curr) == 0;
+								});
+								if (!tie) currentRank++;
+							}
+							sorted[i][resultAlias] = currentRank;
+						}
+						break;
+					}
+
+					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#ntile
+					//   NTILE(num_buckets) divides rows into roughly equal buckets.
+					//   Note: Not supported by real GCP Spanner — Go emulator parity via ZetaSQL.
+					case "NTILE":
+					{
+						var ntileFunc = (FunctionCallExpr)win.Function;
+						if (ntileFunc.Arguments.Count != 1)
+							throw new InvalidOperationException("NTILE requires exactly 1 argument.");
+						var nVal = evaluator.Evaluate(ntileFunc.Arguments[0], rows.FirstOrDefault() ?? new Dictionary<string, object?>());
+						int numBuckets = Convert.ToInt32(nVal ?? throw new InvalidOperationException("NTILE: argument cannot be NULL."));
+						if (numBuckets <= 0) throw new InvalidOperationException("NTILE: argument must be positive.");
+						int total = sorted.Count;
+						int baseSize = total / numBuckets;
+						int extra = total % numBuckets;
+						int idx = 0;
+						for (int bucket = 1; bucket <= numBuckets && idx < total; bucket++)
+						{
+							int bucketSize = baseSize + (bucket <= extra ? 1 : 0);
+							for (int j = 0; j < bucketSize && idx < total; j++, idx++)
+								sorted[idx][resultAlias] = (long)bucket;
+						}
+						break;
+					}
+
+					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#percent_rank
+					//   PERCENT_RANK() = (rank - 1) / (partition_size - 1). Returns 0 for single-row partitions.
+					//   Note: Not supported by real GCP Spanner — Go emulator parity via ZetaSQL.
+					case "PERCENT_RANK":
+					{
+						// First compute RANK values
+						var ranks = new long[sorted.Count];
+						for (int i = 0; i < sorted.Count; i++)
+						{
+							if (i == 0) { ranks[i] = 1; continue; }
+							bool tie = win.OrderBy != null && win.OrderBy.All(ob =>
+							{
+								var prev = evaluator.Evaluate(ob.Expr, sorted[i - 1]);
+								var curr = evaluator.Evaluate(ob.Expr, sorted[i]);
+								return CompareNullable(prev, curr) == 0;
+							});
+							ranks[i] = tie ? ranks[i - 1] : (long)(i + 1);
+						}
+						int n = sorted.Count;
+						for (int i = 0; i < n; i++)
+							sorted[i][resultAlias] = n <= 1 ? 0.0 : (double)(ranks[i] - 1) / (n - 1);
+						break;
+					}
+
+					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#cume_dist
+					//   CUME_DIST() = count(rows with value <= current) / partition_size.
+					//   Note: Not supported by real GCP Spanner — Go emulator parity via ZetaSQL.
+					case "CUME_DIST":
+					{
+						int n = sorted.Count;
+						for (int i = 0; i < n; i++)
+						{
+							// Count how many rows have ORDER BY values <= this row's values
+							// All rows with the same ORDER BY values get the same cume_dist
+							int countLeq = 0;
+							for (int j = 0; j < n; j++)
+							{
+								bool leq = win.OrderBy == null || win.OrderBy.All(ob =>
+								{
+									var vj = evaluator.Evaluate(ob.Expr, sorted[j]);
+									var vi = evaluator.Evaluate(ob.Expr, sorted[i]);
+									int cmp = CompareNullable(vj, vi);
+									return ob.Order == SortOrder.Desc ? cmp >= 0 : cmp <= 0;
+								});
+								if (leq) countLeq++;
+							}
+							sorted[i][resultAlias] = (double)countLeq / n;
+						}
+						break;
+					}
+
+					default:
+						throw new NotSupportedException($"Unsupported built-in function: {funcName}.");
+				}
 			}
 		}
 
@@ -1223,6 +1375,37 @@ internal class QueryExecutor
 			var val = evaluator.Evaluate(func.Arguments[0], r);
 			return val is true;
 		});
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#tablesample_operator
+	// TABLESAMPLE BERNOULLI: each row independently selected with probability size%.
+	// TABLESAMPLE RESERVOIR: exactly size rows chosen uniformly at random (or all rows if fewer).
+	private static List<Dictionary<string, object?>> ApplyTableSample(
+		List<Dictionary<string, object?>> rows, TableSampleClause sample)
+	{
+		var rng = new Random();
+
+		return sample.Method switch
+		{
+			TableSampleMethod.Bernoulli => rows.Where(_ => rng.NextDouble() * 100 < sample.Size).ToList(),
+			TableSampleMethod.Reservoir => ReservoirSample(rows, (int)sample.Size, rng),
+			_ => rows
+		};
+	}
+
+	private static List<Dictionary<string, object?>> ReservoirSample(
+		List<Dictionary<string, object?>> rows, int k, Random rng)
+	{
+		if (k >= rows.Count) return new List<Dictionary<string, object?>>(rows);
+
+		var reservoir = new List<Dictionary<string, object?>>(rows.Take(k));
+		for (var i = k; i < rows.Count; i++)
+		{
+			var j = rng.Next(i + 1);
+			if (j < k) reservoir[j] = rows[i];
+		}
+
+		return reservoir;
 	}
 
 	private static List<Dictionary<string, object?>> DistinctRows(

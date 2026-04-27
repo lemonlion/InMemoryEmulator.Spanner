@@ -353,6 +353,35 @@ internal enum GoogleSqlToken
 	[Token(Example = "USING")]
 	Using,
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#tablesample_operator
+	[Token(Example = "TABLESAMPLE")]
+	Tablesample,
+
+	[Token(Example = "BERNOULLI")]
+	Bernoulli,
+
+	[Token(Example = "RESERVOIR")]
+	Reservoir,
+
+	[Token(Example = "PERCENT")]
+	Percent,
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#row_deletion_policy
+	[Token(Example = "DELETION")]
+	Deletion,
+
+	[Token(Example = "POLICY")]
+	Policy,
+
+	[Token(Example = "OLDER_THAN")]
+	OlderThan,
+
+	[Token(Example = "INTERVAL")]
+	Interval,
+
+	[Token(Example = "DAY")]
+	Day,
+
 	// ── Operators ──
 	[Token(Example = "+")]
 	Plus,

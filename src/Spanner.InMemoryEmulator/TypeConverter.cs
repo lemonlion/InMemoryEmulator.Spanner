@@ -39,6 +39,9 @@ internal static class TypeConverter
 			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#typecode
 			//   "ARRAY values are encoded as list_value."
 			TypeCode.Array => ToProtobufArrayValue(value),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#interval_type
+			//   INTERVAL is serialized as its canonical string representation.
+			TypeCode.Interval => Google.Protobuf.WellKnownTypes.Value.ForString(value.ToString()!),
 			_ => throw new ArgumentException($"Unsupported Spanner type: {spannerType}")
 		};
 	}
@@ -68,6 +71,8 @@ internal static class TypeConverter
 			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#typecode
 			//   "ARRAY values are encoded as list_value."
 			TypeCode.Array => FromProtobufArrayValue(value),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#interval_type
+			TypeCode.Interval => value.StringValue,
 			_ => throw new ArgumentException($"Unsupported Spanner type: {spannerType}")
 		};
 	}

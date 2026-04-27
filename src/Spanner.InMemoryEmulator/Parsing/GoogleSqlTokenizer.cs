@@ -142,6 +142,9 @@ internal static class GoogleSqlTokenizer
 		["OLDER_THAN"] = GoogleSqlToken.OlderThan,
 		["INTERVAL"] = GoogleSqlToken.Interval,
 		["DAY"] = GoogleSqlToken.Day,
+		["HIDDEN"] = GoogleSqlToken.Hidden,
+		["SEARCH"] = GoogleSqlToken.Search,
+		["TOKENLIST"] = GoogleSqlToken.Tokenlist,
 	};
 
 	// Note: Instance MUST be declared AFTER all parser properties to ensure
@@ -165,6 +168,7 @@ internal static class GoogleSqlTokenizer
 			.Match(Span.EqualTo(">="), GoogleSqlToken.GreaterThanOrEqual)
 			.Match(Span.EqualTo("||"), GoogleSqlToken.DoublePipe)
 			.Match(Span.EqualTo("&&"), GoogleSqlToken.DoubleAmpersand)
+			.Match(Span.EqualTo("=>"), GoogleSqlToken.FatArrow)
 
 			// Single-char operators
 			.Match(Character.EqualTo('+'), GoogleSqlToken.Plus)

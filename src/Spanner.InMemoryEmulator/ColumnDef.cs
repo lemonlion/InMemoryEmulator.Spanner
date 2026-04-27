@@ -17,6 +17,7 @@ public class ColumnDef
 	public string? GeneratedExpression { get; }
 	public bool IsStored { get; }
 	public string? DefaultExpression { get; }
+	public bool IsHidden { get; }
 
 	public ColumnDef(
 		string name,
@@ -27,7 +28,8 @@ public class ColumnDef
 		TypeCode? arrayElementType = null,
 		string? generatedExpression = null,
 		bool isStored = false,
-		string? defaultExpression = null)
+		string? defaultExpression = null,
+		bool isHidden = false)
 	{
 		Name = name ?? throw new ArgumentNullException(nameof(name));
 		SpannerType = spannerType;
@@ -38,5 +40,6 @@ public class ColumnDef
 		GeneratedExpression = generatedExpression;
 		IsStored = isStored;
 		DefaultExpression = defaultExpression;
+		IsHidden = isHidden;
 	}
 }

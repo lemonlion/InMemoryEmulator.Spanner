@@ -425,6 +425,9 @@ internal enum GoogleSqlToken
 	[Token(Example = "&&")]
 	DoubleAmpersand,
 
+	[Token(Example = "=>")]
+	FatArrow,
+
 	// ── Punctuation ──
 	[Token(Example = "(")]
 	OpenParen,
@@ -474,4 +477,13 @@ internal enum GoogleSqlToken
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#qualify_clause
 	[Token(Example = "QUALIFY")]
 	Qualify,
+
+	[Token(Example = "HIDDEN")]
+	Hidden,
+
+	[Token(Example = "SEARCH")]
+	Search,
+
+	[Token(Example = "TOKENLIST")]
+	Tokenlist,
 }

@@ -42,6 +42,9 @@ internal static class TypeConverter
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#interval_type
 			//   INTERVAL is serialized as its canonical string representation.
 			TypeCode.Interval => Google.Protobuf.WellKnownTypes.Value.ForString(value.ToString()!),
+			// Ref: https://cloud.google.com/spanner/docs/full-text-search/search-indexes
+			//   TOKENLIST is an internal type; fallback to string representation.
+			TypeCode.Unspecified => Google.Protobuf.WellKnownTypes.Value.ForString(value.ToString()!),
 			_ => throw new ArgumentException($"Unsupported Spanner type: {spannerType}")
 		};
 	}
@@ -73,6 +76,9 @@ internal static class TypeConverter
 			TypeCode.Array => FromProtobufArrayValue(value),
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#interval_type
 			TypeCode.Interval => value.StringValue,
+			// Ref: https://cloud.google.com/spanner/docs/full-text-search/search-indexes
+			//   TOKENLIST is an internal type; fallback to string.
+			TypeCode.Unspecified => value.StringValue,
 			_ => throw new ArgumentException($"Unsupported Spanner type: {spannerType}")
 		};
 	}
@@ -108,6 +114,7 @@ internal static class TypeConverter
 		DateOnly => TypeCode.Date,
 		byte[] => TypeCode.Bytes,
 		System.Collections.IList => TypeCode.Array,
+		SpannerTokenList => TypeCode.Unspecified,
 		_ => TypeCode.String
 	};
 

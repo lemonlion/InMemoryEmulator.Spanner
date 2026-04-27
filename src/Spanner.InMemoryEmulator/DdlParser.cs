@@ -28,6 +28,13 @@ internal static class DdlParser
 		// Handle CREATE SEQUENCE / DROP SEQUENCE with string parsing
 		if (TryParseSequence(trimmed, schema)) return;
 
+		// Handle CREATE SEARCH INDEX / DROP SEARCH INDEX with string matching.
+		// Ref: https://cloud.google.com/spanner/docs/full-text-search/search-indexes
+		//   Search indexes have many optional trailing clauses (PARTITION BY, ORDER BY,
+		//   STORING, INTERLEAVE, OPTIONS, WHERE) that are complex to parse.
+		//   The in-memory emulator accepts them as no-ops.
+		if (TryParseSearchIndex(trimmed)) return;
+
 		var tokens = GoogleSqlTokenizer.Tokenize(trimmed);
 		var result = DdlParsers.DdlStatement.AtEnd().TryParse(tokens);
 
@@ -86,7 +93,8 @@ internal static class DdlParser
 			c.ArrayElementType,
 			c.GeneratedExpression,
 			c.IsStored,
-			c.DefaultExpression
+			c.DefaultExpression,
+			c.IsHidden
 		)).ToList();
 
 		var pkColumnNames = stmt.PrimaryKey.Select(pk => pk.ColumnName).ToList();
@@ -170,7 +178,8 @@ internal static class DdlParser
 					add.Column.ArrayElementType,
 					add.Column.GeneratedExpression,
 					add.Column.IsStored,
-					add.Column.DefaultExpression);
+					add.Column.DefaultExpression,
+					add.Column.IsHidden);
 
 				var newColumns = table.Columns.ToList();
 				newColumns.Add(newCol);
@@ -248,7 +257,8 @@ internal static class DdlParser
 					alter.NewDefinition.ArrayElementType,
 					alter.NewDefinition.GeneratedExpression ?? existingCol.GeneratedExpression,
 					alter.NewDefinition.IsStored || existingCol.IsStored,
-					alter.NewDefinition.DefaultExpression ?? existingCol.DefaultExpression);
+					alter.NewDefinition.DefaultExpression ?? existingCol.DefaultExpression,
+					alter.NewDefinition.IsHidden || existingCol.IsHidden);
 
 				var newColumns = table.Columns.Select(c =>
 					string.Equals(c.Name, alter.ColumnName, StringComparison.OrdinalIgnoreCase) ? newCol : c)
@@ -469,6 +479,17 @@ internal static class DdlParser
 
 		schema.AddSequence(new SequenceDefinition(seqName, sequenceKind, startWithCounter ?? 1));
 		return true;
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/full-text-search/search-indexes
+	//   CREATE SEARCH INDEX / DROP SEARCH INDEX — accepted as no-ops.
+	//   The in-memory emulator does not maintain inverted indexes.
+	private static bool TryParseSearchIndex(string ddl)
+	{
+		var upper = ddl.ToUpperInvariant();
+		if (upper.StartsWith("CREATE SEARCH INDEX") || upper.StartsWith("DROP SEARCH INDEX"))
+			return true;
+		return false;
 	}
 }
 

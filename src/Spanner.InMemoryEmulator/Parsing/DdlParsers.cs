@@ -64,6 +64,9 @@ internal static class DdlParsers
 		.Or(Token.EqualTo(GoogleSqlToken.Row).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.Day).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.Percent).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Hidden).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Search).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Tokenlist).Select(t => t.ToStringValue()))
 		.Named("identifier");
 
 	// ──────────────────────────────────────────
@@ -98,6 +101,9 @@ internal static class DdlParsers
 		.Or(Token.EqualTo(GoogleSqlToken.DateType).Value((TypeCode.Date, (long?)null, (TypeCode?)null)))
 		.Or(Token.EqualTo(GoogleSqlToken.NumericType).Value((TypeCode.Numeric, (long?)null, (TypeCode?)null)))
 		.Or(Token.EqualTo(GoogleSqlToken.JsonType).Value((TypeCode.Json, (long?)null, (TypeCode?)null)))
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#tokenlist_type
+		//   "TOKENLIST is a collection of tokens produced by one of the TOKENIZE_* functions."
+		.Or(Token.EqualTo(GoogleSqlToken.Tokenlist).Value((TypeCode.Unspecified, (long?)null, (TypeCode?)null)))
 		.Or(StringTypeWithLength.Select(t => (t.Type, t.MaxLength, (TypeCode?)null)))
 		.Or(BytesTypeWithLength.Select(t => (t.Type, t.MaxLength, (TypeCode?)null)));
 
@@ -143,15 +149,19 @@ internal static class DdlParsers
 		select expr;
 
 	// Helper for generated column parsing result
-	private record GeneratedColumnInfo(string Expression, bool IsStored);
+	private record GeneratedColumnInfo(string Expression, bool IsStored, bool IsHidden);
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#create_table
 	//   "AS (expression) STORED" — generated column
+	//   "AS (expression) STORED HIDDEN" — generated TOKENLIST column (HIDDEN is optional)
+	// Ref: https://cloud.google.com/spanner/docs/full-text-search/search-indexes
+	//   TOKENLIST columns use: TOKENLIST AS (TOKENIZE_FULLTEXT(col)) HIDDEN
 	private static TokenListParser<GoogleSqlToken, GeneratedColumnInfo> GeneratedColumnClause { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.As)
 		from expr in BalancedParenExpression
 		from stored in Token.EqualTo(GoogleSqlToken.Stored).Value(true).OptionalOrDefault(false)
-		select new GeneratedColumnInfo(expr, stored);
+		from hidden in Token.EqualTo(GoogleSqlToken.Hidden).Value(true).OptionalOrDefault(false)
+		select new GeneratedColumnInfo(expr, stored, hidden);
 #pragma warning restore CS8603
 
 	public static TokenListParser<GoogleSqlToken, ParsedColumnDef> ColumnDefinition { get; } =
@@ -168,7 +178,8 @@ internal static class DdlParsers
 			type.MaxLength,
 			type.ArrayElement,
 			generated?.Expression, generated?.IsStored ?? false, defaultExpr,
-			options);
+			options,
+			generated?.IsHidden ?? false);
 
 	// ──────────────────────────────────────────
 	// PRIMARY KEY

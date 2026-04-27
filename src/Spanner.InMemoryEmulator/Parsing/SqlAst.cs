@@ -71,6 +71,17 @@ internal record CreateIndexStatement(
 
 internal record DropIndexStatement(string Name, bool IfExists = false);
 
+/// <summary>
+/// CREATE SEARCH INDEX — accepted by DDL parser but not enforced at runtime.
+/// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#create-search-index
+/// </summary>
+internal record CreateSearchIndexStatement(string Name, string TableName);
+
+/// <summary>
+/// DROP SEARCH INDEX — accepted by DDL parser but not enforced at runtime.
+/// </summary>
+internal record DropSearchIndexStatement(string Name);
+
 internal record CreateViewStatement(string Name, string SqlBody, bool OrReplace);
 internal record DropViewStatement(string Name);
 
@@ -90,7 +101,8 @@ internal record ParsedColumnDef(
 	string? GeneratedExpression,
 	bool IsStored,
 	string? DefaultExpression,
-	bool AllowCommitTimestamp);
+	bool AllowCommitTimestamp,
+	bool IsHidden = false);
 
 internal record PrimaryKeyPart(string ColumnName, SortOrder Order = SortOrder.Asc);
 
@@ -194,6 +206,9 @@ internal record UnaryExpr(UnaryOp Op, SqlExpression Operand) : SqlExpression;
 
 internal record FunctionCallExpr(string Name, List<SqlExpression> Arguments, bool IsDistinct = false,
 	List<OrderByColumn>? AggregateOrderBy = null) : SqlExpression;
+
+/// <summary>Named argument in a function call, e.g. dialect => 'words'.</summary>
+internal record NamedArgExpr(string ArgName, SqlExpression Value) : SqlExpression;
 
 internal record CastExpr(SqlExpression Value, TypeCode TargetType, bool Safe = false) : SqlExpression;
 

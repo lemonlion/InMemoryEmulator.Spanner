@@ -138,7 +138,10 @@ internal static class SqlParsers
 		.Or(Token.EqualTo(GoogleSqlToken.Deletion).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.Policy).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.OlderThan).Select(t => t.ToStringValue()))
-		.Or(Token.EqualTo(GoogleSqlToken.Percent).Select(t => t.ToStringValue()));
+		.Or(Token.EqualTo(GoogleSqlToken.Percent).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Hidden).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Search).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Tokenlist).Select(t => t.ToStringValue()));
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls#def_window_frame
@@ -194,6 +197,19 @@ internal static class SqlParsers
 		from close in Token.EqualTo(GoogleSqlToken.CloseParen)
 		select new WindowExpr(null!, partitionBy, orderBy, frame); // Function filled in by caller
 
+	// Named argument parser: identifier => expression (e.g. dialect => 'words', min_ngrams => 2)
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions
+	//   Many search functions accept named arguments like: SEARCH(tokens, query, dialect => 'words')
+	private static TokenListParser<GoogleSqlToken, SqlExpression> NamedArgument { get; } =
+		(from argName in AnyIdentifier
+		 from _ in Token.EqualTo(GoogleSqlToken.FatArrow)
+		 from value in ExpressionRef
+		 select (SqlExpression)new NamedArgExpr(argName, value)).Try();
+
+	// Function argument: either a named argument or a positional expression
+	private static TokenListParser<GoogleSqlToken, SqlExpression> FunctionArgument { get; } =
+		NamedArgument.Or(ExpressionRef);
+
 	private static TokenListParser<GoogleSqlToken, SqlExpression> ColumnRefOrFunction { get; } =
 		from name in AnyIdentifier
 		from result in
@@ -202,7 +218,7 @@ internal static class SqlParsers
 			(from dot in Token.EqualTo(GoogleSqlToken.Dot)
 			 from name2 in AnyIdentifier
 			 from open in Token.EqualTo(GoogleSqlToken.OpenParen)
-			 from args in ExpressionRef.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
+			 from args in FunctionArgument.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
 			 from close in Token.EqualTo(GoogleSqlToken.CloseParen)
 			 select (SqlExpression)new FunctionCallExpr(name + "." + name2, args.ToList())).Try()
 			// Function call: name(args...)
@@ -210,7 +226,7 @@ internal static class SqlParsers
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
 			.Or(from open in Token.EqualTo(GoogleSqlToken.OpenParen)
 			 from distinct in Token.EqualTo(GoogleSqlToken.Distinct).Value(true).OptionalOrDefault(false)
-			 from args in ExpressionRef.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
+			 from args in FunctionArgument.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
 			 from orderBy in (
 				from __ in Token.EqualTo(GoogleSqlToken.Order)
 				from ___ in Token.EqualTo(GoogleSqlToken.By)

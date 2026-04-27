@@ -357,10 +357,13 @@ internal class QueryExecutor
 			if (col.Expr is StarExpr)
 			{
 				// SELECT * — expand to all columns from source table
+				// Ref: https://cloud.google.com/spanner/docs/full-text-search/search-indexes
+				//   HIDDEN columns are excluded from SELECT * expansion.
 				if (sourceTable != null)
 				{
 					foreach (var tablCol in sourceTable.Columns)
 					{
+						if (tablCol.IsHidden) continue;
 						expandedColumns.Add((new ColumnRefExpr(null, tablCol.Name), tablCol.Name));
 					}
 				}
@@ -392,6 +395,7 @@ internal class QueryExecutor
 				{
 					foreach (var tablCol in sourceTable.Columns)
 					{
+						if (tablCol.IsHidden) continue;
 						expandedColumns.Add((new ColumnRefExpr(starRef.TableAlias, tablCol.Name), tablCol.Name));
 					}
 				}
@@ -743,6 +747,21 @@ internal class QueryExecutor
 
 			// Byte
 			"FROM_HEX" => TypeCode.Bytes,
+
+			// Full-text search: boolean functions
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions
+			"SEARCH" or "SEARCH_SUBSTRING" or "SEARCH_NGRAMS" => TypeCode.Bool,
+			// Full-text search: scoring functions (return FLOAT64)
+			"SCORE" or "SCORE_NGRAMS" => TypeCode.Float64,
+			// Full-text search: SNIPPET returns JSON string
+			"SNIPPET" => TypeCode.String,
+			// Full-text search: DEBUG_TOKENLIST returns STRING
+			"DEBUG_TOKENLIST" => TypeCode.String,
+			// TOKENLIST-producing functions — use Unspecified as placeholder
+			// (TOKENLIST values are internal, not projected to result sets)
+			"TOKEN" or "TOKENIZE_FULLTEXT" or "TOKENIZE_SUBSTRING" or "TOKENIZE_NGRAMS"
+				or "TOKENIZE_NUMBER" or "TOKENIZE_BOOL" or "TOKENIZE_JSON"
+				or "TOKENLIST_CONCAT" => TypeCode.Unspecified,
 
 			_ => TypeCode.String
 		};

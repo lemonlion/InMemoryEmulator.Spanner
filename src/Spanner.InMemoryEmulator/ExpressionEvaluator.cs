@@ -55,6 +55,7 @@ internal class ExpressionEvaluator
 			ArrayAccessExpr access => EvalArrayAccess(access, row),
 			WindowExpr win => EvalWindowExpr(win, row),
 			StructExpr structExpr => structExpr.Fields.ToDictionary(f => f.Name ?? "", f => Evaluate(f.Value, row)),
+			NamedArgExpr named => Evaluate(named.Value, row),
 			StarExpr => throw new InvalidOperationException("Star expression cannot be evaluated as a value."),
 			CountStarExpr => row.TryGetValue("COUNT(*)", out var countVal) ? countVal
 				: throw new InvalidOperationException("COUNT(*) should be evaluated in aggregate context."),
@@ -630,6 +631,28 @@ internal class ExpressionEvaluator
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/debugging_functions
 			"ERROR" => throw new InvalidOperationException(
 				func.Arguments.Count > 0 ? Evaluate(func.Arguments[0], row)?.ToString() ?? "ERROR" : "ERROR"),
+
+			// ── Full-Text Search: Tokenization Functions ──
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions
+			"TOKEN" => EvalToken(func, row),
+			"TOKENIZE_FULLTEXT" => EvalTokenizeFulltext(func, row),
+			"TOKENIZE_SUBSTRING" => EvalTokenizeSubstring(func, row),
+			"TOKENIZE_NGRAMS" => EvalTokenizeNgrams(func, row),
+			"TOKENIZE_NUMBER" => EvalTokenizeNumber(func, row),
+			"TOKENIZE_BOOL" => EvalTokenizeBool(func, row),
+			"TOKENIZE_JSON" => EvalTokenizeJson(func, row),
+			"TOKENLIST_CONCAT" => EvalTokenlistConcat(func, row),
+
+			// ── Full-Text Search: Retrieval Functions ──
+			"SEARCH" => EvalSearch(func, row),
+			"SEARCH_SUBSTRING" => EvalSearchSubstring(func, row),
+			"SEARCH_NGRAMS" => EvalSearchNgrams(func, row),
+			"SCORE" => EvalScore(func, row),
+			"SCORE_NGRAMS" => EvalScoreNgrams(func, row),
+			"SNIPPET" => EvalSnippet(func, row),
+
+			// ── Full-Text Search: Debugging ──
+			"DEBUG_TOKENLIST" => EvalDebugTokenlist(func, row),
 
 			_ => throw new NotSupportedException($"Function '{func.Name}' is not supported.")
 		};
@@ -3403,5 +3426,258 @@ internal class ExpressionEvaluator
 				break;
 			default: writer.WriteStringValue(value.ToString()); break;
 		}
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Full-Text Search Helper: Extract named arguments
+	// ═══════════════════════════════════════════════════════════════
+
+	/// <summary>
+	/// Extracts positional arguments (non-named) from a function call.
+	/// Named arguments (NamedArgExpr) are skipped.
+	/// </summary>
+	private List<object?> EvalPositionalArgs(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var result = new List<object?>();
+		foreach (var arg in func.Arguments)
+		{
+			if (arg is NamedArgExpr) continue;
+			result.Add(Evaluate(arg, row));
+		}
+		return result;
+	}
+
+	/// <summary>
+	/// Gets the value of a named argument from a function call, or null if not present.
+	/// </summary>
+	private object? GetNamedArg(FunctionCallExpr func, Dictionary<string, object?> row, string name)
+	{
+		foreach (var arg in func.Arguments)
+		{
+			if (arg is NamedArgExpr named && named.ArgName.Equals(name, StringComparison.OrdinalIgnoreCase))
+				return Evaluate(named.Value, row);
+		}
+		return null;
+	}
+
+	/// <summary>
+	/// Gets the value of a named argument as a specific type, or the default value if not present.
+	/// </summary>
+	private T GetNamedArg<T>(FunctionCallExpr func, Dictionary<string, object?> row, string name, T defaultValue)
+	{
+		var val = GetNamedArg(func, row, name);
+		if (val is null) return defaultValue;
+		return (T)Convert.ChangeType(val, typeof(T), System.Globalization.CultureInfo.InvariantCulture);
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Full-Text Search: Tokenization Functions
+	// ═══════════════════════════════════════════════════════════════
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions#token
+	//   TOKEN(value) — exact-match tokenization
+	private object? EvalToken(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var val = EvalPositionalArgs(func, row).FirstOrDefault();
+		if (val is null) return null;
+		return SpannerTokenList.FromToken(val);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions#tokenize_fulltext
+	//   TOKENIZE_FULLTEXT(value [, language_tag => ...] [, content_type => ...] [, token_category => ...])
+	private object? EvalTokenizeFulltext(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var val = EvalPositionalArgs(func, row).FirstOrDefault();
+		if (val is null) return null;
+		// Named args (language_tag, content_type, token_category, remove_diacritics) accepted but not used
+		return SpannerTokenList.FromFullText(val.ToString());
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions#tokenize_substring
+	//   TOKENIZE_SUBSTRING(value [, ngram_size_min => ...] [, ngram_size_max => ...] ...)
+	private object? EvalTokenizeSubstring(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var val = EvalPositionalArgs(func, row).FirstOrDefault();
+		if (val is null) return null;
+		var ngramSizeMin = GetNamedArg(func, row, "ngram_size_min", 1);
+		var ngramSizeMax = GetNamedArg(func, row, "ngram_size_max", 4);
+		return SpannerTokenList.FromSubstring(val.ToString(), ngramSizeMin, ngramSizeMax);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions#tokenize_ngrams
+	//   TOKENIZE_NGRAMS(value [, ngram_size_min => ...] [, ngram_size_max => ...])
+	private object? EvalTokenizeNgrams(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var val = EvalPositionalArgs(func, row).FirstOrDefault();
+		if (val is null) return null;
+		var ngramSizeMin = GetNamedArg(func, row, "ngram_size_min", 1);
+		var ngramSizeMax = GetNamedArg(func, row, "ngram_size_max", 4);
+		return SpannerTokenList.FromNgrams(val.ToString(), ngramSizeMin, ngramSizeMax);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions#tokenize_number
+	//   TOKENIZE_NUMBER(value [, comparison_type => ...] [, algorithm => ...] ...)
+	private object? EvalTokenizeNumber(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var val = EvalPositionalArgs(func, row).FirstOrDefault();
+		if (val is null) return null;
+		// Named args accepted but range/algorithm not used in approximate implementation
+		return SpannerTokenList.FromNumber(val);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions#tokenize_bool
+	//   TOKENIZE_BOOL(value)
+	private object? EvalTokenizeBool(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var val = EvalPositionalArgs(func, row).FirstOrDefault();
+		if (val is null) return null;
+		return SpannerTokenList.FromBool(val);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions#tokenize_json
+	//   TOKENIZE_JSON(value)
+	private object? EvalTokenizeJson(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var val = EvalPositionalArgs(func, row).FirstOrDefault();
+		if (val is null) return null;
+		return SpannerTokenList.FromJson(val.ToString());
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions#tokenlist_concat
+	//   TOKENLIST_CONCAT(value1, value2, ...)
+	private object? EvalTokenlistConcat(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var args = func.Arguments.Select(a => Evaluate(a, row)).ToList();
+		// Handle both individual args and array args
+		var lists = new List<SpannerTokenList?>();
+		foreach (var arg in args)
+		{
+			if (arg is SpannerTokenList tl) lists.Add(tl);
+			else if (arg is IList<object?> arr)
+			{
+				foreach (var item in arr)
+					lists.Add(item as SpannerTokenList);
+			}
+		}
+		if (lists.All(l => l is null)) return null;
+		return SpannerTokenList.Concat(lists);
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Full-Text Search: Retrieval Functions
+	// ═══════════════════════════════════════════════════════════════
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions#search_fulltext
+	//   SEARCH(tokens, search_query [, dialect => ...] [, language_tag => ...] ...)
+	//   "Returns TRUE if a full-text search query matches tokens."
+	//   "Returns NULL when tokens or search_query is NULL."
+	private object? EvalSearch(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var positional = EvalPositionalArgs(func, row);
+		if (positional.Count < 2) throw new InvalidOperationException("SEARCH requires at least 2 arguments.");
+		var tokens = positional[0];
+		var query = positional[1];
+		if (tokens is null || query is null) return null;
+		if (tokens is not SpannerTokenList tl)
+			throw new InvalidOperationException("SEARCH: first argument must be a TOKENLIST value.");
+		var dialect = GetNamedArg(func, row, "dialect", (string?)null);
+		return tl.Search(query.ToString(), dialect);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions#search_substring
+	//   SEARCH_SUBSTRING(tokens, substring_query [, relative_search_type => ...] ...)
+	//   "Returns TRUE if a substring query matches tokens."
+	//   "Returns NULL when tokens or substring_query is NULL."
+	private object? EvalSearchSubstring(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var positional = EvalPositionalArgs(func, row);
+		if (positional.Count < 2) throw new InvalidOperationException("SEARCH_SUBSTRING requires at least 2 arguments.");
+		var tokens = positional[0];
+		var query = positional[1];
+		if (tokens is null || query is null) return null;
+		if (tokens is not SpannerTokenList tl)
+			throw new InvalidOperationException("SEARCH_SUBSTRING: first argument must be a TOKENLIST value.");
+		var relativeSearchType = GetNamedArg(func, row, "relative_search_type", (string?)null);
+		return tl.SearchSubstring(query.ToString(), relativeSearchType);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions#search_ngrams
+	//   SEARCH_NGRAMS(tokens, ngrams_query [, min_ngrams => ...] [, min_ngrams_percent => ...])
+	//   "Returns NULL when tokens or ngrams_query is NULL."
+	private object? EvalSearchNgrams(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var positional = EvalPositionalArgs(func, row);
+		if (positional.Count < 2) throw new InvalidOperationException("SEARCH_NGRAMS requires at least 2 arguments.");
+		var tokens = positional[0];
+		var query = positional[1];
+		if (tokens is null || query is null) return null;
+		if (tokens is not SpannerTokenList tl)
+			throw new InvalidOperationException("SEARCH_NGRAMS: first argument must be a TOKENLIST value.");
+		var minNgrams = GetNamedArg(func, row, "min_ngrams", 2);
+		var minNgramsPercentVal = GetNamedArg(func, row, "min_ngrams_percent");
+		double? minNgramsPercent = minNgramsPercentVal is not null ? Convert.ToDouble(minNgramsPercentVal) : null;
+		return tl.SearchNgrams(query.ToString(), minNgrams, minNgramsPercent);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions#score
+	//   SCORE(tokens, search_query [, dialect => ...] [, options => ...])
+	//   "Returns 0 when tokens or search_query is NULL."
+	private object? EvalScore(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var positional = EvalPositionalArgs(func, row);
+		if (positional.Count < 2) throw new InvalidOperationException("SCORE requires at least 2 arguments.");
+		var tokens = positional[0];
+		var query = positional[1];
+		if (tokens is null || query is null) return 0.0;
+		if (tokens is not SpannerTokenList tl)
+			throw new InvalidOperationException("SCORE: first argument must be a TOKENLIST value.");
+		// Named args (dialect, language_tag, enhance_query, dictionary, options) accepted but not used
+		return tl.Score(query.ToString());
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions#score_ngrams
+	//   SCORE_NGRAMS(tokens, ngrams_query [, algorithm => ...])
+	//   "Returns 0 when tokens or ngrams_query is NULL."
+	private object? EvalScoreNgrams(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var positional = EvalPositionalArgs(func, row);
+		if (positional.Count < 2) throw new InvalidOperationException("SCORE_NGRAMS requires at least 2 arguments.");
+		var tokens = positional[0];
+		var query = positional[1];
+		if (tokens is null || query is null) return 0.0;
+		if (tokens is not SpannerTokenList tl)
+			throw new InvalidOperationException("SCORE_NGRAMS: first argument must be a TOKENLIST value.");
+		return tl.ScoreNgrams(query.ToString());
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions#snippet
+	//   SNIPPET(data_to_search, raw_search_query [, max_snippet_width => ...] [, max_snippets => ...])
+	//   "Returns NULL when data_to_search or raw_search_query is NULL."
+	private object? EvalSnippet(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var positional = EvalPositionalArgs(func, row);
+		if (positional.Count < 2) throw new InvalidOperationException("SNIPPET requires at least 2 arguments.");
+		var data = positional[0];
+		var query = positional[1];
+		if (data is null || query is null) return null;
+		var maxWidth = GetNamedArg(func, row, "max_snippet_width", 200);
+		var maxSnippets = GetNamedArg(func, row, "max_snippets", 1);
+		return SpannerTokenList.Snippet(data.ToString(), query.ToString(), maxWidth, maxSnippets);
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Full-Text Search: Debugging
+	// ═══════════════════════════════════════════════════════════════
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions#debug_tokenlist
+	//   DEBUG_TOKENLIST(tokenlist)
+	//   "Displays a human-readable representation of tokens."
+	private object? EvalDebugTokenlist(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var val = Evaluate(func.Arguments[0], row);
+		if (val is null) return null;
+		if (val is not SpannerTokenList tl)
+			throw new InvalidOperationException("DEBUG_TOKENLIST: argument must be a TOKENLIST value.");
+		return tl.DebugString();
 	}
 }

@@ -706,6 +706,12 @@ internal class QueryExecutor
 			"CEIL" or "CEILING" or "FLOOR" or "TRUNC" or "SQRT" or "POW" or "POWER"
 				or "EXP" or "LN" or "LOG" or "LOG10" or "RAND" => TypeCode.Float64,
 
+			// Vector distance functions return FLOAT64
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#cosine_distance
+			"COSINE_DISTANCE" or "EUCLIDEAN_DISTANCE" or "DOT_PRODUCT"
+				or "APPROX_COSINE_DISTANCE" or "APPROX_EUCLIDEAN_DISTANCE" or "APPROX_DOT_PRODUCT"
+				=> TypeCode.Float64,
+
 			// Math functions returning INT64
 			"DIV" or "RANGE_BUCKET" => TypeCode.Int64,
 

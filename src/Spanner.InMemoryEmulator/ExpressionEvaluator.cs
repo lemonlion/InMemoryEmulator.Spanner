@@ -565,10 +565,16 @@ internal class ExpressionEvaluator
 			"ARRAY_IS_DISTINCT" => EvalArrayIsDistinct(func, row),
 
 			// Vector distance functions
-			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/search_functions#cosine_distance
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#cosine_distance
 			"COSINE_DISTANCE" => EvalCosineDistance(func, row),
 			"EUCLIDEAN_DISTANCE" => EvalEuclideanDistance(func, row),
 			"DOT_PRODUCT" => EvalDotProduct(func, row),
+			// Approximate vector distance functions — compute exact (brute-force) in the emulator.
+			// The `options` named argument is accepted but ignored.
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#approx_cosine_distance
+			"APPROX_COSINE_DISTANCE" => EvalCosineDistance(func, row),
+			"APPROX_EUCLIDEAN_DISTANCE" => EvalEuclideanDistance(func, row),
+			"APPROX_DOT_PRODUCT" => EvalDotProduct(func, row),
 
 			// Net functions
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/net_functions
@@ -2842,16 +2848,21 @@ internal class ExpressionEvaluator
 
 	private object? EvalCosineDistance(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#cosine_distance
+		//   "A vector can't be a zero vector … If a zero vector is encountered, an error is produced."
 		var (a, b) = GetVectorArgs(func, row);
 		if (a == null || b == null) return null;
 		double dot = 0, magA = 0, magB = 0;
 		for (int i = 0; i < a.Length; i++) { dot += a[i] * b[i]; magA += a[i] * a[i]; magB += b[i] * b[i]; }
+		if (magA == 0 || magB == 0)
+			throw new InvalidOperationException($"{func.Name}: zero vector is not allowed for cosine distance.");
 		var sim = dot / (Math.Sqrt(magA) * Math.Sqrt(magB));
 		return 1.0 - sim;
 	}
 
 	private object? EvalEuclideanDistance(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#euclidean_distance
 		var (a, b) = GetVectorArgs(func, row);
 		if (a == null || b == null) return null;
 		double sum = 0;
@@ -2861,6 +2872,7 @@ internal class ExpressionEvaluator
 
 	private object? EvalDotProduct(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#dot_product
 		var (a, b) = GetVectorArgs(func, row);
 		if (a == null || b == null) return null;
 		double dot = 0;
@@ -2870,16 +2882,31 @@ internal class ExpressionEvaluator
 
 	private (double[]?, double[]?) GetVectorArgs(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
-		if (func.Arguments.Count != 2) throw new InvalidOperationException($"{func.Name} requires 2 arguments.");
-		var v1 = Evaluate(func.Arguments[0], row);
-		var v2 = Evaluate(func.Arguments[1], row);
+		// Extract positional (non-named) arguments; named args like options=> are accepted but ignored.
+		var positional = EvalPositionalArgs(func, row);
+		if (positional.Count < 2) throw new InvalidOperationException($"{func.Name} requires 2 vector arguments.");
+		var v1 = positional[0];
+		var v2 = positional[1];
 		if (v1 == null || v2 == null) return (null, null);
-		double[] ToArray(object val) => val is System.Collections.IList list
-			? list.Cast<object>().Select(x => Convert.ToDouble(x)).ToArray()
-			: throw new InvalidOperationException($"{func.Name}: arguments must be arrays.");
+		double[] ToArray(object val)
+		{
+			if (val is not System.Collections.IList list)
+				throw new InvalidOperationException($"{func.Name}: arguments must be arrays.");
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#cosine_distance
+			//   "An error is produced if a magnitude in a vector is NULL."
+			var arr = new double[list.Count];
+			for (int i = 0; i < list.Count; i++)
+			{
+				if (list[i] == null)
+					throw new InvalidOperationException($"{func.Name}: NULL element in vector is not allowed.");
+				arr[i] = Convert.ToDouble(list[i]);
+			}
+			return arr;
+		}
 		var a = ToArray(v1);
 		var b = ToArray(v2);
-		if (a.Length != b.Length) throw new InvalidOperationException($"{func.Name}: arrays must be same length.");
+		// Ref: "Both vectors in this function must share the same dimensions, and if they don't, an error is produced."
+		if (a.Length != b.Length) throw new InvalidOperationException($"{func.Name}: vectors must have the same dimensions (got {a.Length} and {b.Length}).");
 		return (a, b);
 	}
 

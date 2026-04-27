@@ -440,4 +440,207 @@ public class ObservabilityIntegrationTests
 		rows.Should().HaveCount(1);
 		rows[0]["Name"].Should().Be("NewEntry");
 	}
+
+	// ─── Observer Callbacks ───
+
+	[Fact]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Category, "ObserverCallbacks")]
+	public async Task Observer_OnRequestReceived_FiresForQuery()
+	{
+		var table = CreateTable("ObsReq");
+		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice" });
+
+		var events = new List<SpannerRequestEvent>();
+		Service.OnRequestReceived = e => events.Add(e);
+		try
+		{
+			using var connection = _fixture.CreateConnection();
+			using var cmd = connection.CreateSelectCommand($"SELECT Name FROM {table}");
+			using var reader = await cmd.ExecuteReaderAsync();
+			while (await reader.ReadAsync()) { }
+
+			events.Should().Contain(e => e.MethodName == "ExecuteStreamingSql");
+		}
+		finally
+		{
+			Service.OnRequestReceived = null;
+		}
+	}
+
+	[Fact]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Category, "ObserverCallbacks")]
+	public async Task Observer_OnResponseSent_FiresForQuery_WithOkStatus()
+	{
+		var table = CreateTable("ObsResp");
+		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Bob" });
+
+		var events = new List<SpannerResponseEvent>();
+		Service.OnResponseSent = e => events.Add(e);
+		try
+		{
+			using var connection = _fixture.CreateConnection();
+			using var cmd = connection.CreateSelectCommand($"SELECT Name FROM {table}");
+			using var reader = await cmd.ExecuteReaderAsync();
+			while (await reader.ReadAsync()) { }
+
+			var queryEvent = events.FirstOrDefault(e => e.MethodName == "ExecuteStreamingSql");
+			queryEvent.Should().NotBeNull();
+			queryEvent!.StatusCode.Should().Be(Grpc.Core.StatusCode.OK);
+			queryEvent.Duration.Should().BeGreaterOrEqualTo(TimeSpan.Zero);
+		}
+		finally
+		{
+			Service.OnResponseSent = null;
+		}
+	}
+
+	[Fact]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Category, "ObserverCallbacks")]
+	public async Task Observer_FiresForDml()
+	{
+		var table = CreateTable("ObsDml");
+		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Init" });
+
+		var requestEvents = new List<SpannerRequestEvent>();
+		var responseEvents = new List<SpannerResponseEvent>();
+		Service.OnRequestReceived = e => requestEvents.Add(e);
+		Service.OnResponseSent = e => responseEvents.Add(e);
+		try
+		{
+			using var connection = _fixture.CreateConnection();
+			await connection.OpenAsync();
+			using var txn = await connection.BeginTransactionAsync();
+			using var cmd = connection.CreateDmlCommand($"UPDATE {table} SET Name = 'Updated' WHERE Id = 1");
+			cmd.Transaction = txn;
+			await cmd.ExecuteNonQueryAsync();
+			await txn.CommitAsync();
+
+			// Should have observed ExecuteSql or ExecuteStreamingSql (DML) and Commit
+			requestEvents.Should().Contain(e => e.MethodName == "Commit");
+			responseEvents.Should().Contain(e => e.MethodName == "Commit" && e.StatusCode == Grpc.Core.StatusCode.OK);
+		}
+		finally
+		{
+			Service.OnRequestReceived = null;
+			Service.OnResponseSent = null;
+		}
+	}
+
+	[Fact]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Category, "ObserverCallbacks")]
+	public async Task Observer_WithFaultInjector_BothActive()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner
+		//   All RPC methods can return standard gRPC error codes.
+		var table = CreateTable("ObsFault");
+		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Test" });
+
+		var requestEvents = new List<SpannerRequestEvent>();
+		var responseEvents = new List<SpannerResponseEvent>();
+		Service.OnRequestReceived = e => requestEvents.Add(e);
+		Service.OnResponseSent = e => responseEvents.Add(e);
+		Service.FaultInjector = FaultInjector.ForMethod("ExecuteStreamingSql", Grpc.Core.StatusCode.PermissionDenied, "denied");
+		try
+		{
+			using var connection = _fixture.CreateConnection();
+			await connection.OpenAsync();
+
+			using var cmd = connection.CreateSelectCommand($"SELECT Name FROM {table}");
+			Func<Task> act = async () =>
+			{
+				using var reader = await cmd.ExecuteReaderAsync();
+				while (await reader.ReadAsync()) { }
+			};
+			await act.Should().ThrowAsync<SpannerException>();
+
+			// OnRequestReceived should have fired for the faulted call
+			requestEvents.Should().Contain(e => e.MethodName == "ExecuteStreamingSql");
+
+			// OnResponseSent should have fired with the error status
+			responseEvents.Should().Contain(e =>
+				e.MethodName == "ExecuteStreamingSql" &&
+				e.StatusCode == Grpc.Core.StatusCode.PermissionDenied);
+		}
+		finally
+		{
+			Service.OnRequestReceived = null;
+			Service.OnResponseSent = null;
+			Service.FaultInjector = null;
+		}
+	}
+
+	[Fact]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Category, "ObserverCallbacks")]
+	public async Task Observer_ServerPassThrough_Works()
+	{
+		var table = CreateTable("ObsPass");
+		_fixture.Database!.Insert(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Test" });
+
+		var events = new List<SpannerRequestEvent>();
+		// Use the FakeSpannerServer pass-through instead of Service directly
+		_fixture.Server!.OnRequestReceived = e => events.Add(e);
+		try
+		{
+			using var connection = _fixture.CreateConnection();
+			using var cmd = connection.CreateSelectCommand($"SELECT Name FROM {table}");
+			using var reader = await cmd.ExecuteReaderAsync();
+			while (await reader.ReadAsync()) { }
+
+			events.Should().Contain(e => e.MethodName == "ExecuteStreamingSql");
+		}
+		finally
+		{
+			_fixture.Server!.OnRequestReceived = null;
+		}
+	}
+
+	[Fact]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Category, "ObserverCallbacks")]
+	public async Task Observer_AllMethodsFire_TypicalWorkflow()
+	{
+		var table = CreateTable("ObsAll");
+
+		var requestEvents = new List<SpannerRequestEvent>();
+		var responseEvents = new List<SpannerResponseEvent>();
+		Service.ClearLogs();
+		Service.OnRequestReceived = e => requestEvents.Add(e);
+		Service.OnResponseSent = e => responseEvents.Add(e);
+		try
+		{
+			using var connection = _fixture.CreateConnection();
+			await connection.OpenAsync();
+
+			// DML in a transaction + commit
+			using var txn = await connection.BeginTransactionAsync();
+			using var insertCmd = connection.CreateInsertCommand(table);
+			insertCmd.Parameters.Add("Id", SpannerDbType.Int64, 1L);
+			insertCmd.Parameters.Add("Name", SpannerDbType.String, "Alice");
+			insertCmd.Transaction = txn;
+			await insertCmd.ExecuteNonQueryAsync();
+			await txn.CommitAsync();
+
+			// Query
+			using var queryCmd = connection.CreateSelectCommand($"SELECT Name FROM {table}");
+			using var reader = await queryCmd.ExecuteReaderAsync();
+			while (await reader.ReadAsync()) { }
+
+			// Every request event should have a matching response event
+			var requestMethodNames = requestEvents.Select(e => e.MethodName).ToList();
+			var responseMethodNames = responseEvents.Select(e => e.MethodName).ToList();
+
+			requestMethodNames.Should().BeEquivalentTo(responseMethodNames, opts => opts.WithStrictOrdering());
+			responseEvents.Should().OnlyContain(e => e.StatusCode == Grpc.Core.StatusCode.OK);
+		}
+		finally
+		{
+			Service.OnRequestReceived = null;
+			Service.OnResponseSent = null;
+		}
+	}
 }

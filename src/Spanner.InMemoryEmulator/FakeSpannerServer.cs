@@ -68,6 +68,26 @@ public class FakeSpannerServer : IDisposable, IAsyncDisposable
 		$"Data Source=projects/{_options.ProjectId}/instances/{_options.InstanceId}/databases/{_options.DatabaseId};" +
 		$"Host=localhost;Port={_port};EmulatorDetection=EmulatorOnly";
 
+	/// <summary>
+	/// Optional callback invoked when a gRPC request is received.
+	/// Shorthand for <c>Service.OnRequestReceived</c>.
+	/// </summary>
+	public Action<SpannerRequestEvent>? OnRequestReceived
+	{
+		get => Service.OnRequestReceived;
+		set => Service.OnRequestReceived = value;
+	}
+
+	/// <summary>
+	/// Optional callback invoked after a gRPC request has been executed.
+	/// Shorthand for <c>Service.OnResponseSent</c>.
+	/// </summary>
+	public Action<SpannerResponseEvent>? OnResponseSent
+	{
+		get => Service.OnResponseSent;
+		set => Service.OnResponseSent = value;
+	}
+
 	/// <summary>Starts the gRPC server synchronously.</summary>
 	public void Start()
 	{

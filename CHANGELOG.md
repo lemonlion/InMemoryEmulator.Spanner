@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.20] - 2026-04-27
+
+### Added
+- **Observer callbacks**: `OnRequestReceived` and `OnResponseSent` real-time observer callbacks on `FakeSpannerService` and `FakeSpannerServer`. Fires for all 16 gRPC method overrides (13 unary + 3 streaming). Includes method name, protobuf request/response, duration, gRPC status code. Error-safe — observer exceptions are silently swallowed. Works alongside `FaultInjector` and `RequestLog`/`SqlLog`.
+- Unit tests: 13 new (observer callback unit tests)
+- Integration tests: 6 new (observer callback integration tests)
+
 ## [1.0.19] - 2025-07-04
 
 ### Added

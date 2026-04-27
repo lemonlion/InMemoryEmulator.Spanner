@@ -24,6 +24,25 @@ public record SqlLogEntry(
 	DateTimeOffset Timestamp);
 
 /// <summary>
+/// Raised when a gRPC request is received, before execution begins.
+/// </summary>
+public record SpannerRequestEvent(
+	string MethodName,
+	IMessage Request,
+	DateTimeOffset Timestamp);
+
+/// <summary>
+/// Raised after a gRPC request has been executed (or has faulted).
+/// </summary>
+public record SpannerResponseEvent(
+	string MethodName,
+	IMessage Request,
+	IMessage? Response,
+	TimeSpan Duration,
+	StatusCode? StatusCode,
+	DateTimeOffset Timestamp);
+
+/// <summary>
 /// gRPC service implementation for Spanner.SpannerBase.
 /// Backs a <see cref="FakeSpannerServer"/> with in-memory storage.
 /// Exposes fault injection and request logging for test assertions.
@@ -42,6 +61,19 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 	/// short-circuit the call. Parameters: (rpcMethodName, request).
 	/// </summary>
 	public Func<string, IMessage, RpcException?>? FaultInjector { get; set; }
+
+	/// <summary>
+	/// Optional callback invoked when a gRPC request is received, before execution.
+	/// This is an observation hook — it cannot modify or cancel the request.
+	/// </summary>
+	public Action<SpannerRequestEvent>? OnRequestReceived { get; set; }
+
+	/// <summary>
+	/// Optional callback invoked after a gRPC request has been executed.
+	/// Includes the response, duration, and gRPC status code.
+	/// For streaming responses, fires once after the stream completes with Response = null.
+	/// </summary>
+	public Action<SpannerResponseEvent>? OnResponseSent { get; set; }
 
 	/// <summary>All gRPC requests received, in order.</summary>
 	public IReadOnlyList<RequestLogEntry> RequestLog => _requestLog.ToArray();
@@ -76,135 +108,219 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 		if (fault != null) throw fault;
 	}
 
+	private void NotifyRequestReceived(string method, IMessage request, DateTimeOffset timestamp)
+	{
+		try { OnRequestReceived?.Invoke(new SpannerRequestEvent(method, request, timestamp)); }
+		catch { /* Observer errors must not affect server behaviour */ }
+	}
+
+	private void NotifyResponseSent(string method, IMessage request, IMessage? response, TimeSpan duration, StatusCode statusCode, DateTimeOffset timestamp)
+	{
+		try { OnResponseSent?.Invoke(new SpannerResponseEvent(method, request, response, duration, statusCode, timestamp)); }
+		catch { /* Observer errors must not affect server behaviour */ }
+	}
+
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.CreateSession
 	public override Task<Session> CreateSession(CreateSessionRequest request, ServerCallContext context)
 	{
+		var startTime = DateTimeOffset.UtcNow;
 		LogRequest(nameof(CreateSession), request);
-		CheckFault(nameof(CreateSession), request);
-
-		var session = _sessionManager.CreateSession(request.Database);
-		return Task.FromResult(session);
+		NotifyRequestReceived(nameof(CreateSession), request, startTime);
+		try
+		{
+			CheckFault(nameof(CreateSession), request);
+			var session = _sessionManager.CreateSession(request.Database);
+			NotifyResponseSent(nameof(CreateSession), request, session, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);
+			return Task.FromResult(session);
+		}
+		catch (RpcException ex)
+		{
+			NotifyResponseSent(nameof(CreateSession), request, null, DateTimeOffset.UtcNow - startTime, ex.StatusCode, DateTimeOffset.UtcNow);
+			throw;
+		}
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.BatchCreateSessions
 	public override Task<BatchCreateSessionsResponse> BatchCreateSessions(BatchCreateSessionsRequest request, ServerCallContext context)
 	{
+		var startTime = DateTimeOffset.UtcNow;
 		LogRequest(nameof(BatchCreateSessions), request);
-		CheckFault(nameof(BatchCreateSessions), request);
-
-		var multiplexed = request.SessionTemplate?.Multiplexed ?? false;
-		var sessions = _sessionManager.BatchCreateSessions(request.Database, request.SessionCount, multiplexed);
-		var response = new BatchCreateSessionsResponse();
-		response.Session.AddRange(sessions);
-		return Task.FromResult(response);
+		NotifyRequestReceived(nameof(BatchCreateSessions), request, startTime);
+		try
+		{
+			CheckFault(nameof(BatchCreateSessions), request);
+			var multiplexed = request.SessionTemplate?.Multiplexed ?? false;
+			var sessions = _sessionManager.BatchCreateSessions(request.Database, request.SessionCount, multiplexed);
+			var response = new BatchCreateSessionsResponse();
+			response.Session.AddRange(sessions);
+			NotifyResponseSent(nameof(BatchCreateSessions), request, response, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);
+			return Task.FromResult(response);
+		}
+		catch (RpcException ex)
+		{
+			NotifyResponseSent(nameof(BatchCreateSessions), request, null, DateTimeOffset.UtcNow - startTime, ex.StatusCode, DateTimeOffset.UtcNow);
+			throw;
+		}
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.GetSession
 	public override Task<Session> GetSession(GetSessionRequest request, ServerCallContext context)
 	{
+		var startTime = DateTimeOffset.UtcNow;
 		LogRequest(nameof(GetSession), request);
-		CheckFault(nameof(GetSession), request);
-
-		var session = _sessionManager.GetSession(request.Name);
-		if (session == null)
+		NotifyRequestReceived(nameof(GetSession), request, startTime);
+		try
 		{
-			throw new RpcException(new Status(StatusCode.NotFound, $"Session not found: {request.Name}"));
+			CheckFault(nameof(GetSession), request);
+			var session = _sessionManager.GetSession(request.Name);
+			if (session == null)
+			{
+				throw new RpcException(new Status(StatusCode.NotFound, $"Session not found: {request.Name}"));
+			}
+			NotifyResponseSent(nameof(GetSession), request, session, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);
+			return Task.FromResult(session);
 		}
-		return Task.FromResult(session);
+		catch (RpcException ex)
+		{
+			NotifyResponseSent(nameof(GetSession), request, null, DateTimeOffset.UtcNow - startTime, ex.StatusCode, DateTimeOffset.UtcNow);
+			throw;
+		}
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.DeleteSession
 	public override Task<Empty> DeleteSession(DeleteSessionRequest request, ServerCallContext context)
 	{
+		var startTime = DateTimeOffset.UtcNow;
 		LogRequest(nameof(DeleteSession), request);
-		CheckFault(nameof(DeleteSession), request);
-
-		_sessionManager.DeleteSession(request.Name);
-		return Task.FromResult(new Empty());
+		NotifyRequestReceived(nameof(DeleteSession), request, startTime);
+		try
+		{
+			CheckFault(nameof(DeleteSession), request);
+			_sessionManager.DeleteSession(request.Name);
+			var result = new Empty();
+			NotifyResponseSent(nameof(DeleteSession), request, result, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);
+			return Task.FromResult(result);
+		}
+		catch (RpcException ex)
+		{
+			NotifyResponseSent(nameof(DeleteSession), request, null, DateTimeOffset.UtcNow - startTime, ex.StatusCode, DateTimeOffset.UtcNow);
+			throw;
+		}
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.ListSessions
 	public override Task<ListSessionsResponse> ListSessions(ListSessionsRequest request, ServerCallContext context)
 	{
+		var startTime = DateTimeOffset.UtcNow;
 		LogRequest(nameof(ListSessions), request);
-		CheckFault(nameof(ListSessions), request);
-
-		var sessions = _sessionManager.ListSessions(request.Database);
-		var response = new ListSessionsResponse();
-		response.Sessions.AddRange(sessions);
-		return Task.FromResult(response);
+		NotifyRequestReceived(nameof(ListSessions), request, startTime);
+		try
+		{
+			CheckFault(nameof(ListSessions), request);
+			var sessions = _sessionManager.ListSessions(request.Database);
+			var response = new ListSessionsResponse();
+			response.Sessions.AddRange(sessions);
+			NotifyResponseSent(nameof(ListSessions), request, response, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);
+			return Task.FromResult(response);
+		}
+		catch (RpcException ex)
+		{
+			NotifyResponseSent(nameof(ListSessions), request, null, DateTimeOffset.UtcNow - startTime, ex.StatusCode, DateTimeOffset.UtcNow);
+			throw;
+		}
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.BeginTransaction
 	public override Task<Transaction> BeginTransaction(BeginTransactionRequest request, ServerCallContext context)
 	{
+		var startTime = DateTimeOffset.UtcNow;
 		LogRequest(nameof(BeginTransaction), request);
-		CheckFault(nameof(BeginTransaction), request);
-
-		ValidateSession(request.Session);
-		var transaction = _transactionManager.BeginTransaction(request.Session, request.Options);
-
-		// Store proto on state so PartitionQuery/PartitionRead can echo it back
-		if (_transactionManager.TryGetByBytes(transaction.Id, out var txnState) && txnState != null)
+		NotifyRequestReceived(nameof(BeginTransaction), request, startTime);
+		try
 		{
-			txnState.ProtoTransaction = transaction;
-		}
+			CheckFault(nameof(BeginTransaction), request);
+			ValidateSession(request.Session);
+			var transaction = _transactionManager.BeginTransaction(request.Session, request.Options);
 
-		return Task.FromResult(transaction);
+			// Store proto on state so PartitionQuery/PartitionRead can echo it back
+			if (_transactionManager.TryGetByBytes(transaction.Id, out var txnState) && txnState != null)
+			{
+				txnState.ProtoTransaction = transaction;
+			}
+
+			NotifyResponseSent(nameof(BeginTransaction), request, transaction, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);
+			return Task.FromResult(transaction);
+		}
+		catch (RpcException ex)
+		{
+			NotifyResponseSent(nameof(BeginTransaction), request, null, DateTimeOffset.UtcNow - startTime, ex.StatusCode, DateTimeOffset.UtcNow);
+			throw;
+		}
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.Commit
 	public override Task<CommitResponse> Commit(CommitRequest request, ServerCallContext context)
 	{
+		var startTime = DateTimeOffset.UtcNow;
 		LogRequest(nameof(Commit), request);
-		CheckFault(nameof(Commit), request);
-
-		ValidateSession(request.Session);
-
-		var commitTimestamp = DateTimeOffset.UtcNow;
-		var mutationExecutor = new MutationExecutor(_database);
-
-		// Collect mutations from both the request and any buffered transaction mutations
-		var allMutations = new List<Mutation>();
-
-		if (request.TransactionId != null && !request.TransactionId.IsEmpty)
-		{
-			if (_transactionManager.TryGetByBytes(request.TransactionId, out var txnState) && txnState != null)
-			{
-				allMutations.AddRange(txnState.BufferedMutations);
-				_transactionManager.MarkCommitted(txnState.Id);
-			}
-		}
-
-		allMutations.AddRange(request.Mutations);
-
-		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.Commit
-		//   "Commits a transaction. The request includes the mutations to be applied to rows in the database."
+		NotifyRequestReceived(nameof(Commit), request, startTime);
 		try
 		{
-			mutationExecutor.ApplyMutations(allMutations, commitTimestamp);
-		}
-		catch (InvalidOperationException ex)
-		{
-			throw new RpcException(new Status(StatusCode.FailedPrecondition, ex.Message));
-		}
+			CheckFault(nameof(Commit), request);
 
-		var response = new CommitResponse
-		{
-			CommitTimestamp = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(commitTimestamp)
-		};
+			ValidateSession(request.Session);
 
-		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.CommitResponse
-		//   "commit_stats: The statistics about this Commit. Not returned by default."
-		if (request.ReturnCommitStats)
-		{
-			response.CommitStats = new CommitResponse.Types.CommitStats
+			var commitTimestamp = DateTimeOffset.UtcNow;
+			var mutationExecutor = new MutationExecutor(_database);
+
+			// Collect mutations from both the request and any buffered transaction mutations
+			var allMutations = new List<Mutation>();
+
+			if (request.TransactionId != null && !request.TransactionId.IsEmpty)
 			{
-				MutationCount = allMutations.Sum(m => CountMutationOperations(m))
-			};
-		}
+				if (_transactionManager.TryGetByBytes(request.TransactionId, out var txnState) && txnState != null)
+				{
+					allMutations.AddRange(txnState.BufferedMutations);
+					_transactionManager.MarkCommitted(txnState.Id);
+				}
+			}
 
-		return Task.FromResult(response);
+			allMutations.AddRange(request.Mutations);
+
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.Commit
+			//   "Commits a transaction. The request includes the mutations to be applied to rows in the database."
+			try
+			{
+				mutationExecutor.ApplyMutations(allMutations, commitTimestamp);
+			}
+			catch (InvalidOperationException ex)
+			{
+				throw new RpcException(new Status(StatusCode.FailedPrecondition, ex.Message));
+			}
+
+			var response = new CommitResponse
+			{
+				CommitTimestamp = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(commitTimestamp)
+			};
+
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.CommitResponse
+			//   "commit_stats: The statistics about this Commit. Not returned by default."
+			if (request.ReturnCommitStats)
+			{
+				response.CommitStats = new CommitResponse.Types.CommitStats
+				{
+					MutationCount = allMutations.Sum(m => CountMutationOperations(m))
+				};
+			}
+
+			NotifyResponseSent(nameof(Commit), request, response, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);
+			return Task.FromResult(response);
+		}
+		catch (RpcException ex)
+		{
+			NotifyResponseSent(nameof(Commit), request, null, DateTimeOffset.UtcNow - startTime, ex.StatusCode, DateTimeOffset.UtcNow);
+			throw;
+		}
 	}
 
 	/// <summary>
@@ -225,114 +341,149 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.Rollback
 	public override Task<Empty> Rollback(RollbackRequest request, ServerCallContext context)
 	{
+		var startTime = DateTimeOffset.UtcNow;
 		LogRequest(nameof(Rollback), request);
-		CheckFault(nameof(Rollback), request);
-
-		ValidateSession(request.Session);
-
-		if (_transactionManager.TryGetByBytes(request.TransactionId, out var txnState) && txnState != null)
+		NotifyRequestReceived(nameof(Rollback), request, startTime);
+		try
 		{
-			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.Rollback
-			//   "Rolls back a transaction, releasing any locks it holds."
-			// Undo DML changes applied during this transaction (in reverse order).
-			for (int i = txnState.DmlUndoLog.Count - 1; i >= 0; i--)
+			CheckFault(nameof(Rollback), request);
+
+			ValidateSession(request.Session);
+
+			if (_transactionManager.TryGetByBytes(request.TransactionId, out var txnState) && txnState != null)
 			{
-				var entry = txnState.DmlUndoLog[i];
-				if (_database.Schema.TryGetTable(entry.TableName, out var table) && table != null)
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.Rollback
+				//   "Rolls back a transaction, releasing any locks it holds."
+				// Undo DML changes applied during this transaction (in reverse order).
+				for (int i = txnState.DmlUndoLog.Count - 1; i >= 0; i--)
 				{
-					if (entry.OriginalRow == null)
-						table.Rows.TryRemove(entry.Key, out _); // Was INSERT → undo = delete
-					else
-						table.Rows[entry.Key] = entry.OriginalRow; // Was UPDATE/DELETE → undo = restore
+					var entry = txnState.DmlUndoLog[i];
+					if (_database.Schema.TryGetTable(entry.TableName, out var table) && table != null)
+					{
+						if (entry.OriginalRow == null)
+							table.Rows.TryRemove(entry.Key, out _); // Was INSERT → undo = delete
+						else
+							table.Rows[entry.Key] = entry.OriginalRow; // Was UPDATE/DELETE → undo = restore
+					}
 				}
+
+				_transactionManager.MarkRolledBack(txnState.Id);
 			}
 
-			_transactionManager.MarkRolledBack(txnState.Id);
+			var result = new Empty();
+			NotifyResponseSent(nameof(Rollback), request, result, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);
+			return Task.FromResult(result);
 		}
-
-		return Task.FromResult(new Empty());
+		catch (RpcException ex)
+		{
+			NotifyResponseSent(nameof(Rollback), request, null, DateTimeOffset.UtcNow - startTime, ex.StatusCode, DateTimeOffset.UtcNow);
+			throw;
+		}
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.ExecuteSql
 	public override Task<ResultSet> ExecuteSql(ExecuteSqlRequest request, ServerCallContext context)
 	{
+		var startTime = DateTimeOffset.UtcNow;
 		LogRequest(nameof(ExecuteSql), request);
-		CheckFault(nameof(ExecuteSql), request);
-
-		ValidateSession(request.Session);
-		_sqlLog.Add(new SqlLogEntry(request.Sql, null, null, DateTimeOffset.UtcNow));
-
+		NotifyRequestReceived(nameof(ExecuteSql), request, startTime);
 		try
 		{
-			var txnState = ResolveTransactionState(request.Session, request.Transaction);
-			var engine = new SqlEngine(_database, txnState?.DmlUndoLog);
-			var parameters = SqlEngine.ExtractParameters(request);
-			var resultSet = engine.ExecuteSql(request.Sql, parameters);
+			CheckFault(nameof(ExecuteSql), request);
 
-			SetTransactionMetadata(request.Transaction, txnState, resultSet);
+			ValidateSession(request.Session);
+			_sqlLog.Add(new SqlLogEntry(request.Sql, null, null, DateTimeOffset.UtcNow));
 
-			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteSqlRequest.QueryMode
-			ApplyQueryMode(request.QueryMode, resultSet);
+			try
+			{
+				var txnState = ResolveTransactionState(request.Session, request.Transaction);
+				var engine = new SqlEngine(_database, txnState?.DmlUndoLog);
+				var parameters = SqlEngine.ExtractParameters(request);
+				var resultSet = engine.ExecuteSql(request.Sql, parameters);
 
-			return Task.FromResult(resultSet);
+				SetTransactionMetadata(request.Transaction, txnState, resultSet);
+
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteSqlRequest.QueryMode
+				ApplyQueryMode(request.QueryMode, resultSet);
+
+				NotifyResponseSent(nameof(ExecuteSql), request, resultSet, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);
+				return Task.FromResult(resultSet);
+			}
+			catch (InvalidOperationException ex)
+			{
+				throw new RpcException(new Status(StatusCode.InvalidArgument, ex.Message));
+			}
+			catch (NotSupportedException ex)
+			{
+				throw new RpcException(new Status(StatusCode.Unimplemented, ex.Message));
+			}
 		}
-		catch (InvalidOperationException ex)
+		catch (RpcException ex)
 		{
-			throw new RpcException(new Status(StatusCode.InvalidArgument, ex.Message));
-		}
-		catch (NotSupportedException ex)
-		{
-			throw new RpcException(new Status(StatusCode.Unimplemented, ex.Message));
+			NotifyResponseSent(nameof(ExecuteSql), request, null, DateTimeOffset.UtcNow - startTime, ex.StatusCode, DateTimeOffset.UtcNow);
+			throw;
 		}
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.ExecuteStreamingSql
 	public override async Task ExecuteStreamingSql(ExecuteSqlRequest request, Grpc.Core.IServerStreamWriter<PartialResultSet> responseStream, ServerCallContext context)
 	{
+		var startTime = DateTimeOffset.UtcNow;
 		LogRequest(nameof(ExecuteStreamingSql), request);
-		CheckFault(nameof(ExecuteStreamingSql), request);
-
-		ValidateSession(request.Session);
-		_sqlLog.Add(new SqlLogEntry(request.Sql, null, null, DateTimeOffset.UtcNow));
-
+		NotifyRequestReceived(nameof(ExecuteStreamingSql), request, startTime);
 		try
 		{
-			var txnState = ResolveTransactionState(request.Session, request.Transaction);
-			var engine = new SqlEngine(_database, txnState?.DmlUndoLog);
-			var parameters = SqlEngine.ExtractParameters(request);
-			var resultSet = engine.ExecuteSql(request.Sql, parameters);
+			CheckFault(nameof(ExecuteStreamingSql), request);
 
-			SetTransactionMetadata(request.Transaction, txnState, resultSet);
+			ValidateSession(request.Session);
+			_sqlLog.Add(new SqlLogEntry(request.Sql, null, null, DateTimeOffset.UtcNow));
 
-			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteSqlRequest.QueryMode
-			ApplyQueryMode(request.QueryMode, resultSet);
-
-			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.PartialResultSet
-			//   "Stream the entire result set as a single PartialResultSet (simplification)."
-			var partialResultSet = new PartialResultSet
+			try
 			{
-				Metadata = resultSet.Metadata
-			};
+				var txnState = ResolveTransactionState(request.Session, request.Transaction);
+				var engine = new SqlEngine(_database, txnState?.DmlUndoLog);
+				var parameters = SqlEngine.ExtractParameters(request);
+				var resultSet = engine.ExecuteSql(request.Sql, parameters);
 
-			foreach (var row in resultSet.Rows)
+				SetTransactionMetadata(request.Transaction, txnState, resultSet);
+
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteSqlRequest.QueryMode
+				ApplyQueryMode(request.QueryMode, resultSet);
+
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.PartialResultSet
+				//   "Stream the entire result set as a single PartialResultSet (simplification)."
+				var partialResultSet = new PartialResultSet
+				{
+					Metadata = resultSet.Metadata
+				};
+
+				foreach (var row in resultSet.Rows)
+				{
+					partialResultSet.Values.Add(row.Values);
+				}
+
+				if (resultSet.Stats != null)
+				{
+					partialResultSet.Stats = resultSet.Stats;
+				}
+
+				await responseStream.WriteAsync(partialResultSet);
+			}
+			catch (InvalidOperationException ex)
 			{
-				partialResultSet.Values.Add(row.Values);
+				throw new RpcException(new Status(StatusCode.InvalidArgument, ex.Message));
+			}
+			catch (NotSupportedException ex)
+			{
+				throw new RpcException(new Status(StatusCode.Unimplemented, ex.Message));
 			}
 
-			if (resultSet.Stats != null)
-			{
-				partialResultSet.Stats = resultSet.Stats;
-			}
-
-			await responseStream.WriteAsync(partialResultSet);
+			NotifyResponseSent(nameof(ExecuteStreamingSql), request, null, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);
 		}
-		catch (InvalidOperationException ex)
+		catch (RpcException ex)
 		{
-			throw new RpcException(new Status(StatusCode.InvalidArgument, ex.Message));
-		}
-		catch (NotSupportedException ex)
-		{
-			throw new RpcException(new Status(StatusCode.Unimplemented, ex.Message));
+			NotifyResponseSent(nameof(ExecuteStreamingSql), request, null, DateTimeOffset.UtcNow - startTime, ex.StatusCode, DateTimeOffset.UtcNow);
+			throw;
 		}
 	}
 
@@ -456,60 +607,82 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 	//   "Statements are executed serially... Execution stops after the first failed statement."
 	public override Task<ExecuteBatchDmlResponse> ExecuteBatchDml(ExecuteBatchDmlRequest request, ServerCallContext context)
 	{
+		var startTime = DateTimeOffset.UtcNow;
 		LogRequest(nameof(ExecuteBatchDml), request);
-		CheckFault(nameof(ExecuteBatchDml), request);
-
-		ValidateSession(request.Session);
-
-		var response = new ExecuteBatchDmlResponse();
-		var txnState = ResolveTransactionState(request.Session, request.Transaction);
-		var engine = new SqlEngine(_database, txnState?.DmlUndoLog);
-
-		foreach (var statement in request.Statements)
+		NotifyRequestReceived(nameof(ExecuteBatchDml), request, startTime);
+		try
 		{
-			_sqlLog.Add(new SqlLogEntry(statement.Sql, null, null, DateTimeOffset.UtcNow));
-			try
+			CheckFault(nameof(ExecuteBatchDml), request);
+
+			ValidateSession(request.Session);
+
+			var response = new ExecuteBatchDmlResponse();
+			var txnState = ResolveTransactionState(request.Session, request.Transaction);
+			var engine = new SqlEngine(_database, txnState?.DmlUndoLog);
+
+			foreach (var statement in request.Statements)
 			{
-				var parameters = SqlEngine.ExtractParameters(statement.Sql, statement.Params, statement.ParamTypes);
-				var resultSet = engine.ExecuteSql(statement.Sql, parameters);
-				response.ResultSets.Add(resultSet);
-			}
-			catch (Exception ex)
-			{
-				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#executebatchdmlresponse
-				//   "If a statement fails, the status in the response body identifies the cause."
-				response.Status = new Google.Rpc.Status
+				_sqlLog.Add(new SqlLogEntry(statement.Sql, null, null, DateTimeOffset.UtcNow));
+				try
 				{
-					Code = (int)Google.Rpc.Code.InvalidArgument,
-					Message = ex.Message
-				};
-				break;
+					var parameters = SqlEngine.ExtractParameters(statement.Sql, statement.Params, statement.ParamTypes);
+					var resultSet = engine.ExecuteSql(statement.Sql, parameters);
+					response.ResultSets.Add(resultSet);
+				}
+				catch (Exception ex)
+				{
+					// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#executebatchdmlresponse
+					//   "If a statement fails, the status in the response body identifies the cause."
+					response.Status = new Google.Rpc.Status
+					{
+						Code = (int)Google.Rpc.Code.InvalidArgument,
+						Message = ex.Message
+					};
+					break;
+				}
 			}
+
+			// If all statements succeeded
+			response.Status ??= new Google.Rpc.Status { Code = (int)Google.Rpc.Code.Ok };
+
+			NotifyResponseSent(nameof(ExecuteBatchDml), request, response, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);
+			return Task.FromResult(response);
 		}
-
-		// If all statements succeeded
-		response.Status ??= new Google.Rpc.Status { Code = (int)Google.Rpc.Code.Ok };
-
-		return Task.FromResult(response);
+		catch (RpcException ex)
+		{
+			NotifyResponseSent(nameof(ExecuteBatchDml), request, null, DateTimeOffset.UtcNow - startTime, ex.StatusCode, DateTimeOffset.UtcNow);
+			throw;
+		}
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.Read
 	//   "Reads rows from the database using key lookups and scans."
 	public override Task<ResultSet> Read(ReadRequest request, ServerCallContext context)
 	{
+		var startTime = DateTimeOffset.UtcNow;
 		LogRequest(nameof(Read), request);
-		CheckFault(nameof(Read), request);
-
-		ValidateSession(request.Session);
-
+		NotifyRequestReceived(nameof(Read), request, startTime);
 		try
 		{
-			var resultSet = ExecuteRead(request);
-			return Task.FromResult(resultSet);
+			CheckFault(nameof(Read), request);
+
+			ValidateSession(request.Session);
+
+			try
+			{
+				var resultSet = ExecuteRead(request);
+				NotifyResponseSent(nameof(Read), request, resultSet, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);
+				return Task.FromResult(resultSet);
+			}
+			catch (InvalidOperationException ex)
+			{
+				throw new RpcException(new Status(StatusCode.InvalidArgument, ex.Message));
+			}
 		}
-		catch (InvalidOperationException ex)
+		catch (RpcException ex)
 		{
-			throw new RpcException(new Status(StatusCode.InvalidArgument, ex.Message));
+			NotifyResponseSent(nameof(Read), request, null, DateTimeOffset.UtcNow - startTime, ex.StatusCode, DateTimeOffset.UtcNow);
+			throw;
 		}
 	}
 
@@ -517,29 +690,41 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 	//   "Like Read, except returns the result set as a stream."
 	public override async Task StreamingRead(ReadRequest request, Grpc.Core.IServerStreamWriter<PartialResultSet> responseStream, ServerCallContext context)
 	{
+		var startTime = DateTimeOffset.UtcNow;
 		LogRequest(nameof(StreamingRead), request);
-		CheckFault(nameof(StreamingRead), request);
-
-		ValidateSession(request.Session);
-
+		NotifyRequestReceived(nameof(StreamingRead), request, startTime);
 		try
 		{
-			var resultSet = ExecuteRead(request);
+			CheckFault(nameof(StreamingRead), request);
 
-			var partialResultSet = new PartialResultSet
+			ValidateSession(request.Session);
+
+			try
 			{
-				Metadata = resultSet.Metadata
-			};
-			foreach (var row in resultSet.Rows)
+				var resultSet = ExecuteRead(request);
+
+				var partialResultSet = new PartialResultSet
+				{
+					Metadata = resultSet.Metadata
+				};
+				foreach (var row in resultSet.Rows)
+				{
+					partialResultSet.Values.Add(row.Values);
+				}
+
+				await responseStream.WriteAsync(partialResultSet);
+			}
+			catch (InvalidOperationException ex)
 			{
-				partialResultSet.Values.Add(row.Values);
+				throw new RpcException(new Status(StatusCode.InvalidArgument, ex.Message));
 			}
 
-			await responseStream.WriteAsync(partialResultSet);
+			NotifyResponseSent(nameof(StreamingRead), request, null, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);
 		}
-		catch (InvalidOperationException ex)
+		catch (RpcException ex)
 		{
-			throw new RpcException(new Status(StatusCode.InvalidArgument, ex.Message));
+			NotifyResponseSent(nameof(StreamingRead), request, null, DateTimeOffset.UtcNow - startTime, ex.StatusCode, DateTimeOffset.UtcNow);
+			throw;
 		}
 	}
 
@@ -665,29 +850,40 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 	//   In-memory emulator: returns a single partition covering the entire result.
 	public override Task<PartitionResponse> PartitionQuery(PartitionQueryRequest request, ServerCallContext context)
 	{
+		var startTime = DateTimeOffset.UtcNow;
 		LogRequest(nameof(PartitionQuery), request);
-		CheckFault(nameof(PartitionQuery), request);
-
-		ValidateSession(request.Session);
-
-		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#partitionqueryrequest
-		//   "Read-only snapshot transactions are supported."
-		var txnState = ResolveTransactionState(request.Session, request.Transaction);
-
-		var response = new PartitionResponse();
-		response.Partitions.Add(new Partition
+		NotifyRequestReceived(nameof(PartitionQuery), request, startTime);
+		try
 		{
-			PartitionToken = Google.Protobuf.ByteString.CopyFromUtf8("partition-0")
-		});
+			CheckFault(nameof(PartitionQuery), request);
 
-		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#partitionresponse
-		//   "transaction: Transaction created by this request."
-		if (txnState?.ProtoTransaction != null)
-		{
-			response.Transaction = txnState.ProtoTransaction;
+			ValidateSession(request.Session);
+
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#partitionqueryrequest
+			//   "Read-only snapshot transactions are supported."
+			var txnState = ResolveTransactionState(request.Session, request.Transaction);
+
+			var response = new PartitionResponse();
+			response.Partitions.Add(new Partition
+			{
+				PartitionToken = Google.Protobuf.ByteString.CopyFromUtf8("partition-0")
+			});
+
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#partitionresponse
+			//   "transaction: Transaction created by this request."
+			if (txnState?.ProtoTransaction != null)
+			{
+				response.Transaction = txnState.ProtoTransaction;
+			}
+
+			NotifyResponseSent(nameof(PartitionQuery), request, response, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);
+			return Task.FromResult(response);
 		}
-
-		return Task.FromResult(response);
+		catch (RpcException ex)
+		{
+			NotifyResponseSent(nameof(PartitionQuery), request, null, DateTimeOffset.UtcNow - startTime, ex.StatusCode, DateTimeOffset.UtcNow);
+			throw;
+		}
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.PartitionRead
@@ -695,29 +891,40 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 	//   In-memory emulator: returns a single partition covering the entire result.
 	public override Task<PartitionResponse> PartitionRead(PartitionReadRequest request, ServerCallContext context)
 	{
+		var startTime = DateTimeOffset.UtcNow;
 		LogRequest(nameof(PartitionRead), request);
-		CheckFault(nameof(PartitionRead), request);
-
-		ValidateSession(request.Session);
-
-		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#partitionreadrequest
-		//   "Read only snapshot transactions are supported."
-		var txnState = ResolveTransactionState(request.Session, request.Transaction);
-
-		var response = new PartitionResponse();
-		response.Partitions.Add(new Partition
+		NotifyRequestReceived(nameof(PartitionRead), request, startTime);
+		try
 		{
-			PartitionToken = Google.Protobuf.ByteString.CopyFromUtf8("partition-0")
-		});
+			CheckFault(nameof(PartitionRead), request);
 
-		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#partitionresponse
-		//   "transaction: Transaction created by this request."
-		if (txnState?.ProtoTransaction != null)
-		{
-			response.Transaction = txnState.ProtoTransaction;
+			ValidateSession(request.Session);
+
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#partitionreadrequest
+			//   "Read only snapshot transactions are supported."
+			var txnState = ResolveTransactionState(request.Session, request.Transaction);
+
+			var response = new PartitionResponse();
+			response.Partitions.Add(new Partition
+			{
+				PartitionToken = Google.Protobuf.ByteString.CopyFromUtf8("partition-0")
+			});
+
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#partitionresponse
+			//   "transaction: Transaction created by this request."
+			if (txnState?.ProtoTransaction != null)
+			{
+				response.Transaction = txnState.ProtoTransaction;
+			}
+
+			NotifyResponseSent(nameof(PartitionRead), request, response, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);
+			return Task.FromResult(response);
 		}
-
-		return Task.FromResult(response);
+		catch (RpcException ex)
+		{
+			NotifyResponseSent(nameof(PartitionRead), request, null, DateTimeOffset.UtcNow - startTime, ex.StatusCode, DateTimeOffset.UtcNow);
+			throw;
+		}
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.BatchWrite
@@ -725,37 +932,49 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 	//   "Each mutation group is applied atomically. The mutation groups may be applied out of order."
 	public override async Task BatchWrite(BatchWriteRequest request, Grpc.Core.IServerStreamWriter<BatchWriteResponse> responseStream, ServerCallContext context)
 	{
+		var startTime = DateTimeOffset.UtcNow;
 		LogRequest(nameof(BatchWrite), request);
-		CheckFault(nameof(BatchWrite), request);
-
-		ValidateSession(request.Session);
-
-		var mutationExecutor = new MutationExecutor(_database);
-
-		for (var i = 0; i < request.MutationGroups.Count; i++)
+		NotifyRequestReceived(nameof(BatchWrite), request, startTime);
+		try
 		{
-			var group = request.MutationGroups[i];
-			var commitTimestamp = DateTimeOffset.UtcNow;
+			CheckFault(nameof(BatchWrite), request);
 
-			var response = new BatchWriteResponse();
-			response.Indexes.Add(i);
+			ValidateSession(request.Session);
 
-			try
+			var mutationExecutor = new MutationExecutor(_database);
+
+			for (var i = 0; i < request.MutationGroups.Count; i++)
 			{
-				mutationExecutor.ApplyMutations(group.Mutations, commitTimestamp);
-				response.Status = new Google.Rpc.Status { Code = (int)Google.Rpc.Code.Ok };
-				response.CommitTimestamp = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(commitTimestamp);
-			}
-			catch (Exception ex)
-			{
-				response.Status = new Google.Rpc.Status
+				var group = request.MutationGroups[i];
+				var commitTimestamp = DateTimeOffset.UtcNow;
+
+				var response = new BatchWriteResponse();
+				response.Indexes.Add(i);
+
+				try
 				{
-					Code = (int)Google.Rpc.Code.InvalidArgument,
-					Message = ex.Message
-				};
+					mutationExecutor.ApplyMutations(group.Mutations, commitTimestamp);
+					response.Status = new Google.Rpc.Status { Code = (int)Google.Rpc.Code.Ok };
+					response.CommitTimestamp = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(commitTimestamp);
+				}
+				catch (Exception ex)
+				{
+					response.Status = new Google.Rpc.Status
+					{
+						Code = (int)Google.Rpc.Code.InvalidArgument,
+						Message = ex.Message
+					};
+				}
+
+				await responseStream.WriteAsync(response);
 			}
 
-			await responseStream.WriteAsync(response);
+			NotifyResponseSent(nameof(BatchWrite), request, null, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);
+		}
+		catch (RpcException ex)
+		{
+			NotifyResponseSent(nameof(BatchWrite), request, null, DateTimeOffset.UtcNow - startTime, ex.StatusCode, DateTimeOffset.UtcNow);
+			throw;
 		}
 	}
 

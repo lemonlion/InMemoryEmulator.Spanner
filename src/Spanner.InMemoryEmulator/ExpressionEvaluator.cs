@@ -570,6 +570,54 @@ internal class ExpressionEvaluator
 			"NET.IP_FROM_STRING" => EvalNetIpFromString(func, row),
 			"NET.IP_TO_STRING" => EvalNetIpToString(func, row),
 			"NET.SAFE_IP_FROM_STRING" => EvalNetSafeIpFromString(func, row),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/net_functions#netip_net_mask
+			"NET.IP_NET_MASK" => EvalNetIpNetMask(func, row),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/net_functions#netip_trunc
+			"NET.IP_TRUNC" => EvalNetIpTrunc(func, row),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/net_functions#netipv4_from_int64
+			"NET.IPV4_FROM_INT64" => EvalNetIpv4FromInt64(func, row),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/net_functions#netipv4_to_int64
+			"NET.IPV4_TO_INT64" => EvalNetIpv4ToInt64(func, row),
+
+			// Date/Time aliases
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#adddate
+			"ADDDATE" => EvalDateAdd(func, row),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#subdate
+			"SUBDATE" => EvalDateSub(func, row),
+
+			// Additional string functions
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#split_substr
+			"SPLIT_SUBSTR" => EvalSplitSubstr(func, row),
+
+			// Additional math functions
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/bit_functions#bit_reverse
+			"BIT_REVERSE" => EvalBitReverse(func, row),
+
+			// Additional JSON functions
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_value_array
+			"JSON_VALUE_ARRAY" => EvalJsonValueArray(func, row),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_array_append
+			"JSON_ARRAY_APPEND" => EvalJsonArrayAppend(func, row),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_array_insert
+			"JSON_ARRAY_INSERT" => EvalJsonArrayInsert(func, row),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_contains
+			"JSON_CONTAINS" => EvalJsonContains(func, row),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_remove
+			"JSON_REMOVE" => EvalJsonRemove(func, row),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#safe_to_json
+			"SAFE_TO_JSON" => EvalSafeToJson(func, row),
+
+			// JSON array conversion functions
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#float64_array
+			"FLOAT64_ARRAY" => EvalJsonToTypedArray(func, row, "FLOAT64"),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#float32_array
+			"FLOAT32_ARRAY" => EvalJsonToTypedArray(func, row, "FLOAT32"),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#int64_array
+			"INT64_ARRAY" => EvalJsonToTypedArray(func, row, "INT64"),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#bool_array
+			"BOOL_ARRAY" => EvalJsonToTypedArray(func, row, "BOOL"),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#string_array
+			"STRING_ARRAY" => EvalJsonToTypedArray(func, row, "STRING"),
 
 			// Conditional: ERROR
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/debugging_functions
@@ -2791,5 +2839,484 @@ internal class ExpressionEvaluator
 		if (val == null) return null;
 		if (!System.Net.IPAddress.TryParse(val.ToString()!, out var ip)) return null;
 		return ip.GetAddressBytes();
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// NET.IP_NET_MASK
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/net_functions#netip_net_mask
+	//   Returns a network mask: a BYTES value with `prefix_length` leading 1-bits.
+	//   `output_length` is 4 (IPv4) or 16 (IPv6).
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalNetIpNetMask(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 2) throw new InvalidOperationException("NET.IP_NET_MASK requires 2 arguments.");
+		var outputLength = Convert.ToInt32(Evaluate(func.Arguments[0], row) ?? throw new InvalidOperationException("NET.IP_NET_MASK: output_length cannot be NULL."));
+		var prefixLength = Convert.ToInt32(Evaluate(func.Arguments[1], row) ?? throw new InvalidOperationException("NET.IP_NET_MASK: prefix_length cannot be NULL."));
+		if (outputLength != 4 && outputLength != 16)
+			throw new InvalidOperationException("NET.IP_NET_MASK: output_length must be 4 or 16.");
+		if (prefixLength < 0 || prefixLength > outputLength * 8)
+			throw new InvalidOperationException($"NET.IP_NET_MASK: prefix_length must be between 0 and {outputLength * 8}.");
+		var bytes = new byte[outputLength];
+		for (int i = 0; i < prefixLength; i++)
+			bytes[i / 8] |= (byte)(0x80 >> (i % 8));
+		return bytes;
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// NET.IP_TRUNC
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/net_functions#netip_trunc
+	//   Truncates an IP address (BYTES) to the specified prefix length.
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalNetIpTrunc(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 2) throw new InvalidOperationException("NET.IP_TRUNC requires 2 arguments.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		if (val is not byte[] ipBytes) throw new InvalidOperationException("NET.IP_TRUNC: first argument must be BYTES.");
+		var prefixLength = Convert.ToInt32(Evaluate(func.Arguments[1], row) ?? throw new InvalidOperationException("NET.IP_TRUNC: prefix_length cannot be NULL."));
+		if (prefixLength < 0 || prefixLength > ipBytes.Length * 8)
+			throw new InvalidOperationException($"NET.IP_TRUNC: prefix_length must be between 0 and {ipBytes.Length * 8}.");
+		var result = new byte[ipBytes.Length];
+		Array.Copy(ipBytes, result, ipBytes.Length);
+		// Zero out bits after prefix_length
+		for (int i = prefixLength; i < result.Length * 8; i++)
+			result[i / 8] &= (byte)~(0x80 >> (i % 8));
+		return result;
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// NET.IPV4_FROM_INT64
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/net_functions#netipv4_from_int64
+	//   Converts an IPv4 address from an INT64 value to BYTES in network byte order.
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalNetIpv4FromInt64(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1) throw new InvalidOperationException("NET.IPV4_FROM_INT64 requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		var intVal = Convert.ToInt64(val);
+		if (intVal < 0 || intVal > 0xFFFFFFFFL)
+			throw new InvalidOperationException($"NET.IPV4_FROM_INT64: value {intVal} is out of range for IPv4.");
+		var bytes = BitConverter.GetBytes((uint)intVal);
+		if (BitConverter.IsLittleEndian) Array.Reverse(bytes);
+		return bytes;
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// NET.IPV4_TO_INT64
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/net_functions#netipv4_to_int64
+	//   Converts an IPv4 address from BYTES in network byte order to INT64.
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalNetIpv4ToInt64(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 1) throw new InvalidOperationException("NET.IPV4_TO_INT64 requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		if (val is not byte[] bytes || bytes.Length != 4)
+			throw new InvalidOperationException("NET.IPV4_TO_INT64 requires a 4-byte BYTES value.");
+		var copy = (byte[])bytes.Clone();
+		if (BitConverter.IsLittleEndian) Array.Reverse(copy);
+		return (long)BitConverter.ToUInt32(copy, 0);
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// SPLIT_SUBSTR
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#split_substr
+	//   Returns a substring determined by a delimiter, start_split, and optional count.
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalSplitSubstr(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count < 3 || func.Arguments.Count > 4)
+			throw new InvalidOperationException("SPLIT_SUBSTR requires 3 or 4 arguments.");
+		var value = Evaluate(func.Arguments[0], row)?.ToString();
+		if (value == null) return null;
+		var delimiter = Evaluate(func.Arguments[1], row)?.ToString()
+			?? throw new InvalidOperationException("SPLIT_SUBSTR: delimiter cannot be NULL.");
+		var startSplit = Convert.ToInt32(Evaluate(func.Arguments[2], row)
+			?? throw new InvalidOperationException("SPLIT_SUBSTR: start_split cannot be NULL."));
+		int? count = func.Arguments.Count > 3
+			? Convert.ToInt32(Evaluate(func.Arguments[3], row)
+				?? throw new InvalidOperationException("SPLIT_SUBSTR: count cannot be NULL."))
+			: null;
+		if (count.HasValue && count.Value < 0)
+			throw new InvalidOperationException("SPLIT_SUBSTR: count cannot be negative.");
+		if (count.HasValue && count.Value == 0) return "";
+
+		// Split the value
+		var parts = new List<string>();
+		int pos = 0;
+		while (pos <= value.Length)
+		{
+			int next = delimiter.Length > 0 ? value.IndexOf(delimiter, pos, StringComparison.Ordinal) : -1;
+			if (next < 0)
+			{
+				parts.Add(value[pos..]);
+				break;
+			}
+			parts.Add(value[pos..next]);
+			pos = next + delimiter.Length;
+		}
+
+		int totalSplits = parts.Count;
+		// Normalize startSplit: 0 or less than -totalSplits → 1
+		if (startSplit == 0 || startSplit < -totalSplits) startSplit = 1;
+		// Negative: count from end
+		if (startSplit < 0) startSplit = totalSplits + startSplit + 1;
+		// If start > total, return empty
+		if (startSplit > totalSplits) return "";
+
+		int startIdx = startSplit - 1; // 0-based
+		int takeCount = count ?? (totalSplits - startIdx);
+		takeCount = Math.Min(takeCount, totalSplits - startIdx);
+		var selected = parts.Skip(startIdx).Take(takeCount);
+		return string.Join(delimiter, selected);
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// BIT_REVERSE
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/bit_functions#bit_reverse
+	//   Reverses the bits of the input integer, treating it as `bit_count` wide.
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalBitReverse(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 2) throw new InvalidOperationException("BIT_REVERSE requires 2 arguments.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		var intVal = Convert.ToInt64(val);
+		var width = Convert.ToBoolean(Evaluate(func.Arguments[1], row)
+			?? throw new InvalidOperationException("BIT_REVERSE: bit_count cannot be NULL."));
+		// The second arg indicates whether to keep the sign bit (true = keep as INT64)
+		ulong unsigned = (ulong)intVal;
+		ulong reversed = 0;
+		for (int i = 0; i < 64; i++)
+		{
+			reversed <<= 1;
+			reversed |= (unsigned & 1);
+			unsigned >>= 1;
+		}
+		return (long)reversed;
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// JSON_VALUE_ARRAY
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_value_array
+	//   Extracts a JSON array and converts it to ARRAY<STRING>.
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalJsonValueArray(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count < 1 || func.Arguments.Count > 2)
+			throw new InvalidOperationException("JSON_VALUE_ARRAY requires 1 or 2 arguments.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		string jsonStr = val.ToString()!;
+		string? path = func.Arguments.Count > 1 ? Evaluate(func.Arguments[1], row)?.ToString() : null;
+
+		var navigated = path != null ? NavigateJsonPath(jsonStr, path) : null;
+		JsonElement element;
+		if (navigated is JsonElement je)
+			element = je;
+		else if (path == null)
+		{
+			using var doc = System.Text.Json.JsonDocument.Parse(jsonStr);
+			element = doc.RootElement.Clone();
+		}
+		else
+			return null;
+
+		if (element.ValueKind != JsonValueKind.Array) return null;
+
+		var result = new List<object?>();
+		foreach (var item in element.EnumerateArray())
+		{
+			result.Add(item.ValueKind switch
+			{
+				JsonValueKind.String => item.GetString(),
+				JsonValueKind.Number => item.GetRawText(),
+				JsonValueKind.True => "true",
+				JsonValueKind.False => "false",
+				JsonValueKind.Null => null,
+				_ => item.GetRawText()
+			});
+		}
+		return result;
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// JSON_ARRAY_APPEND
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_array_append
+	//   Appends JSON data to the end of a JSON array.
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalJsonArrayAppend(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count < 2) throw new InvalidOperationException("JSON_ARRAY_APPEND requires at least 2 arguments.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		string jsonStr = val.ToString()!;
+		using var doc = System.Text.Json.JsonDocument.Parse(jsonStr);
+
+		// Arguments come in pairs: (path, value) or just a value if path is "$"
+		using var stream = new System.IO.MemoryStream();
+		using var writer = new System.Text.Json.Utf8JsonWriter(stream);
+
+		// Simple case: append value(s) to root array
+		if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Array)
+			throw new InvalidOperationException("JSON_ARRAY_APPEND: root element must be an array.");
+
+		writer.WriteStartArray();
+		foreach (var item in doc.RootElement.EnumerateArray())
+			item.WriteTo(writer);
+		// Append each new value
+		for (int i = 1; i < func.Arguments.Count; i++)
+		{
+			var appendVal = Evaluate(func.Arguments[i], row);
+			WriteJsonValue(writer, appendVal);
+		}
+		writer.WriteEndArray();
+		writer.Flush();
+
+		return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// JSON_ARRAY_INSERT
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_array_insert
+	//   Inserts JSON data into a JSON array.
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalJsonArrayInsert(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count < 3) throw new InvalidOperationException("JSON_ARRAY_INSERT requires at least 3 arguments.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+		string jsonStr = val.ToString()!;
+		var path = Evaluate(func.Arguments[1], row)?.ToString()
+			?? throw new InvalidOperationException("JSON_ARRAY_INSERT: path cannot be NULL.");
+		var insertVal = Evaluate(func.Arguments[2], row);
+
+		using var doc = System.Text.Json.JsonDocument.Parse(jsonStr);
+		if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Array)
+			throw new InvalidOperationException("JSON_ARRAY_INSERT: target must be an array.");
+
+		// Parse the array index from the path (e.g., "$[1]")
+		var match = System.Text.RegularExpressions.Regex.Match(path, @"\[(\d+)\]");
+		if (!match.Success) throw new InvalidOperationException("JSON_ARRAY_INSERT: path must contain array index.");
+		int insertIdx = int.Parse(match.Groups[1].Value);
+
+		var items = doc.RootElement.EnumerateArray().ToList();
+		using var stream = new System.IO.MemoryStream();
+		using var writer = new System.Text.Json.Utf8JsonWriter(stream);
+		writer.WriteStartArray();
+		for (int i = 0; i < items.Count; i++)
+		{
+			if (i == insertIdx) WriteJsonValue(writer, insertVal);
+			items[i].WriteTo(writer);
+		}
+		if (insertIdx >= items.Count) WriteJsonValue(writer, insertVal);
+		writer.WriteEndArray();
+		writer.Flush();
+		return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// JSON_CONTAINS
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_contains
+	//   Checks if a JSON document contains another JSON document.
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalJsonContains(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count != 2) throw new InvalidOperationException("JSON_CONTAINS requires 2 arguments.");
+		var val1 = Evaluate(func.Arguments[0], row);
+		var val2 = Evaluate(func.Arguments[1], row);
+		if (val1 == null || val2 == null) return null;
+
+		using var doc1 = System.Text.Json.JsonDocument.Parse(val1.ToString()!);
+		using var doc2 = System.Text.Json.JsonDocument.Parse(val2.ToString()!);
+		return JsonContains(doc1.RootElement, doc2.RootElement);
+	}
+
+	private static bool JsonContains(System.Text.Json.JsonElement container, System.Text.Json.JsonElement target)
+	{
+		if (target.ValueKind == System.Text.Json.JsonValueKind.Object)
+		{
+			if (container.ValueKind != System.Text.Json.JsonValueKind.Object) return false;
+			foreach (var prop in target.EnumerateObject())
+			{
+				if (!container.TryGetProperty(prop.Name, out var containerProp)) return false;
+				if (!JsonContains(containerProp, prop.Value)) return false;
+			}
+			return true;
+		}
+		if (target.ValueKind == System.Text.Json.JsonValueKind.Array)
+		{
+			if (container.ValueKind != System.Text.Json.JsonValueKind.Array) return false;
+			foreach (var item in target.EnumerateArray())
+			{
+				bool found = false;
+				foreach (var cItem in container.EnumerateArray())
+				{
+					if (JsonContains(cItem, item)) { found = true; break; }
+				}
+				if (!found) return false;
+			}
+			return true;
+		}
+		return container.GetRawText() == target.GetRawText();
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// JSON_REMOVE
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_remove
+	//   Produces JSON with the specified JSON data removed.
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalJsonRemove(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		if (func.Arguments.Count < 2) throw new InvalidOperationException("JSON_REMOVE requires at least 2 arguments.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+
+		using var doc = System.Text.Json.JsonDocument.Parse(val.ToString()!);
+		var paths = new List<string>();
+		for (int i = 1; i < func.Arguments.Count; i++)
+		{
+			var p = Evaluate(func.Arguments[i], row)?.ToString();
+			if (p != null) paths.Add(p);
+		}
+
+		using var stream = new System.IO.MemoryStream();
+		using var writer = new System.Text.Json.Utf8JsonWriter(stream);
+		WriteJsonWithoutPaths(writer, doc.RootElement, paths, "$");
+		writer.Flush();
+		return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+	}
+
+	private static void WriteJsonWithoutPaths(System.Text.Json.Utf8JsonWriter writer,
+		System.Text.Json.JsonElement element, List<string> removePaths, string currentPath)
+	{
+		if (element.ValueKind == System.Text.Json.JsonValueKind.Object)
+		{
+			writer.WriteStartObject();
+			foreach (var prop in element.EnumerateObject())
+			{
+				var propPath = $"{currentPath}.{prop.Name}";
+				if (removePaths.Contains(propPath)) continue;
+				writer.WritePropertyName(prop.Name);
+				WriteJsonWithoutPaths(writer, prop.Value, removePaths, propPath);
+			}
+			writer.WriteEndObject();
+		}
+		else if (element.ValueKind == System.Text.Json.JsonValueKind.Array)
+		{
+			writer.WriteStartArray();
+			int idx = 0;
+			foreach (var item in element.EnumerateArray())
+			{
+				var itemPath = $"{currentPath}[{idx}]";
+				if (!removePaths.Contains(itemPath))
+					WriteJsonWithoutPaths(writer, item, removePaths, itemPath);
+				idx++;
+			}
+			writer.WriteEndArray();
+		}
+		else
+		{
+			element.WriteTo(writer);
+		}
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// SAFE_TO_JSON
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#safe_to_json
+	//   Similar to TO_JSON, but returns NULL instead of error for unsupported fields.
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalSafeToJson(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#safe_to_json
+		//   SAFE_TO_JSON(NULL) → SQL NULL
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+
+		try
+		{
+			return EvalToJson(func, row);
+		}
+		catch
+		{
+			return null;
+		}
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// JSON array conversion functions
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions
+	//   Convert JSON arrays to typed SQL arrays.
+	// ═══════════════════════════════════════════════════════════════
+
+	private object? EvalJsonToTypedArray(FunctionCallExpr func, Dictionary<string, object?> row, string targetType)
+	{
+		if (func.Arguments.Count != 1) throw new InvalidOperationException($"{func.Name} requires 1 argument.");
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+
+		string jsonStr = val.ToString()!;
+		using var doc = System.Text.Json.JsonDocument.Parse(jsonStr);
+		if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Array)
+			throw new InvalidOperationException($"{func.Name}: argument must be a JSON array.");
+
+		var result = new List<object?>();
+		foreach (var item in doc.RootElement.EnumerateArray())
+		{
+			if (item.ValueKind == System.Text.Json.JsonValueKind.Null)
+			{
+				result.Add(null);
+				continue;
+			}
+			result.Add(targetType switch
+			{
+				"FLOAT64" => item.GetDouble(),
+				"FLOAT32" => (double)item.GetSingle(),
+				"INT64" => item.GetInt64(),
+				"BOOL" => item.GetBoolean(),
+				"STRING" => item.GetString(),
+				_ => throw new InvalidOperationException($"Unsupported target type: {targetType}")
+			});
+		}
+		return result;
+	}
+
+	private static void WriteJsonValue(System.Text.Json.Utf8JsonWriter writer, object? value)
+	{
+		switch (value)
+		{
+			case null: writer.WriteNullValue(); break;
+			case bool b: writer.WriteBooleanValue(b); break;
+			case long l: writer.WriteNumberValue(l); break;
+			case int i: writer.WriteNumberValue(i); break;
+			case double d: writer.WriteNumberValue(d); break;
+			case float f: writer.WriteNumberValue(f); break;
+			case string s:
+				// Try to parse as JSON first
+				try
+				{
+					using var innerDoc = System.Text.Json.JsonDocument.Parse(s);
+					innerDoc.RootElement.WriteTo(writer);
+				}
+				catch
+				{
+					writer.WriteStringValue(s);
+				}
+				break;
+			default: writer.WriteStringValue(value.ToString()); break;
+		}
 	}
 }

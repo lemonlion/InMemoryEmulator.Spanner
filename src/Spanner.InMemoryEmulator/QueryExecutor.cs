@@ -794,6 +794,9 @@ internal class QueryExecutor
 	//   GCP Spanner does not support standard SQL analytic/window functions
 	//   (ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, FIRST_VALUE, LAST_VALUE,
 	//   or aggregate OVER). It only supports IS_FIRST.
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#is_first
+	//   IS_FIRST(k) returns TRUE if the current row is among the first k rows
+	//   in its partition, ordered by the ORDER BY clause.
 	private List<Dictionary<string, object?>> EvaluateWindowFunctions(
 		List<SelectColumn> columns,
 		List<Dictionary<string, object?>> rows,
@@ -803,7 +806,6 @@ internal class QueryExecutor
 		if (windowCols.Count == 0)
 			return rows;
 
-		// Reject unsupported window functions — real GCP Spanner returns Unimplemented
 		foreach (var col in windowCols)
 		{
 			var win = (WindowExpr)col.Expr;
@@ -814,10 +816,82 @@ internal class QueryExecutor
 				_ => ""
 			};
 
-			throw new NotSupportedException($"Unsupported built-in function: {funcName}.");
+			// Only IS_FIRST is supported — reject all others
+			if (funcName != "IS_FIRST")
+				throw new NotSupportedException($"Unsupported built-in function: {funcName}.");
+
+			// IS_FIRST(k) — k is the first argument
+			var isFirstFunc = (FunctionCallExpr)win.Function;
+			if (isFirstFunc.Arguments.Count != 1)
+				throw new InvalidOperationException("IS_FIRST requires exactly 1 argument.");
+			var kVal = evaluator.Evaluate(isFirstFunc.Arguments[0], rows.FirstOrDefault() ?? new Dictionary<string, object?>());
+			int k = Convert.ToInt32(kVal ?? throw new InvalidOperationException("IS_FIRST: argument cannot be NULL."));
+			if (k < 0) throw new InvalidOperationException("IS_FIRST: argument must be non-negative.");
+
+			// Partition rows
+			var partitions = PartitionRows(rows, win.PartitionBy, evaluator);
+			var resultAlias = col.Alias ?? InferColumnNameStatic(col.Expr);
+
+			foreach (var partition in partitions)
+			{
+				// Sort partition by ORDER BY
+				var sorted = SortRows(partition, win.OrderBy, evaluator);
+
+				// Assign IS_FIRST value: true for first k rows, false for rest
+				for (int i = 0; i < sorted.Count; i++)
+					sorted[i][resultAlias] = i < k;
+			}
 		}
 
 		return rows;
+	}
+
+	private List<List<Dictionary<string, object?>>> PartitionRows(
+		List<Dictionary<string, object?>> rows,
+		List<SqlExpression>? partitionBy,
+		ExpressionEvaluator evaluator)
+	{
+		if (partitionBy == null || partitionBy.Count == 0)
+			return new List<List<Dictionary<string, object?>>> { rows };
+
+		return rows.GroupBy(r =>
+		{
+			var key = new List<object?>();
+			foreach (var expr in partitionBy)
+				key.Add(evaluator.Evaluate(expr, r));
+			return string.Join("|", key.Select(k => k?.ToString() ?? "NULL"));
+		}).Select(g => g.ToList()).ToList();
+	}
+
+	private List<Dictionary<string, object?>> SortRows(
+		List<Dictionary<string, object?>> rows,
+		List<OrderByColumn>? orderBy,
+		ExpressionEvaluator evaluator)
+	{
+		if (orderBy == null || orderBy.Count == 0) return rows;
+
+		rows.Sort((a, b) =>
+		{
+			foreach (var clause in orderBy)
+			{
+				var va = evaluator.Evaluate(clause.Expr, a);
+				var vb = evaluator.Evaluate(clause.Expr, b);
+				int cmp = CompareNullable(va, vb);
+				if (clause.Order == SortOrder.Desc) cmp = -cmp;
+				if (cmp != 0) return cmp;
+			}
+			return 0;
+		});
+		return rows;
+	}
+
+	private static int CompareNullable(object? a, object? b)
+	{
+		if (a == null && b == null) return 0;
+		if (a == null) return -1;
+		if (b == null) return 1;
+		if (a is IComparable ca) return ca.CompareTo(Convert.ChangeType(b, a.GetType()));
+		return 0;
 	}
 
 	private List<Dictionary<string, object?>> ExecuteGroupBy(

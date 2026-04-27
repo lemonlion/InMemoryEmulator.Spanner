@@ -362,8 +362,10 @@ internal static class SqlParsers
 	// DATE_ADD/DATE_SUB/TIMESTAMP_ADD/TIMESTAMP_SUB with INTERVAL syntax
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date_add
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_add
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#adddate
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#subdate
 	private static readonly HashSet<string> IntervalFunctionNames = new(StringComparer.OrdinalIgnoreCase)
-		{ "DATE_ADD", "DATE_SUB", "TIMESTAMP_ADD", "TIMESTAMP_SUB" };
+		{ "DATE_ADD", "DATE_SUB", "TIMESTAMP_ADD", "TIMESTAMP_SUB", "ADDDATE", "SUBDATE" };
 
 	private static TokenListParser<GoogleSqlToken, SqlExpression> IntervalFunction { get; } =
 		from name in Token.EqualTo(GoogleSqlToken.Identifier)

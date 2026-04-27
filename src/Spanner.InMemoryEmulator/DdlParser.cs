@@ -35,6 +35,14 @@ internal static class DdlParser
 		//   The in-memory emulator accepts them as no-ops.
 		if (TryParseSearchIndex(trimmed)) return;
 
+		// Handle CREATE/ALTER/DROP CHANGE STREAM with string parsing.
+		// Ref: https://cloud.google.com/spanner/docs/change-streams/manage
+		if (TryParseChangeStream(trimmed, schema)) return;
+
+		// Handle CREATE/DROP PROPERTY GRAPH as no-ops.
+		// Ref: https://cloud.google.com/spanner/docs/graph/schema-overview
+		if (TryParsePropertyGraph(trimmed)) return;
+
 		var tokens = GoogleSqlTokenizer.Tokenize(trimmed);
 		var result = DdlParsers.DdlStatement.AtEnd().TryParse(tokens);
 
@@ -490,6 +498,193 @@ internal static class DdlParser
 		if (upper.StartsWith("CREATE SEARCH INDEX") || upper.StartsWith("DROP SEARCH INDEX"))
 			return true;
 		return false;
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/graph/schema-overview
+	//   CREATE [OR REPLACE] PROPERTY GRAPH / DROP PROPERTY GRAPH — accepted as no-ops.
+	//   The in-memory emulator does not implement graph query semantics.
+	private static bool TryParsePropertyGraph(string ddl)
+	{
+		var upper = ddl.ToUpperInvariant();
+		if (upper.StartsWith("CREATE PROPERTY GRAPH") ||
+			upper.StartsWith("CREATE OR REPLACE PROPERTY GRAPH") ||
+			upper.StartsWith("DROP PROPERTY GRAPH"))
+			return true;
+		return false;
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/change-streams/manage
+	//   CREATE CHANGE STREAM name [FOR ...] [OPTIONS (...)];
+	//   ALTER CHANGE STREAM name SET/DROP FOR ...;
+	//   DROP CHANGE STREAM name;
+	private static bool TryParseChangeStream(string ddl, SchemaRegistry schema)
+	{
+		var upper = ddl.ToUpperInvariant();
+
+		if (upper.StartsWith("DROP CHANGE STREAM"))
+		{
+			var name = ddl["DROP CHANGE STREAM".Length..].Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
+			schema.RemoveChangeStream(name);
+			return true;
+		}
+
+		if (upper.StartsWith("ALTER CHANGE STREAM"))
+		{
+			// ALTER CHANGE STREAM name SET FOR ...|DROP FOR ALL|SET OPTIONS (...)
+			var rest = ddl["ALTER CHANGE STREAM".Length..].Trim();
+			var nameParts = rest.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+			if (nameParts.Length == 0) return false;
+			var name = nameParts[0];
+
+			if (!schema.TryGetChangeStream(name, out var existing) || existing == null)
+				existing = new ChangeStreamDefinition(name);
+
+			if (nameParts.Length > 1)
+			{
+				var clause = nameParts[1].Trim();
+				var clauseUpper = clause.ToUpperInvariant();
+
+				if (clauseUpper.StartsWith("DROP FOR ALL"))
+				{
+					// Suspend: watches nothing
+					existing.WatchesAll = false;
+					existing.WatchedTables.Clear();
+				}
+				else if (clauseUpper.StartsWith("SET FOR"))
+				{
+					var forClause = clause["SET FOR".Length..].Trim();
+					ParseForClause(forClause, existing);
+				}
+				else if (clauseUpper.StartsWith("SET OPTIONS"))
+				{
+					ParseOptions(clause, existing);
+				}
+			}
+
+			schema.AddChangeStream(existing);
+			return true;
+		}
+
+		if (!upper.StartsWith("CREATE CHANGE STREAM")) return false;
+
+		var createRest = ddl["CREATE CHANGE STREAM".Length..].Trim();
+		var createParts = createRest.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+		if (createParts.Length == 0) return false;
+
+		var csName = createParts[0];
+		var csDef = new ChangeStreamDefinition(csName);
+
+		if (createParts.Length > 1)
+		{
+			var body = createParts[1].Trim();
+			var bodyUpper = body.ToUpperInvariant();
+
+			// Split FOR clause from OPTIONS
+			var optionsIdx = bodyUpper.IndexOf("OPTIONS", StringComparison.Ordinal);
+			string? forPart = null;
+			string? optionsPart = null;
+
+			if (bodyUpper.StartsWith("FOR"))
+			{
+				if (optionsIdx >= 0)
+				{
+					forPart = body[..optionsIdx].Trim();
+					optionsPart = body[optionsIdx..];
+				}
+				else
+				{
+					forPart = body;
+				}
+			}
+			else if (bodyUpper.StartsWith("OPTIONS"))
+			{
+				optionsPart = body;
+			}
+
+			if (forPart != null)
+				ParseForClause(forPart["FOR".Length..].Trim(), csDef);
+
+			if (optionsPart != null)
+				ParseOptions(optionsPart, csDef);
+		}
+
+		schema.AddChangeStream(csDef);
+		return true;
+	}
+
+	private static void ParseForClause(string forBody, ChangeStreamDefinition def)
+	{
+		var upper = forBody.Trim().ToUpperInvariant();
+		if (upper == "ALL" || upper.StartsWith("ALL "))
+		{
+			def.WatchesAll = true;
+			def.WatchedTables.Clear();
+			return;
+		}
+
+		def.WatchesAll = false;
+		def.WatchedTables.Clear();
+
+		// Parse comma-separated table specs: Table1, Table2(Col1, Col2), Table3
+		// Use a simple state machine to handle parentheses
+		var specs = SplitTopLevel(forBody, ',');
+		foreach (var spec in specs)
+		{
+			var trimSpec = spec.Trim();
+			var parenIdx = trimSpec.IndexOf('(');
+			if (parenIdx >= 0)
+			{
+				var table = trimSpec[..parenIdx].Trim();
+				var colList = trimSpec[(parenIdx + 1)..trimSpec.LastIndexOf(')')].Trim();
+				var cols = colList.Split(',').Select(c => c.Trim()).ToList();
+				def.WatchedTables.Add((table, cols));
+			}
+			else
+			{
+				def.WatchedTables.Add((trimSpec, null));
+			}
+		}
+	}
+
+	private static void ParseOptions(string optionsClause, ChangeStreamDefinition def)
+	{
+		var match = System.Text.RegularExpressions.Regex.Match(optionsClause,
+			@"OPTIONS\s*\(([^)]+)\)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+		if (!match.Success) return;
+
+		var optionsStr = match.Groups[1].Value;
+		// Parse key = 'value' or key = true/false pairs
+		var pairs = System.Text.RegularExpressions.Regex.Matches(optionsStr,
+			@"(\w+)\s*=\s*(?:'([^']*)'|(true|false|\d+))",
+			System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+		foreach (System.Text.RegularExpressions.Match pair in pairs)
+		{
+			var key = pair.Groups[1].Value;
+			var val = pair.Groups[2].Success ? pair.Groups[2].Value : pair.Groups[3].Value;
+			def.Options[key] = val;
+		}
+	}
+
+	/// <summary>
+	/// Splits a string by a delimiter, but only at the top level (not inside parentheses).
+	/// </summary>
+	private static List<string> SplitTopLevel(string input, char delimiter)
+	{
+		var result = new List<string>();
+		var depth = 0;
+		var start = 0;
+		for (var i = 0; i < input.Length; i++)
+		{
+			if (input[i] == '(') depth++;
+			else if (input[i] == ')') depth--;
+			else if (input[i] == delimiter && depth == 0)
+			{
+				result.Add(input[start..i]);
+				start = i + 1;
+			}
+		}
+		result.Add(input[start..]);
+		return result;
 	}
 }
 

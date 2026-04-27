@@ -47,6 +47,14 @@ internal class InformationSchemaProvider
 			"DATABASE_OPTIONS" => GetDatabaseOptions(),
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/information-schema#constraint_table_usage
 			"CONSTRAINT_TABLE_USAGE" => GetConstraintTableUsage(),
+			// Ref: https://cloud.google.com/spanner/docs/information-schema#information_schemachange_streams
+			"CHANGE_STREAMS" => GetChangeStreams(),
+			// Ref: https://cloud.google.com/spanner/docs/information-schema#information_schemachange_stream_tables
+			"CHANGE_STREAM_TABLES" => GetChangeStreamTables(),
+			// Ref: https://cloud.google.com/spanner/docs/information-schema#information_schemachange_stream_columns
+			"CHANGE_STREAM_COLUMNS" => GetChangeStreamColumns(),
+			// Ref: https://cloud.google.com/spanner/docs/information-schema#information_schemachange_stream_options
+			"CHANGE_STREAM_OPTIONS" => GetChangeStreamOptions(),
 			_ => throw new InvalidOperationException($"INFORMATION_SCHEMA.{tableName} is not supported.")
 		};
 
@@ -62,7 +70,7 @@ internal class InformationSchemaProvider
 		return columnName switch
 		{
 			"ORDINAL_POSITION" => Google.Cloud.Spanner.V1.TypeCode.Int64,
-			"IS_UNIQUE" or "IS_NULL_FILTERED" => Google.Cloud.Spanner.V1.TypeCode.Bool,
+			"IS_UNIQUE" or "IS_NULL_FILTERED" or "ALL" or "ALL_COLUMNS" => Google.Cloud.Spanner.V1.TypeCode.Bool,
 			_ => Google.Cloud.Spanner.V1.TypeCode.String
 		};
 	}
@@ -537,6 +545,103 @@ internal class InformationSchemaProvider
 				["CONSTRAINT_CATALOG"] = "", ["CONSTRAINT_SCHEMA"] = "",
 				["CONSTRAINT_NAME"] = $"PK_{tname}"
 			});
+		}
+		return (cols, rows);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/information-schema#information_schemachange_streams
+	//   "Lists all of a database's change streams."
+	private (List<string>, List<Dictionary<string, object?>>) GetChangeStreams()
+	{
+		var cols = new List<string> { "CHANGE_STREAM_CATALOG", "CHANGE_STREAM_SCHEMA", "CHANGE_STREAM_NAME", "ALL" };
+		var rows = new List<Dictionary<string, object?>>();
+		foreach (var (_, cs) in _schema.GetChangeStreams())
+		{
+			rows.Add(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+			{
+				["CHANGE_STREAM_CATALOG"] = "",
+				["CHANGE_STREAM_SCHEMA"] = "",
+				["CHANGE_STREAM_NAME"] = cs.Name,
+				["ALL"] = cs.WatchesAll
+			});
+		}
+		return (cols, rows);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/information-schema#information_schemachange_stream_tables
+	//   "Contains information about tables and the change streams that watch them."
+	private (List<string>, List<Dictionary<string, object?>>) GetChangeStreamTables()
+	{
+		var cols = new List<string> { "CHANGE_STREAM_CATALOG", "CHANGE_STREAM_SCHEMA", "CHANGE_STREAM_NAME", "TABLE_CATALOG", "TABLE_SCHEMA", "TABLE_NAME", "ALL_COLUMNS" };
+		var rows = new List<Dictionary<string, object?>>();
+		foreach (var (_, cs) in _schema.GetChangeStreams())
+		{
+			foreach (var (table, columns) in cs.WatchedTables)
+			{
+				rows.Add(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+				{
+					["CHANGE_STREAM_CATALOG"] = "",
+					["CHANGE_STREAM_SCHEMA"] = "",
+					["CHANGE_STREAM_NAME"] = cs.Name,
+					["TABLE_CATALOG"] = "",
+					["TABLE_SCHEMA"] = "",
+					["TABLE_NAME"] = table,
+					["ALL_COLUMNS"] = columns == null
+				});
+			}
+		}
+		return (cols, rows);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/information-schema#information_schemachange_stream_columns
+	//   "Contains information about table columns and the change streams that watch them."
+	private (List<string>, List<Dictionary<string, object?>>) GetChangeStreamColumns()
+	{
+		var cols = new List<string> { "CHANGE_STREAM_CATALOG", "CHANGE_STREAM_SCHEMA", "CHANGE_STREAM_NAME", "TABLE_CATALOG", "TABLE_SCHEMA", "TABLE_NAME", "COLUMN_NAME" };
+		var rows = new List<Dictionary<string, object?>>();
+		foreach (var (_, cs) in _schema.GetChangeStreams())
+		{
+			foreach (var (table, columns) in cs.WatchedTables)
+			{
+				if (columns == null) continue; // whole-table watch — columns not listed here
+				foreach (var col in columns)
+				{
+					rows.Add(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+					{
+						["CHANGE_STREAM_CATALOG"] = "",
+						["CHANGE_STREAM_SCHEMA"] = "",
+						["CHANGE_STREAM_NAME"] = cs.Name,
+						["TABLE_CATALOG"] = "",
+						["TABLE_SCHEMA"] = "",
+						["TABLE_NAME"] = table,
+						["COLUMN_NAME"] = col
+					});
+				}
+			}
+		}
+		return (cols, rows);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/information-schema#information_schemachange_stream_options
+	//   "Contains the configuration options for change streams."
+	private (List<string>, List<Dictionary<string, object?>>) GetChangeStreamOptions()
+	{
+		var cols = new List<string> { "CHANGE_STREAM_CATALOG", "CHANGE_STREAM_SCHEMA", "CHANGE_STREAM_NAME", "OPTION_NAME", "OPTION_TYPE", "OPTION_VALUE" };
+		var rows = new List<Dictionary<string, object?>>();
+		foreach (var (_, cs) in _schema.GetChangeStreams())
+		{
+			foreach (var (optName, optValue) in cs.Options)
+			{
+				rows.Add(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+				{
+					["CHANGE_STREAM_CATALOG"] = "",
+					["CHANGE_STREAM_SCHEMA"] = "",
+					["CHANGE_STREAM_NAME"] = cs.Name,
+					["OPTION_NAME"] = optName,
+					["OPTION_TYPE"] = "STRING",
+					["OPTION_VALUE"] = optValue
+				});
+			}
 		}
 		return (cols, rows);
 	}

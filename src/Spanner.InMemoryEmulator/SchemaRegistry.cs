@@ -14,6 +14,7 @@ internal class SchemaRegistry
 	private readonly ConcurrentDictionary<string, IndexDefinition> _indexes = new(StringComparer.OrdinalIgnoreCase);
 	private readonly ConcurrentDictionary<string, ViewDefinition> _views = new(StringComparer.OrdinalIgnoreCase);
 	private readonly ConcurrentDictionary<string, SequenceDefinition> _sequences = new(StringComparer.OrdinalIgnoreCase);
+	private readonly ConcurrentDictionary<string, ChangeStreamDefinition> _changeStreams = new(StringComparer.OrdinalIgnoreCase);
 
 	public void AddTable(TableDefinition table)
 	{
@@ -341,6 +342,7 @@ internal class SchemaRegistry
 		_indexes.Clear();
 		_views.Clear();
 		_sequences.Clear();
+		_changeStreams.Clear();
 	}
 
 	// ─── VIEWS ───
@@ -371,4 +373,19 @@ internal class SchemaRegistry
 	public void RemoveSequence(string name) => _sequences.TryRemove(name, out _);
 
 	public IReadOnlyDictionary<string, SequenceDefinition> GetSequences() => _sequences;
+
+	// ─── CHANGE STREAMS ───
+
+	// Ref: https://cloud.google.com/spanner/docs/change-streams/manage
+	//   Change streams are schema objects that watch data changes.
+	public void AddChangeStream(ChangeStreamDefinition cs)
+	{
+		_changeStreams[cs.Name] = cs; // CREATE or ALTER both overwrite
+	}
+
+	public bool TryGetChangeStream(string name, out ChangeStreamDefinition? cs) => _changeStreams.TryGetValue(name, out cs);
+
+	public void RemoveChangeStream(string name) => _changeStreams.TryRemove(name, out _);
+
+	public IReadOnlyDictionary<string, ChangeStreamDefinition> GetChangeStreams() => _changeStreams;
 }

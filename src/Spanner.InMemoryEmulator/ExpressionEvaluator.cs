@@ -664,6 +664,15 @@ internal class ExpressionEvaluator
 			// ── Full-Text Search: Debugging ──
 			"DEBUG_TOKENLIST" => EvalDebugTokenlist(func, row),
 
+			// ── Compression Functions ──
+			// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
+			//   ZSTD_COMPRESS — compresses STRING or BYTES input into BYTES output using Zstandard.
+			"ZSTD_COMPRESS" => EvalZstdCompress(func, row),
+			//   ZSTD_DECOMPRESS_TO_BYTES — decompresses BYTES input into BYTES output using Zstandard.
+			"ZSTD_DECOMPRESS_TO_BYTES" => EvalZstdDecompressToBytes(func, row),
+			//   ZSTD_DECOMPRESS_TO_STRING — decompresses BYTES input into STRING output using Zstandard.
+			"ZSTD_DECOMPRESS_TO_STRING" => EvalZstdDecompressToString(func, row),
+
 			_ => throw new NotSupportedException($"Function '{func.Name}' is not supported.")
 		};
 	}
@@ -3725,5 +3734,50 @@ internal class ExpressionEvaluator
 		if (val is not SpannerTokenList tl)
 			throw new InvalidOperationException("DEBUG_TOKENLIST: argument must be a TOKENLIST value.");
 		return tl.DebugString();
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Compression Functions (Zstandard)
+	// ═══════════════════════════════════════════════════════════════
+
+	// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
+	//   ZSTD_COMPRESS(value) — compresses STRING or BYTES to BYTES using Zstandard.
+	private object? EvalZstdCompress(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var val = Evaluate(func.Arguments[0], row);
+		if (val is null) return null;
+		byte[] input = val switch
+		{
+			byte[] b => b,
+			string s => System.Text.Encoding.UTF8.GetBytes(s),
+			_ => throw new InvalidOperationException("ZSTD_COMPRESS: argument must be STRING or BYTES.")
+		};
+		using var compressor = new ZstdSharp.Compressor();
+		return compressor.Wrap(input).ToArray();
+	}
+
+	// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
+	//   ZSTD_DECOMPRESS_TO_BYTES(value) — decompresses BYTES to BYTES using Zstandard.
+	private object? EvalZstdDecompressToBytes(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var val = Evaluate(func.Arguments[0], row);
+		if (val is null) return null;
+		if (val is not byte[] compressed)
+			throw new InvalidOperationException("ZSTD_DECOMPRESS_TO_BYTES: argument must be BYTES.");
+		using var decompressor = new ZstdSharp.Decompressor();
+		return decompressor.Unwrap(compressed).ToArray();
+	}
+
+	// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
+	//   ZSTD_DECOMPRESS_TO_STRING(value) — decompresses BYTES to STRING using Zstandard.
+	private object? EvalZstdDecompressToString(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var val = Evaluate(func.Arguments[0], row);
+		if (val is null) return null;
+		if (val is not byte[] compressed)
+			throw new InvalidOperationException("ZSTD_DECOMPRESS_TO_STRING: argument must be BYTES.");
+		using var decompressor = new ZstdSharp.Decompressor();
+		var decompressed = decompressor.Unwrap(compressed);
+		return System.Text.Encoding.UTF8.GetString(decompressed);
 	}
 }

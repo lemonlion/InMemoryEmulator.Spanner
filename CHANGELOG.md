@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.18] - 2025-07-03
+
+### Added
+- **Compression functions**: ZSTD_COMPRESS, ZSTD_DECOMPRESS_TO_BYTES, ZSTD_DECOMPRESS_TO_STRING via ZstdSharp.Port (pure managed C#)
+- **Change stream DDL**: CREATE/ALTER/DROP CHANGE STREAM with FOR ALL, FOR table(columns), OPTIONS support
+- **Change stream INFORMATION_SCHEMA**: CHANGE_STREAMS, CHANGE_STREAM_TABLES, CHANGE_STREAM_COLUMNS, CHANGE_STREAM_OPTIONS virtual tables
+- **Property graph DDL stubs**: CREATE [OR REPLACE] PROPERTY GRAPH and DROP PROPERTY GRAPH accepted as no-ops
+- Unit tests: 6 compression, 12 change stream, 5 property graph
+- Integration tests: 11 compression, 9 change stream, 4 property graph (all marked GoEmulatorUnsupported)
+
 ## [1.0.17] - 2025-07-03
 
 ### Fixed

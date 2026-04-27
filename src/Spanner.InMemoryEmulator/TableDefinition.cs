@@ -139,3 +139,29 @@ public class SequenceDefinition
 		return (long)result;
 	}
 }
+
+/// <summary>
+/// Definition of a change stream.
+/// Ref: https://cloud.google.com/spanner/docs/change-streams/manage
+/// </summary>
+public class ChangeStreamDefinition
+{
+	public string Name { get; }
+
+	/// <summary>True if the stream watches ALL tables/columns.</summary>
+	public bool WatchesAll { get; set; }
+
+	/// <summary>
+	/// List of watched table specs. Each entry is (TableName, Columns?) where
+	/// Columns is null for whole-table watching.
+	/// </summary>
+	public List<(string Table, List<string>? Columns)> WatchedTables { get; set; } = new();
+
+	/// <summary>Parsed OPTIONS key-value pairs.</summary>
+	public Dictionary<string, string> Options { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+	public ChangeStreamDefinition(string name)
+	{
+		Name = name;
+	}
+}

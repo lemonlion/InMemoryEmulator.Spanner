@@ -159,6 +159,7 @@ internal class MutationExecutor
 				case MutationMode.Update:
 					// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Mutation
 					//   "Update: Updates existing rows. Fails if any specified row does not exist."
+					//   "Only values for the listed columns will be updated."
 					if (!table.Rows.TryGetValue(rowKey, out var existingRow))
 					{
 						throw new InvalidOperationException(
@@ -167,7 +168,8 @@ internal class MutationExecutor
 					var updatedValues = new Dictionary<string, object?>(existingRow.Columns, StringComparer.OrdinalIgnoreCase);
 					foreach (var kvp in rowValues)
 					{
-						updatedValues[kvp.Key] = kvp.Value;
+						if (explicitCols.Contains(kvp.Key))
+							updatedValues[kvp.Key] = kvp.Value;
 					}
 					// Re-evaluate generated columns after merging updated values
 					ApplyDefaultsAndGenerated(table, updatedValues, explicitCols);
@@ -183,9 +185,12 @@ internal class MutationExecutor
 					if (table.Rows.TryGetValue(rowKey, out var existingForUpsert))
 					{
 						var upsertValues = new Dictionary<string, object?>(existingForUpsert.Columns, StringComparer.OrdinalIgnoreCase);
+						// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Mutation
+						//   "InsertOrUpdate ... its column values are overwritten with the ones provided."
 						foreach (var kvp in rowValues)
 						{
-							upsertValues[kvp.Key] = kvp.Value;
+							if (explicitCols.Contains(kvp.Key))
+								upsertValues[kvp.Key] = kvp.Value;
 						}
 						ApplyDefaultsAndGenerated(table, upsertValues, explicitCols);
 						ValidateNotNull(table, upsertValues);

@@ -223,9 +223,12 @@ internal class ExpressionEvaluator
 		return unary.Op switch
 		{
 			UnaryOp.Not => operand is null ? null : !(bool)operand,
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
+			//   Negating long.MinValue overflows — no positive INT64 representation.
 			UnaryOp.Negate => operand switch
 			{
 				null => null,
+				long l when l == long.MinValue => throw new InvalidOperationException("INT64 overflow during unary negation."),
 				long l => -l,
 				double d when d == -(double)long.MinValue => (object)long.MinValue,
 				double d => -d,
@@ -898,9 +901,13 @@ internal class ExpressionEvaluator
 		var a = Evaluate(func.Arguments[0], row);
 		var b = Evaluate(func.Arguments[1], row);
 		if (a is null || b is null) return null;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#mod
+		//   INT64 MOD 0 → error; FLOAT64 MOD 0 → NaN (IEEE 754)
 		return a switch
 		{
-			long la when b is long lb => la % lb,
+			long la when b is long lb => lb == 0
+				? throw new InvalidOperationException("Division by zero in MOD.")
+				: la % lb,
 			double da when b is double db => da % db,
 			_ => Convert.ToDouble(a) % Convert.ToDouble(b)
 		};
@@ -974,8 +981,9 @@ internal class ExpressionEvaluator
 				{
 					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
 					//   CAST(bool AS STRING) returns lowercase "true" / "false"
+					//   CAST(timestamp AS STRING) preserves sub-second precision
 					bool bv => bv ? "true" : "false",
-					DateTime dt => dt.Date == dt ? dt.ToString("yyyy-MM-dd") : dt.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+					DateTime dt => dt.Date == dt ? dt.ToString("yyyy-MM-dd") : FormatTimestampCanonical(dt),
 					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
 					//   CAST(FLOAT64 AS STRING): inf/-inf/nan are returned as "inf"/"-inf"/"nan"
 					double dv when double.IsPositiveInfinity(dv) => "inf",
@@ -1243,26 +1251,37 @@ internal class ExpressionEvaluator
 
 		if (a is long la && b is long lb)
 		{
-			return op switch
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
+			//   INT64 overflow produces an error.
+			try
 			{
-				'+' => la + lb,
-				'-' => la - lb,
-				'*' => la * lb,
-				'/' => lb == 0 ? throw new InvalidOperationException("Division by zero.") : la / lb,
-				'%' => lb == 0 ? throw new InvalidOperationException("Division by zero.") : la % lb,
-				_ => throw new NotSupportedException()
-			};
+				return op switch
+				{
+					'+' => checked(la + lb),
+					'-' => checked(la - lb),
+					'*' => checked(la * lb),
+					'/' => lb == 0 ? throw new InvalidOperationException("Division by zero.") : la / lb,
+					'%' => lb == 0 ? throw new InvalidOperationException("Division by zero.") : la % lb,
+					_ => throw new NotSupportedException()
+				};
+			}
+			catch (OverflowException)
+			{
+				throw new InvalidOperationException("INT64 overflow during arithmetic operation.");
+			}
 		}
 
 		var da = Convert.ToDouble(a);
 		var db = Convert.ToDouble(b);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
+		//   FLOAT64 division by zero follows IEEE 754: returns +/-Inf or NaN.
 		return op switch
 		{
 			'+' => da + db,
 			'-' => da - db,
 			'*' => da * db,
-			'/' => db == 0 ? throw new InvalidOperationException("Division by zero.") : da / db,
-			'%' => db == 0 ? throw new InvalidOperationException("Division by zero.") : da % db,
+			'/' => da / db,
+			'%' => da % db,
 			_ => throw new NotSupportedException()
 		};
 	}
@@ -1551,6 +1570,7 @@ internal class ExpressionEvaluator
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
 	//   LIKE supports % (any chars) and _ (single char).
+	//   Backslash escapes: \% → literal %, \_ → literal _, \\ → literal \.
 	//   Returns TRUE/FALSE; NULL if either operand is NULL.
 	private object? EvalLike(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
@@ -1560,9 +1580,32 @@ internal class ExpressionEvaluator
 		var valStr = Convert.ToString(val)!;
 		var patStr = Convert.ToString(pat)!;
 
-		// Convert LIKE pattern to regex: % → .*, _ → ., escape regex specials
-		var regexPattern = "^" + Regex.Escape(patStr).Replace("%", ".*").Replace("_", ".") + "$";
-		return Regex.IsMatch(valStr, regexPattern, RegexOptions.Singleline);
+		// Build regex from LIKE pattern, processing escape sequences first
+		var sb = new System.Text.StringBuilder("^");
+		for (int i = 0; i < patStr.Length; i++)
+		{
+			var ch = patStr[i];
+			if (ch == '\\' && i + 1 < patStr.Length)
+			{
+				// Backslash escape: next char is literal
+				i++;
+				sb.Append(Regex.Escape(patStr[i].ToString()));
+			}
+			else if (ch == '%')
+			{
+				sb.Append(".*");
+			}
+			else if (ch == '_')
+			{
+				sb.Append('.');
+			}
+			else
+			{
+				sb.Append(Regex.Escape(ch.ToString()));
+			}
+		}
+		sb.Append('$');
+		return Regex.IsMatch(valStr, sb.ToString(), RegexOptions.Singleline);
 	}
 
 	private object? EvalRegexpReplace(FunctionCallExpr func, Dictionary<string, object?> row)

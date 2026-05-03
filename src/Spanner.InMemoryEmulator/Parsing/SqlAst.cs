@@ -43,6 +43,10 @@ internal record DropColumnAction(string ColumnName) : AlterAction;
 //   ALTER TABLE t ALTER COLUMN c type [NOT NULL] [DEFAULT (expr)]
 internal record AlterColumnAction(string ColumnName, ParsedColumnDef NewDefinition) : AlterAction;
 
+// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_column
+//   ALTER TABLE t ALTER COLUMN c SET OPTIONS (allow_commit_timestamp = true|false)
+internal record AlterColumnSetOptionsAction(string ColumnName, bool AllowCommitTimestamp) : AlterAction;
+
 // Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_table
 //   ALTER TABLE t ADD CONSTRAINT ...
 internal record AddConstraintAction(ParsedCheckConstraint? Check, ParsedForeignKey? ForeignKey) : AlterAction;
@@ -121,7 +125,7 @@ internal record InsertStatement(
 	List<string> Columns,
 	List<List<SqlExpression>>? ValueRows,
 	InsertMode Mode = InsertMode.Insert,
-	SelectStatement? SelectSource = null,
+	QueryBody? SelectSource = null,
 	ReturningClause? Returning = null);
 
 internal enum InsertMode { Insert, InsertOrUpdate, InsertOrIgnore }
@@ -151,8 +155,8 @@ internal record SelectStatement(
 	//   "Filters the results of window functions."
 	SqlExpression? Qualify,
 	List<OrderByColumn>? OrderBy,
-	long? Limit,
-	long? Offset);
+	SqlExpression? Limit,
+	SqlExpression? Offset);
 
 internal record SelectColumn(SqlExpression Expr, string? Alias);
 
@@ -173,7 +177,7 @@ internal record JoinClause(
 	string? Alias,
 	SqlExpression? On,
 	List<string>? UsingColumns = null,
-	SelectStatement? Subquery = null,
+	QueryBody? Subquery = null,
 	SqlExpression? UnnestExpr = null,
 	bool UnnestWithOffset = false,
 	string? UnnestOffsetAlias = null);
@@ -205,8 +209,10 @@ internal record BinaryExpr(SqlExpression Left, BinaryOp Op, SqlExpression Right)
 
 internal record UnaryExpr(UnaryOp Op, SqlExpression Operand) : SqlExpression;
 
+// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions
+// NullHandling: null=default, true=RESPECT NULLS, false=IGNORE NULLS
 internal record FunctionCallExpr(string Name, List<SqlExpression> Arguments, bool IsDistinct = false,
-	List<OrderByColumn>? AggregateOrderBy = null) : SqlExpression;
+	List<OrderByColumn>? AggregateOrderBy = null, bool? NullHandling = null) : SqlExpression;
 
 /// <summary>Named argument in a function call, e.g. dialect => 'words'.</summary>
 internal record NamedArgExpr(string ArgName, SqlExpression Value) : SqlExpression;
@@ -231,20 +237,20 @@ internal record CountStarExpr() : SqlExpression;
 // Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/subqueries
 
 /// <summary>Scalar subquery: (SELECT col FROM ...)</summary>
-internal record ScalarSubqueryExpr(SelectStatement Subquery) : SqlExpression;
+internal record ScalarSubqueryExpr(QueryBody Subquery) : SqlExpression;
 
 /// <summary>EXISTS (SELECT ...)</summary>
-internal record ExistsExpr(SelectStatement Subquery, bool IsNegated) : SqlExpression;
+internal record ExistsExpr(QueryBody Subquery, bool IsNegated) : SqlExpression;
 
 /// <summary>expr [NOT] IN (SELECT ...)</summary>
-internal record InSubqueryExpr(SqlExpression Value, SelectStatement Subquery, bool IsNegated) : SqlExpression;
+internal record InSubqueryExpr(SqlExpression Value, QueryBody Subquery, bool IsNegated) : SqlExpression;
 
 // Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#in_operators
 //   "value [NOT] IN UNNEST(array_expression)"
 internal record InUnnestExpr(SqlExpression Value, SqlExpression ArrayExpr, bool IsNegated) : SqlExpression;
 
 /// <summary>ARRAY(SELECT ...)</summary>
-internal record ArraySubqueryExpr(SelectStatement Subquery) : SqlExpression;
+internal record ArraySubqueryExpr(QueryBody Subquery) : SqlExpression;
 internal record ArrayLiteralExpr(List<SqlExpression> Elements) : SqlExpression;
 
 // ──────────────────────────────────────────────
@@ -293,10 +299,13 @@ internal record ArrayAccessExpr(SqlExpression Array, SqlExpression Index, ArrayA
 
 internal record StructExpr(List<(string? Name, SqlExpression Value)> Fields) : SqlExpression;
 internal record StructFieldAccessExpr(SqlExpression Struct, string FieldName) : SqlExpression;
+// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#struct_field_access_operator
+//   "STRUCT(...).*": The dot star operator returns all fields of a STRUCT.
+internal record StructExpandExpr(SqlExpression Struct) : SqlExpression;
 
 /// <summary>Subquery as FROM source: FROM (SELECT ...) AS alias</summary>
 internal record SubqueryFromClause(
-	SelectStatement Subquery,
+	QueryBody Subquery,
 	string Alias,
 	List<JoinClause>? Joins) : FromClause(Alias, Alias, Joins);
 
@@ -307,13 +316,15 @@ internal enum SetOperationType { UnionAll, UnionDistinct, IntersectAll, Intersec
 
 internal record SetOperation(SetOperationType Type, SelectStatement Right);
 
-/// <summary>A query with optional CTEs and set operations.</summary>
+/// <summary>A SELECT with optional set operations (no CTEs).</summary>
+internal record QueryBody(SelectStatement Select, List<SetOperation>? SetOps);
+
+/// <summary>A query with optional CTEs and a body (SELECT + set operations).</summary>
 internal record FullQuery(
 	List<CteDefinition>? Ctes,
-	SelectStatement Select,
-	List<SetOperation>? SetOps);
+	QueryBody Body);
 
-internal record CteDefinition(string Name, SelectStatement Query);
+internal record CteDefinition(string Name, QueryBody Query);
 
 internal enum BinaryOp
 {

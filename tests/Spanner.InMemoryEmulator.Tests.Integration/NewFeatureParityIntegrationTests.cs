@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
@@ -579,6 +579,47 @@ public class NewFeatureParityIntegrationTests : IntegrationTestBase
 		var result = await QueryScalarAsync("SELECT Val FROM AlterColTest WHERE Id = 1");
 		result.Should().Be("test");
 	}
+// DDL: ALTER COLUMN SET OPTIONS
+// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_column
+
+[Fact]
+[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+public async Task AlterColumnSetOptions_AllowCommitTimestamp_Succeeds()
+{
+try
+{
+await ExecuteDdlAsync(
+"CREATE TABLE AltOptTest (Id INT64 NOT NULL, Ts TIMESTAMP) PRIMARY KEY (Id)");
+}
+catch { }
+
+// Should not throw
+await ExecuteDdlAsync("ALTER TABLE AltOptTest ALTER COLUMN Ts SET OPTIONS (allow_commit_timestamp = true)");
+
+// Column should still work normally
+await ExecuteDmlAsync("INSERT INTO AltOptTest (Id, Ts) VALUES (1, TIMESTAMP '2025-01-01T00:00:00Z')");
+var result2 = await QueryScalarAsync("SELECT Ts FROM AltOptTest WHERE Id = 1");
+result2.Should().NotBeNull();
+}
+
+[Fact]
+[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+public async Task AlterColumnSetOptions_AllowCommitTimestampFalse_Succeeds()
+{
+try
+{
+await ExecuteDdlAsync(
+"CREATE TABLE AltOptF (Id INT64 NOT NULL, Ts TIMESTAMP OPTIONS (allow_commit_timestamp = true)) PRIMARY KEY (Id)");
+}
+catch { }
+
+// Disable the option
+await ExecuteDdlAsync("ALTER TABLE AltOptF ALTER COLUMN Ts SET OPTIONS (allow_commit_timestamp = false)");
+
+await ExecuteDmlAsync("INSERT INTO AltOptF (Id, Ts) VALUES (1, TIMESTAMP '2025-01-01T00:00:00Z')");
+var result2 = await QueryScalarAsync("SELECT Ts FROM AltOptF WHERE Id = 1");
+result2.Should().NotBeNull();
+}
 
 	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// DDL: ADD / DROP CONSTRAINT

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Google.Cloud.Spanner.V1;
 using Spanner.InMemoryEmulator.Parsing;
@@ -14,12 +15,12 @@ internal class ExpressionEvaluator
 {
 	private readonly IDictionary<string, object?>? _parameters;
 	private readonly QueryExecutor? _queryExecutor;
-	private readonly Dictionary<string, SelectStatement>? _cteMap;
+	private readonly Dictionary<string, QueryBody>? _cteMap;
 	private readonly Dictionary<string, object?>? _outerRow;
 
 	public ExpressionEvaluator(IDictionary<string, object?>? parameters = null,
 		QueryExecutor? queryExecutor = null,
-		Dictionary<string, SelectStatement>? cteMap = null,
+		Dictionary<string, QueryBody>? cteMap = null,
 		Dictionary<string, object?>? outerRow = null)
 	{
 		_parameters = parameters;
@@ -55,6 +56,9 @@ internal class ExpressionEvaluator
 			ArrayAccessExpr access => EvalArrayAccess(access, row),
 			WindowExpr win => EvalWindowExpr(win, row),
 			StructExpr structExpr => structExpr.Fields.ToDictionary(f => f.Name ?? "", f => Evaluate(f.Value, row)),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#struct_field_access_operator
+			StructFieldAccessExpr sfa => ((Dictionary<string, object?>)Evaluate(sfa.Struct, row)!)[sfa.FieldName],
+			StructExpandExpr => throw new InvalidOperationException("StructExpandExpr must be expanded in ProjectColumns, not evaluated as a scalar."),
 			NamedArgExpr named => Evaluate(named.Value, row),
 			StarExpr => throw new InvalidOperationException("Star expression cannot be evaluated as a value."),
 			CountStarExpr => row.TryGetValue("COUNT(*)", out var countVal) ? countVal
@@ -213,11 +217,8 @@ internal class ExpressionEvaluator
 
 	private object? EvalUnary(UnaryExpr unary, Dictionary<string, object?> row)
 	{
-		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators
-		//   GCP Spanner rejects NOT with literal NULL operand.
-		if (unary.Op == UnaryOp.Not && unary.Operand is LiteralExpr { Value: null })
-			throw new InvalidOperationException("Operands of NOT cannot be literal NULL");
-
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#logical_operators
+		//   NOT NULL evaluates to NULL per SQL three-valued logic.
 		var operand = Evaluate(unary.Operand, row);
 		return unary.Op switch
 		{
@@ -247,13 +248,21 @@ internal class ExpressionEvaluator
 		var value = Evaluate(inExpr.Value, row);
 		if (value is null) return null;
 
-		var found = inExpr.List.Any(item =>
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#in_operators
+		//   x IN (a, b, NULL) is equivalent to (x=a) OR (x=b) OR (x=NULL).
+		//   If x doesn't match any non-null value but NULL is present, result is NULL.
+		bool found = false;
+		bool hasNull = false;
+		foreach (var item in inExpr.List)
 		{
 			var itemValue = Evaluate(item, row);
-			return itemValue != null && CompareValues(value, itemValue) == 0;
-		});
+			if (itemValue is null) { hasNull = true; continue; }
+			if (CompareValues(value, itemValue) == 0) { found = true; break; }
+		}
 
-		return inExpr.IsNegated ? !found : found;
+		if (found) return !inExpr.IsNegated;
+		if (hasNull) return null;
+		return inExpr.IsNegated;
 	}
 
 	private object? EvalBetween(BetweenExpr between, Dictionary<string, object?> row)
@@ -310,8 +319,8 @@ internal class ExpressionEvaluator
 		{
 			// Conditional
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conditional_expressions
-			"COALESCE" => func.Arguments.Select(a => Evaluate(a, row)).FirstOrDefault(v => v != null),
-			"IFNULL" => Evaluate(func.Arguments[0], row) ?? Evaluate(func.Arguments[1], row),
+			"COALESCE" => EvalCoalesce(func, row),
+			"IFNULL" => EvalIfNull(func, row),
 			"NULLIF" => EvalNullIf(func, row),
 			"IF" => EvalIf(func, row),
 
@@ -339,11 +348,15 @@ internal class ExpressionEvaluator
 			"REGEXP_CONTAINS" => EvalRegexpContains(func, row),
 			"REGEXP_EXTRACT" => EvalRegexpExtract(func, row),
 			"REGEXP_REPLACE" => EvalRegexpReplace(func, row),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
+			//   LIKE is parsed as FunctionCallExpr("LIKE", [value, pattern]).
+			//   % matches any number of characters; _ matches a single character.
+			"LIKE" => EvalLike(func, row),
 			// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
 			//   LEFT and RIGHT do not exist in GCP Spanner. Use SUBSTR instead.
 			"LEFT" => throw new NotSupportedException($"Unsupported built-in function: {func.Name}."),
 			"RIGHT" => throw new NotSupportedException($"Unsupported built-in function: {func.Name}."),
-			"BYTE_LENGTH" => EvalStringFunc1(func, row, s => (long)System.Text.Encoding.UTF8.GetByteCount(s)),
+			"BYTE_LENGTH" => EvalByteLength(func, row),
 			"TO_HEX" => EvalToHex(func, row),
 			"FROM_HEX" => EvalFromHex(func, row),
 			// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
@@ -685,12 +698,38 @@ internal class ExpressionEvaluator
 		return a;
 	}
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_rules#supertypes
+	//   "INT64 and FLOAT64 have a common supertype of FLOAT64."
+	private object? EvalCoalesce(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var values = func.Arguments.Select(a => Evaluate(a, row)).ToList();
+		var result = values.FirstOrDefault(v => v != null);
+		if (result is long l && values.Any(v => v is double))
+			return (double)l;
+		return result;
+	}
+
+	private object? EvalIfNull(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var a = Evaluate(func.Arguments[0], row);
+		var b = Evaluate(func.Arguments[1], row);
+		var result = a ?? b;
+		if (result is long l && (a is double || b is double))
+			return (double)l;
+		return result;
+	}
+
 	private object? EvalIf(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		var condition = Evaluate(func.Arguments[0], row);
-		return condition is true
-			? Evaluate(func.Arguments[1], row)
-			: Evaluate(func.Arguments[2], row);
+		var thenVal = Evaluate(func.Arguments[1], row);
+		var elseVal = Evaluate(func.Arguments[2], row);
+		var result = condition is true ? thenVal : elseVal;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_rules#supertypes
+		//   "INT64 and FLOAT64 have a common supertype of FLOAT64."
+		if (result is long l && (thenVal is double || elseVal is double))
+			return (double)l;
+		return result;
 	}
 
 	private object? EvalStringFunc1(FunctionCallExpr func, Dictionary<string, object?> row, Func<string, object> fn)
@@ -765,7 +804,9 @@ internal class ExpressionEvaluator
 
 		var str = (string)s;
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#substr
-		//   "Position is 1-based. If pos is negative, the function counts from the end."
+		//   Position is 1-based. If position is negative, counts from the end
+		//   with -1 indicating the last character.
+		//   If position is 0 or less than -LENGTH(value), it is set to 1.
 		var position = Convert.ToInt32(pos);
 		int startIndex;
 
@@ -924,10 +965,10 @@ internal class ExpressionEvaluator
 			return cast.TargetType switch
 			{
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
-				// "When casting from floating point to integer, [CAST] rounds to the nearest integer."
+				//   CAST(float AS INT64) rounds halfway cases away from zero.
 				TypeCode.Int64 => value is double d ? (long)Math.Round(d, MidpointRounding.AwayFromZero) : value is float f ? (long)Math.Round(f, MidpointRounding.AwayFromZero) : Convert.ToInt64(value),
-				TypeCode.Float64 => Convert.ToDouble(value),
-				TypeCode.Float32 => Convert.ToSingle(value),
+				TypeCode.Float64 => ConvertToFloat64(value),
+				TypeCode.Float32 => ConvertToFloat32(value),
 				TypeCode.Bool => Convert.ToBoolean(value),
 				TypeCode.String => value switch
 				{
@@ -935,6 +976,17 @@ internal class ExpressionEvaluator
 					//   CAST(bool AS STRING) returns lowercase "true" / "false"
 					bool bv => bv ? "true" : "false",
 					DateTime dt => dt.Date == dt ? dt.ToString("yyyy-MM-dd") : dt.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
+					//   CAST(FLOAT64 AS STRING): inf/-inf/nan are returned as "inf"/"-inf"/"nan"
+					double dv when double.IsPositiveInfinity(dv) => "inf",
+					double dv when double.IsNegativeInfinity(dv) => "-inf",
+					double dv when double.IsNaN(dv) => "nan",
+					float fv when float.IsPositiveInfinity(fv) => "inf",
+					float fv when float.IsNegativeInfinity(fv) => "-inf",
+					float fv when float.IsNaN(fv) => "nan",
+					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
+					//   CAST(BYTES AS STRING) interprets bytes as UTF-8.
+					byte[] bytes => System.Text.Encoding.UTF8.GetString(bytes),
 					_ => value.ToString()
 				},
 				TypeCode.Numeric => Convert.ToDecimal(value),
@@ -1049,7 +1101,7 @@ internal class ExpressionEvaluator
 
 	// ── Subquery evaluation ──
 
-	private List<Dictionary<string, object?>> RunSubquery(SelectStatement subquery,
+	private List<Dictionary<string, object?>> RunSubquery(QueryBody subquery,
 		Dictionary<string, object?>? outerRow = null)
 	{
 		if (_queryExecutor == null)
@@ -1343,6 +1395,15 @@ internal class ExpressionEvaluator
 						case 's':
 						sb.Append(arg == null ? "NULL" : arg.ToString());
 						break;
+					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#format_string
+					//   %t — produces a printable string representing the value using its canonical format.
+					//   %T — produces a string that is a valid GoogleSQL literal (strings are quoted).
+					case 't':
+						sb.Append(FormatValueCanonical(arg));
+						break;
+					case 'T':
+						sb.Append(FormatValueSqlLiteral(arg));
+						break;
 					default:
 						sb.Append(arg?.ToString());
 						break;
@@ -1354,6 +1415,74 @@ internal class ExpressionEvaluator
 			}
 		}
 		return sb.ToString();
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#format_string
+	//   %t — value formatted as a printable string using its canonical format.
+	private static string FormatValueCanonical(object? value)
+	{
+		if (value == null) return "NULL";
+		return value switch
+		{
+			bool b => b ? "true" : "false",
+			long l => l.ToString(),
+			int i => i.ToString(),
+			double d when double.IsPositiveInfinity(d) => "inf",
+			double d when double.IsNegativeInfinity(d) => "-inf",
+			double d when double.IsNaN(d) => "nan",
+			double d => d.ToString(System.Globalization.CultureInfo.InvariantCulture),
+			float f when float.IsPositiveInfinity(f) => "inf",
+			float f when float.IsNegativeInfinity(f) => "-inf",
+			float f when float.IsNaN(f) => "nan",
+			float f => f.ToString(System.Globalization.CultureInfo.InvariantCulture),
+			decimal m => m.ToString(System.Globalization.CultureInfo.InvariantCulture),
+			string s => s,
+			DateTime dt when dt.Date == dt => dt.ToString("yyyy-MM-dd"),
+			DateTime dt => FormatTimestampCanonical(dt),
+			byte[] bytes => Convert.ToBase64String(bytes),
+			IList<object?> arr => "[" + string.Join(", ", arr.Select(FormatValueCanonical)) + "]",
+			_ => value.ToString() ?? ""
+		};
+	}
+
+	// Formats a DateTime as a Spanner timestamp string, trimming only sub-second fractional zeros.
+	private static string FormatTimestampCanonical(DateTime dt)
+	{
+		var s = dt.ToString("yyyy-MM-ddTHH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
+		if (dt.Ticks % TimeSpan.TicksPerSecond != 0)
+		{
+			var frac = dt.ToString(".FFFFFF", System.Globalization.CultureInfo.InvariantCulture).TrimEnd('0');
+			s += frac;
+		}
+		return s + "Z";
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#format_string
+	//   %T — value formatted as a valid GoogleSQL literal (strings are quoted, etc.).
+	private static string FormatValueSqlLiteral(object? value)
+	{
+		if (value == null) return "NULL";
+		return value switch
+		{
+			bool b => b ? "TRUE" : "FALSE",
+			long l => l.ToString(),
+			int i => i.ToString(),
+			double d when double.IsPositiveInfinity(d) => "CAST('inf' AS FLOAT64)",
+			double d when double.IsNegativeInfinity(d) => "CAST('-inf' AS FLOAT64)",
+			double d when double.IsNaN(d) => "CAST('nan' AS FLOAT64)",
+			double d => d.ToString(System.Globalization.CultureInfo.InvariantCulture),
+			float f when float.IsPositiveInfinity(f) => "CAST('inf' AS FLOAT64)",
+			float f when float.IsNegativeInfinity(f) => "CAST('-inf' AS FLOAT64)",
+			float f when float.IsNaN(f) => "CAST('nan' AS FLOAT64)",
+			float f => f.ToString(System.Globalization.CultureInfo.InvariantCulture),
+			decimal m => m.ToString(System.Globalization.CultureInfo.InvariantCulture),
+			string s => "\"" + s.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"",
+			DateTime dt when dt.Date == dt => "DATE \"" + dt.ToString("yyyy-MM-dd") + "\"",
+			DateTime dt => "TIMESTAMP \"" + FormatTimestampCanonical(dt).TrimEnd('Z') + "Z\"",
+			byte[] bytes => "b\"" + Convert.ToBase64String(bytes) + "\"",
+			IList<object?> arr => "[" + string.Join(", ", arr.Select(FormatValueSqlLiteral)) + "]",
+			_ => value.ToString() ?? ""
+		};
 	}
 
 	private object? EvalRegexpContains(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -1370,15 +1499,70 @@ internal class ExpressionEvaluator
 		var pattern = Evaluate(func.Arguments[1], row);
 		if (s == null || pattern == null) return null;
 		var patStr = Convert.ToString(pattern)!;
-		var match = Regex.Match(Convert.ToString(s)!, patStr);
+		var sourceStr = Convert.ToString(s)!;
+
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_extract
+		//   REGEXP_EXTRACT(value, regexp[, position[, occurrence]])
+		//   position: 1-based starting position (default 1)
+		//   occurrence: 1-based occurrence index (default 1)
+		int position = 1;
+		int occurrence = 1;
+		if (func.Arguments.Count >= 3)
+		{
+			var posVal = Evaluate(func.Arguments[2], row);
+			if (posVal == null) return null;
+			position = Convert.ToInt32(posVal);
+			if (position < 1)
+				throw new InvalidOperationException(
+					"REGEXP_EXTRACT: position must be a positive integer");
+		}
+		if (func.Arguments.Count >= 4)
+		{
+			var occVal = Evaluate(func.Arguments[3], row);
+			if (occVal == null) return null;
+			occurrence = Convert.ToInt32(occVal);
+			if (occurrence < 1)
+				throw new InvalidOperationException(
+					"REGEXP_EXTRACT: occurrence must be a positive integer");
+		}
+
+		// Apply position offset: search from (position-1) in the source string
+		int startIndex = position - 1;
+		if (startIndex >= sourceStr.Length) return null;
+		var searchStr = sourceStr.Substring(startIndex);
+
+		var match = Regex.Match(searchStr, patStr);
 		// At most one capturing group is allowed
 		var capturingGroups = match.Groups.Count - 1; // Groups[0] is the full match
 		if (capturingGroups > 1)
 			throw new InvalidOperationException(
 				"REGEXP_EXTRACT: pattern has more than one capturing group");
 		if (!match.Success) return null;
+
+		// Find the Nth occurrence
+		for (int i = 1; i < occurrence; i++)
+		{
+			match = match.NextMatch();
+			if (!match.Success) return null;
+		}
+
 		return capturingGroups == 1 ? match.Groups[1].Value : match.Value;
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
+	//   LIKE supports % (any chars) and _ (single char).
+	//   Returns TRUE/FALSE; NULL if either operand is NULL.
+	private object? EvalLike(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var val = Evaluate(func.Arguments[0], row);
+		var pat = Evaluate(func.Arguments[1], row);
+		if (val == null || pat == null) return null;
+		var valStr = Convert.ToString(val)!;
+		var patStr = Convert.ToString(pat)!;
+
+		// Convert LIKE pattern to regex: % → .*, _ → ., escape regex specials
+		var regexPattern = "^" + Regex.Escape(patStr).Replace("%", ".*").Replace("_", ".") + "$";
+		return Regex.IsMatch(valStr, regexPattern, RegexOptions.Singleline);
 	}
 
 	private object? EvalRegexpReplace(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -1392,6 +1576,16 @@ internal class ExpressionEvaluator
 	}
 
 
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#byte_length
+	//   BYTE_LENGTH on STRING returns UTF-8 byte count; on BYTES returns the length.
+	private object? EvalByteLength(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var v = Evaluate(func.Arguments[0], row);
+		if (v == null) return null;
+		if (v is byte[] bytes) return (long)bytes.Length;
+		return (long)System.Text.Encoding.UTF8.GetByteCount(Convert.ToString(v)!);
+	}
 
 	private object? EvalToHex(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
@@ -1408,24 +1602,88 @@ internal class ExpressionEvaluator
 		return Convert.FromHexString(Convert.ToString(v)!);
 	}
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#code_points_to_string
+	//   CODE_POINTS_TO_STRING(ARRAY<INT64>) converts an array of code points to a STRING.
 	private object? EvalChr(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		var v = Evaluate(func.Arguments[0], row);
 		if (v == null) return null;
+		// If the argument is an array of code points, convert each
+		if (v is IList<object?> arr)
+		{
+			var sb = new System.Text.StringBuilder();
+			foreach (var cp in arr)
+			{
+				if (cp == null) continue;
+				sb.Append(char.ConvertFromUtf32(Convert.ToInt32(cp)));
+			}
+			return sb.ToString();
+		}
+		// Fallback: single code point
 		return char.ConvertFromUtf32(Convert.ToInt32(v));
 	}
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
+	//   CAST(string AS FLOAT64) must accept 'inf', '-inf', 'nan' (case-insensitive).
+	private static double ConvertToFloat64(object value)
+	{
+		if (value is string s)
+		{
+			if (s.Equals("inf", StringComparison.OrdinalIgnoreCase) ||
+				s.Equals("+inf", StringComparison.OrdinalIgnoreCase) ||
+				s.Equals("infinity", StringComparison.OrdinalIgnoreCase) ||
+				s.Equals("+infinity", StringComparison.OrdinalIgnoreCase))
+				return double.PositiveInfinity;
+			if (s.Equals("-inf", StringComparison.OrdinalIgnoreCase) ||
+				s.Equals("-infinity", StringComparison.OrdinalIgnoreCase))
+				return double.NegativeInfinity;
+			if (s.Equals("nan", StringComparison.OrdinalIgnoreCase))
+				return double.NaN;
+		}
+		return Convert.ToDouble(value);
+	}
+
+	private static float ConvertToFloat32(object value)
+	{
+		if (value is string s)
+		{
+			if (s.Equals("inf", StringComparison.OrdinalIgnoreCase) ||
+				s.Equals("+inf", StringComparison.OrdinalIgnoreCase))
+				return float.PositiveInfinity;
+			if (s.Equals("-inf", StringComparison.OrdinalIgnoreCase))
+				return float.NegativeInfinity;
+			if (s.Equals("nan", StringComparison.OrdinalIgnoreCase))
+				return float.NaN;
+		}
+		return Convert.ToSingle(value);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#soundex
+	//   Standard US Census Soundex: H and W do NOT separate coded letters
+	//   (letters with the same code across H/W are treated as a single code).
 	private static string EvalSoundex(string s)
 	{
 		if (string.IsNullOrEmpty(s)) return "";
 		var result = new char[4];
 		result[0] = char.ToUpper(s[0]);
 		int idx = 1;
+		char lastCode = SoundexCode(s[0]);
 		for (int i = 1; i < s.Length && idx < 4; i++)
 		{
+			var c = char.ToUpper(s[i]);
 			var code = SoundexCode(s[i]);
-			if (code != '0' && code != SoundexCode(s[i - 1]))
+			if (code == '0')
+			{
+				// H and W don't separate codes; vowels (A,E,I,O,U,Y) do
+				if (c != 'H' && c != 'W')
+					lastCode = '0';
+				continue;
+			}
+			if (code != lastCode)
+			{
 				result[idx++] = code;
+				lastCode = code;
+			}
 		}
 		while (idx < 4) result[idx++] = '0';
 		return new string(result);
@@ -1675,6 +1933,10 @@ internal class ExpressionEvaluator
 		var amount = Convert.ToInt64(Evaluate(func.Arguments[1], row));
 		var part = Convert.ToString(Evaluate(func.Arguments[2], row))?.ToUpperInvariant();
 		if (ts == null) return null;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_add
+		//   TIMESTAMP_ADD only supports MICROSECOND through DAY; MONTH/YEAR are not allowed.
+		if (part is "MONTH" or "YEAR")
+			throw new InvalidOperationException($"TIMESTAMP_ADD does not support the {part} date part");
 		var dt = ts is DateTime d ? d : DateTime.Parse(Convert.ToString(ts)!);
 		return AddToPart(dt, part!, amount);
 	}
@@ -1685,6 +1947,8 @@ internal class ExpressionEvaluator
 		var amount = Convert.ToInt64(Evaluate(func.Arguments[1], row));
 		var part = Convert.ToString(Evaluate(func.Arguments[2], row))?.ToUpperInvariant();
 		if (ts == null) return null;
+		if (part is "MONTH" or "YEAR")
+			throw new InvalidOperationException($"TIMESTAMP_SUB does not support the {part} date part");
 		var dt = ts is DateTime d ? d : DateTime.Parse(Convert.ToString(ts)!);
 		return AddToPart(dt, part!, -amount);
 	}
@@ -1697,10 +1961,10 @@ internal class ExpressionEvaluator
 		"MINUTE" => dt.AddMinutes(amount),
 		"HOUR" => dt.AddHours(amount),
 		"DAY" => dt.AddDays(amount),
-		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_add
-		// TIMESTAMP_ADD only supports MICROSECOND through DAY; MONTH/YEAR are DATE_ADD only
-		"MONTH" => throw new InvalidOperationException("TIMESTAMP_ADD does not support the MONTH date part"),
-		"YEAR" => throw new InvalidOperationException("TIMESTAMP_ADD does not support the YEAR date part"),
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date_add
+		//   DATE_ADD supports MONTH and YEAR. Clamps to last day of month if needed.
+		"MONTH" => dt.AddMonths((int)amount),
+		"YEAR" => dt.AddYears((int)amount),
 		_ => throw new InvalidOperationException($"Unsupported INTERVAL part: {part}")
 	};
 
@@ -1826,11 +2090,15 @@ internal class ExpressionEvaluator
 	private static string ConvertSpannerDateFormat(string spannerFmt)
 	{
 		// Convert Spanner strftime-like to .NET format
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/format-elements#format_elements_date_time
 		return spannerFmt
 			.Replace("%Y", "yyyy").Replace("%m", "MM").Replace("%d", "dd")
 			.Replace("%H", "HH").Replace("%M", "mm").Replace("%S", "ss")
 			.Replace("%E3S", "ss.fff").Replace("%E6S", "ss.ffffff")
-			.Replace("%Z", "K").Replace("%z", "zzz");
+			.Replace("%Z", "K").Replace("%z", "zzz")
+			.Replace("%B", "MMMM").Replace("%A", "dddd")
+			.Replace("%b", "MMM").Replace("%a", "ddd")
+			.Replace("%e", "d");
 	}
 
 	private object? EvalUnixSeconds(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -1946,26 +2214,30 @@ internal class ExpressionEvaluator
 	private object? EvalToJson(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		var v = Evaluate(func.Arguments[0], row);
-		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json_string
-		//   TO_JSON_STRING returns the JSON-formatted STRING representation, including "null" for SQL NULL.
-		if (v == null) return "null";
 
-		// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
-		//   In GCP Spanner, TO_JSON_STRING only accepts JSON-typed input.
-		//   Non-JSON scalars (STRING, INT64, BOOL, FLOAT64) cause an error.
-		if (func.Name.Equals("TO_JSON_STRING", StringComparison.OrdinalIgnoreCase))
+		bool isToJsonString = func.Name.Equals("TO_JSON_STRING", StringComparison.OrdinalIgnoreCase);
+
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json_string
+		//   TO_JSON_STRING takes a SQL value of any type and returns a JSON-formatted STRING.
+		//   Returns "null" for SQL NULL.
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json
+		//   TO_JSON takes a SQL value and returns a JSON value. Returns SQL NULL for SQL NULL.
+		if (v == null) return isToJsonString ? "null" : null;
+
+		if (isToJsonString)
 		{
-			if (v is string)
-				throw new NotSupportedException("Unsupported function: TO_JSON_STRING is not supported on values of type STRING");
-			if (v is long)
-				throw new NotSupportedException("Unsupported function: TO_JSON_STRING is not supported on values of type INT64");
-			if (v is bool)
-				throw new NotSupportedException("Unsupported function: TO_JSON_STRING is not supported on values of type BOOL");
-			if (v is double)
-				throw new NotSupportedException("Unsupported function: TO_JSON_STRING is not supported on values of type FLOAT64");
+			if (v is JsonElement je) return je.GetRawText();
+			if (v is string s) return JsonSerializer.Serialize(s); // produces "\"hello\""
+			if (v is long l) return l.ToString();
+			if (v is bool b) return b ? "true" : "false";
+			if (v is double d) return JsonSerializer.Serialize(d);
+			return JsonSerializer.Serialize(v);
 		}
 
-		return JsonSerializer.Serialize(v);
+		// TO_JSON: return a JsonElement
+		if (v is JsonElement alreadyJson) return alreadyJson;
+		var json = JsonSerializer.Serialize(v);
+		return JsonSerializer.Deserialize<JsonElement>(json);
 	}
 
 	private object? EvalParseJson(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -2154,16 +2426,34 @@ internal class ExpressionEvaluator
 			catch { return null; }
 		}
 
-		// Simple path navigation: $.key1.key2 or $[0].key
+		// Simple path navigation: $.key1.key2, $[0].key, $.arr[0]
 		var parts = path.TrimStart('$').Split('.', StringSplitOptions.RemoveEmptyEntries);
 		foreach (var part in parts)
 		{
-			if (elem.ValueKind == JsonValueKind.Object && elem.TryGetProperty(part, out var prop))
-				elem = prop;
-			else if (int.TryParse(part, out var idx) && elem.ValueKind == JsonValueKind.Array && idx < elem.GetArrayLength())
-				elem = elem[idx];
-			else
-				return null;
+			// Extract bracket index if present, e.g. "[1]" or "arr[0]"
+			var bracketPos = part.IndexOf('[');
+			var propName = bracketPos >= 0 ? part.Substring(0, bracketPos) : part;
+			string? bracketIndex = bracketPos >= 0 ? part.Substring(bracketPos + 1).TrimEnd(']') : null;
+
+			// Navigate property name (if non-empty)
+			if (propName.Length > 0)
+			{
+				if (elem.ValueKind == JsonValueKind.Object && elem.TryGetProperty(propName, out var prop))
+					elem = prop;
+				else if (int.TryParse(propName, out var idx) && elem.ValueKind == JsonValueKind.Array && idx < elem.GetArrayLength())
+					elem = elem[idx];
+				else
+					return null;
+			}
+
+			// Navigate array index (if bracket was present)
+			if (bracketIndex != null)
+			{
+				if (int.TryParse(bracketIndex, out var arrIdx) && elem.ValueKind == JsonValueKind.Array && arrIdx < elem.GetArrayLength())
+					elem = elem[arrIdx];
+				else
+					return null;
+			}
 		}
 		return elem;
 	}
@@ -2374,22 +2664,32 @@ internal class ExpressionEvaluator
 		if (startVal == null || endVal == null) return null;
 		var startDate = ConvertToDateTime(startVal).Date;
 		var endDate = ConvertToDateTime(endVal).Date;
-		int stepDays = 1;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#generate_date_array
+		//   Step is an INTERVAL value supporting DAY, WEEK, MONTH, QUARTER, YEAR.
+		string stepPart = "DAY";
+		int stepAmount = 1;
 		if (func.Arguments.Count >= 3)
 		{
 			var stepVal = Evaluate(func.Arguments[2], row);
-			if (stepVal != null) stepDays = Convert.ToInt32(stepVal);
+			if (stepVal is SpannerInterval interval)
+			{
+				if (interval.Months != 0) { stepPart = "MONTH"; stepAmount = interval.Months; }
+				else if (interval.Days != 0) { stepPart = "DAY"; stepAmount = interval.Days; }
+				else stepAmount = 1;
+			}
+			else if (stepVal != null) stepAmount = Convert.ToInt32(stepVal);
 		}
-		if (stepDays == 0) throw new InvalidOperationException("GENERATE_DATE_ARRAY: step cannot be 0.");
+		if (stepAmount == 0) throw new InvalidOperationException("GENERATE_DATE_ARRAY: step cannot be 0.");
 		var result = new List<object?>();
-		if (stepDays > 0)
+		DateTime StepDate(DateTime d) => stepPart == "MONTH" ? d.AddMonths(stepAmount) : d.AddDays(stepAmount);
+		if (stepAmount > 0)
 		{
-			for (var d = startDate; d <= endDate; d = d.AddDays(stepDays))
+			for (var d = startDate; d <= endDate; d = StepDate(d))
 				result.Add(d);
 		}
 		else
 		{
-			for (var d = startDate; d >= endDate; d = d.AddDays(stepDays))
+			for (var d = startDate; d >= endDate; d = StepDate(d))
 				result.Add(d);
 		}
 		return result;
@@ -2407,18 +2707,28 @@ internal class ExpressionEvaluator
 		if (startVal == null || endVal == null) return null;
 		var startTs = ConvertToDateTime(startVal);
 		var endTs = ConvertToDateTime(endVal);
-		// Step is an INTERVAL; for simplicity treat numeric as hours
-		var stepHours = stepVal != null ? Convert.ToDouble(stepVal) : 1.0;
-		if (stepHours == 0) throw new InvalidOperationException("GENERATE_TIMESTAMP_ARRAY: step cannot be 0.");
-		var result = new List<object?>();
-		if (stepHours > 0)
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#generate_timestamp_array
+		//   Step is an INTERVAL supporting MICROSECOND through DAY.
+		long stepNanos = 3_600_000_000_000L; // default 1 hour
+		if (stepVal is SpannerInterval interval)
 		{
-			for (var t = startTs; t <= endTs; t = t.AddHours(stepHours))
+			stepNanos = interval.Nanos + interval.Days * 86_400_000_000_000L;
+		}
+		else if (stepVal != null)
+		{
+			stepNanos = (long)(Convert.ToDouble(stepVal) * 3_600_000_000_000.0);
+		}
+		if (stepNanos == 0) throw new InvalidOperationException("GENERATE_TIMESTAMP_ARRAY: step cannot be 0.");
+		var stepTicks = stepNanos / 100; // 1 tick = 100 ns
+		var result = new List<object?>();
+		if (stepTicks > 0)
+		{
+			for (var t = startTs; t <= endTs; t = t.AddTicks(stepTicks))
 				result.Add(t);
 		}
 		else
 		{
-			for (var t = startTs; t >= endTs; t = t.AddHours(stepHours))
+			for (var t = startTs; t >= endTs; t = t.AddTicks(stepTicks))
 				result.Add(t);
 		}
 		return result;
@@ -2464,7 +2774,15 @@ internal class ExpressionEvaluator
 		var form = System.Text.NormalizationForm.FormC;
 		if (func.Arguments.Count >= 2)
 		{
-			var formStr = Evaluate(func.Arguments[1], row)?.ToString()?.ToUpperInvariant();
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#normalize
+			//   The second argument is a normalization mode identifier (NFC, NFD, NFKC, NFKD),
+			//   not a string literal. The parser treats it as a ColumnRefExpr, but we resolve
+			//   it directly by name since it's a keyword-like token.
+			string? formStr;
+			if (func.Arguments[1] is ColumnRefExpr colRef)
+				formStr = colRef.Column.ToUpperInvariant();
+			else
+				formStr = Evaluate(func.Arguments[1], row)?.ToString()?.ToUpperInvariant();
 			form = formStr switch
 			{
 				"NFC" => System.Text.NormalizationForm.FormC,
@@ -2764,7 +3082,8 @@ internal class ExpressionEvaluator
 	{
 		var elements = func.Arguments.Select(a => Evaluate(a, row)).ToList();
 		var jsonElements = elements.Select(e => e == null ? "null" : JsonSerializer.Serialize(e));
-		return "[" + string.Join(",", jsonElements) + "]";
+		var json = "[" + string.Join(",", jsonElements) + "]";
+		return JsonSerializer.Deserialize<JsonElement>(json);
 	}
 
 	private object? EvalJsonObject(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -2782,24 +3101,76 @@ internal class ExpressionEvaluator
 			sb.Append(val == null ? "null" : JsonSerializer.Serialize(val));
 		}
 		sb.Append('}');
-		return sb.ToString();
+		return JsonSerializer.Deserialize<JsonElement>(sb.ToString());
 	}
 
 	private object? EvalJsonSet(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		if (func.Arguments.Count < 3 || func.Arguments.Count % 2 != 1)
 			throw new InvalidOperationException("JSON_SET requires json, path, value triples.");
-		var json = Evaluate(func.Arguments[0], row)?.ToString();
-		if (json == null) return null;
+		var rawJson = Evaluate(func.Arguments[0], row);
+		if (rawJson == null) return null;
+		var json = rawJson is JsonElement je0 ? je0.GetRawText() : rawJson.ToString()!;
 		using var doc = JsonDocument.Parse(json);
-		var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json) ?? new();
+		var dict = JsonSerializer.Deserialize<Dictionary<string, object?>>(json, new JsonSerializerOptions { Converters = { new NestedDictionaryConverter() } }) ?? new();
 		for (int i = 1; i < func.Arguments.Count; i += 2)
 		{
-			var path = Evaluate(func.Arguments[i], row)?.ToString()?.TrimStart('$', '.') ?? "";
+			var pathStr = Evaluate(func.Arguments[i], row)?.ToString() ?? "$";
+			var segments = pathStr.TrimStart('$').Split('.', StringSplitOptions.RemoveEmptyEntries);
 			var val = Evaluate(func.Arguments[i + 1], row);
-			dict[path] = JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(val));
+			var serializedVal = (object?)JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(val));
+
+			if (segments.Length == 0) continue;
+
+			var target = dict;
+			for (int s = 0; s < segments.Length - 1; s++)
+			{
+				if (target.TryGetValue(segments[s], out var nested) && nested is Dictionary<string, object?> nestedDict)
+					target = nestedDict;
+				else
+				{
+					var newDict = new Dictionary<string, object?>();
+					target[segments[s]] = newDict;
+					target = newDict;
+				}
+			}
+
+			target[segments[^1]] = serializedVal;
 		}
-		return JsonSerializer.Serialize(dict);
+		return JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(dict));
+	}
+
+	private sealed class NestedDictionaryConverter : JsonConverter<Dictionary<string, object?>>
+	{
+		public override Dictionary<string, object?>? Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
+		{
+			var dict = new Dictionary<string, object?>();
+			if (reader.TokenType != JsonTokenType.StartObject) throw new JsonException();
+			while (reader.Read() && reader.TokenType != JsonTokenType.EndObject)
+			{
+				var key = reader.GetString()!;
+				reader.Read();
+				dict[key] = ReadValue(ref reader, options);
+			}
+			return dict;
+		}
+
+		private object? ReadValue(ref Utf8JsonReader reader, JsonSerializerOptions options) => reader.TokenType switch
+		{
+			JsonTokenType.StartObject => Read(ref reader, typeof(Dictionary<string, object?>), options),
+			_ => JsonSerializer.Deserialize<JsonElement>(ref reader)
+		};
+
+		public override void Write(Utf8JsonWriter writer, Dictionary<string, object?> value, JsonSerializerOptions options)
+		{
+			writer.WriteStartObject();
+			foreach (var kvp in value)
+			{
+				writer.WritePropertyName(kvp.Key);
+				JsonSerializer.Serialize(writer, kvp.Value, options);
+			}
+			writer.WriteEndObject();
+		}
 	}
 
 	private object? EvalJsonStripNulls(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -2807,8 +3178,10 @@ internal class ExpressionEvaluator
 		if (func.Arguments.Count != 1) throw new InvalidOperationException("JSON_STRIP_NULLS requires 1 argument.");
 		var val = Evaluate(func.Arguments[0], row);
 		if (val == null) return null;
-		using var doc = JsonDocument.Parse(val.ToString()!);
-		return StripNulls(doc.RootElement);
+		var jsonStr = val is JsonElement jeStrip ? jeStrip.GetRawText() : val.ToString()!;
+		using var doc = JsonDocument.Parse(jsonStr);
+		var stripped = StripNulls(doc.RootElement);
+		return JsonSerializer.Deserialize<JsonElement>(stripped);
 	}
 
 	private static string StripNulls(JsonElement element) => element.ValueKind switch
@@ -2827,7 +3200,8 @@ internal class ExpressionEvaluator
 		if (func.Arguments.Count < 1) throw new InvalidOperationException("JSON_KEYS requires 1 argument.");
 		var val = Evaluate(func.Arguments[0], row);
 		if (val == null) return null;
-		using var doc = JsonDocument.Parse(val.ToString()!);
+		var jsonStr = val is JsonElement jeKeys ? jeKeys.GetRawText() : val.ToString()!;
+		using var doc = JsonDocument.Parse(jsonStr);
 		if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
 		return doc.RootElement.EnumerateObject().Select(p => (object?)p.Name).ToList();
 	}
@@ -3225,27 +3599,68 @@ internal class ExpressionEvaluator
 		var val = Evaluate(func.Arguments[0], row);
 		if (val == null) return null;
 
-		string jsonStr = val.ToString()!;
-		// Process path/value pairs — for now we support only the root "$" path
-		using var doc = System.Text.Json.JsonDocument.Parse(jsonStr);
-		if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Array)
-			throw new InvalidOperationException("JSON_ARRAY_APPEND: root element must be an array.");
+		string currentJson = val is JsonElement je0 ? je0.GetRawText() : val.ToString()!;
 
-		using var stream = new System.IO.MemoryStream();
-		using var writer = new System.Text.Json.Utf8JsonWriter(stream);
-		writer.WriteStartArray();
-		foreach (var item in doc.RootElement.EnumerateArray())
-			item.WriteTo(writer);
-		// Append values from each (path, value) pair
+		// Process path/value pairs, applying each to the result of the previous
 		for (int i = 1; i < func.Arguments.Count; i += 2)
 		{
+			var path = Evaluate(func.Arguments[i], row)?.ToString() ?? "$";
 			var appendVal = Evaluate(func.Arguments[i + 1], row);
-			WriteJsonValue(writer, appendVal);
+			currentJson = JsonArrayAppendAtPath(currentJson, path, appendVal);
 		}
-		writer.WriteEndArray();
-		writer.Flush();
 
-		return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+		return JsonSerializer.Deserialize<JsonElement>(currentJson);
+	}
+
+	private string JsonArrayAppendAtPath(string jsonStr, string path, object? appendVal)
+	{
+		using var doc = System.Text.Json.JsonDocument.Parse(jsonStr);
+
+		if (path == "$")
+		{
+			if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Array)
+				throw new InvalidOperationException("JSON_ARRAY_APPEND: target must be an array.");
+			using var stream = new System.IO.MemoryStream();
+			using var writer = new System.Text.Json.Utf8JsonWriter(stream);
+			writer.WriteStartArray();
+			foreach (var item in doc.RootElement.EnumerateArray())
+				item.WriteTo(writer);
+			WriteJsonValue(writer, appendVal);
+			writer.WriteEndArray();
+			writer.Flush();
+			return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+		}
+
+		// Handle $.property path — navigate into object and append to the nested array
+		var propMatch = System.Text.RegularExpressions.Regex.Match(path, @"^\$\.(.+)$");
+		if (propMatch.Success && doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object)
+		{
+			var propName = propMatch.Groups[1].Value;
+			using var stream = new System.IO.MemoryStream();
+			using var writer = new System.Text.Json.Utf8JsonWriter(stream);
+			writer.WriteStartObject();
+			foreach (var prop in doc.RootElement.EnumerateObject())
+			{
+				if (prop.Name == propName && prop.Value.ValueKind == System.Text.Json.JsonValueKind.Array)
+				{
+					writer.WritePropertyName(prop.Name);
+					writer.WriteStartArray();
+					foreach (var arrItem in prop.Value.EnumerateArray())
+						arrItem.WriteTo(writer);
+					WriteJsonValue(writer, appendVal);
+					writer.WriteEndArray();
+				}
+				else
+				{
+					prop.WriteTo(writer);
+				}
+			}
+			writer.WriteEndObject();
+			writer.Flush();
+			return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+		}
+
+		throw new InvalidOperationException($"JSON_ARRAY_APPEND: unsupported path '{path}'.");
 	}
 
 	// ═══════════════════════════════════════════════════════════════
@@ -3259,7 +3674,7 @@ internal class ExpressionEvaluator
 		if (func.Arguments.Count < 3) throw new InvalidOperationException("JSON_ARRAY_INSERT requires at least 3 arguments.");
 		var val = Evaluate(func.Arguments[0], row);
 		if (val == null) return null;
-		string jsonStr = val.ToString()!;
+		string jsonStr = val is JsonElement je1 ? je1.GetRawText() : val.ToString()!;
 		var path = Evaluate(func.Arguments[1], row)?.ToString()
 			?? throw new InvalidOperationException("JSON_ARRAY_INSERT: path cannot be NULL.");
 		var insertVal = Evaluate(func.Arguments[2], row);
@@ -3285,7 +3700,7 @@ internal class ExpressionEvaluator
 		if (insertIdx >= items.Count) WriteJsonValue(writer, insertVal);
 		writer.WriteEndArray();
 		writer.Flush();
-		return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+		return JsonSerializer.Deserialize<JsonElement>(System.Text.Encoding.UTF8.GetString(stream.ToArray()));
 	}
 
 	// ═══════════════════════════════════════════════════════════════
@@ -3301,8 +3716,10 @@ internal class ExpressionEvaluator
 		var val2 = Evaluate(func.Arguments[1], row);
 		if (val1 == null || val2 == null) return null;
 
-		using var doc1 = System.Text.Json.JsonDocument.Parse(val1.ToString()!);
-		using var doc2 = System.Text.Json.JsonDocument.Parse(val2.ToString()!);
+		string json1 = val1 is JsonElement je1c ? je1c.GetRawText() : val1.ToString()!;
+		string json2 = val2 is JsonElement je2c ? je2c.GetRawText() : val2.ToString()!;
+		using var doc1 = System.Text.Json.JsonDocument.Parse(json1);
+		using var doc2 = System.Text.Json.JsonDocument.Parse(json2);
 		return JsonContains(doc1.RootElement, doc2.RootElement);
 	}
 
@@ -3332,6 +3749,15 @@ internal class ExpressionEvaluator
 			}
 			return true;
 		}
+		// For scalar targets, check if the container is an array that contains the scalar
+		if (container.ValueKind == System.Text.Json.JsonValueKind.Array)
+		{
+			foreach (var item in container.EnumerateArray())
+			{
+				if (item.GetRawText() == target.GetRawText()) return true;
+			}
+			return false;
+		}
 		return container.GetRawText() == target.GetRawText();
 	}
 
@@ -3347,7 +3773,8 @@ internal class ExpressionEvaluator
 		var val = Evaluate(func.Arguments[0], row);
 		if (val == null) return null;
 
-		using var doc = System.Text.Json.JsonDocument.Parse(val.ToString()!);
+		var jsonStr = val is JsonElement jeRem ? jeRem.GetRawText() : val.ToString()!;
+		using var doc = System.Text.Json.JsonDocument.Parse(jsonStr);
 		var paths = new List<string>();
 		for (int i = 1; i < func.Arguments.Count; i++)
 		{
@@ -3359,7 +3786,7 @@ internal class ExpressionEvaluator
 		using var writer = new System.Text.Json.Utf8JsonWriter(stream);
 		WriteJsonWithoutPaths(writer, doc.RootElement, paths, "$");
 		writer.Flush();
-		return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+		return JsonSerializer.Deserialize<JsonElement>(System.Text.Encoding.UTF8.GetString(stream.ToArray()));
 	}
 
 	private static void WriteJsonWithoutPaths(System.Text.Json.Utf8JsonWriter writer,
@@ -3462,6 +3889,7 @@ internal class ExpressionEvaluator
 		switch (value)
 		{
 			case null: writer.WriteNullValue(); break;
+			case JsonElement je: je.WriteTo(writer); break;
 			case bool b: writer.WriteBooleanValue(b); break;
 			case long l: writer.WriteNumberValue(l); break;
 			case int i: writer.WriteNumberValue(i); break;

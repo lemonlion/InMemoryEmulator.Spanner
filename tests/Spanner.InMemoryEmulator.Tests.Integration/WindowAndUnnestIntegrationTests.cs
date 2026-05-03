@@ -114,5 +114,46 @@ public WindowAndUnnestIntegrationTests(EmulatorSession session) : base(session) 
 		rows.Should().HaveCount(1);
 		rows[0]["s"].Should().NotBeNull();
 	}
+	// ─── STRUCT.* expansion ───
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#struct_field_access_operator
+	//   "STRUCT(...).*": The dot star operator returns all fields of a STRUCT.
 
+	[Fact]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	public async Task Struct_DotStar_ExpandsFieldsIntoColumns()
+	{
+		await EnsureTableAsync();
+		var rows = await QueryAsync("SELECT STRUCT(1 AS a, 'hello' AS b).* FROM WinDummy WHERE Id = 1");
+		rows.Should().HaveCount(1);
+		rows[0].Should().ContainKey("a");
+		rows[0].Should().ContainKey("b");
+		rows[0]["a"].Should().Be(1L);
+		rows[0]["b"].Should().Be("hello");
+	}
+
+	[Fact]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	public async Task Struct_DotStar_MultipleRows()
+	{
+		await EnsureTableAsync();
+		var rows = await QueryAsync("SELECT STRUCT(Id AS id, Name AS name).* FROM WinEmp WHERE Id <= 2 ORDER BY Id");
+		rows.Should().HaveCount(2);
+		rows[0]["id"].Should().Be(1L);
+		rows[0]["name"].Should().Be("Alice");
+		rows[1]["id"].Should().Be(2L);
+		rows[1]["name"].Should().Be("Bob");
+	}
+
+	[Fact]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	public async Task Struct_DotStar_WithOtherColumns()
+	{
+		await EnsureTableAsync();
+		var rows = await QueryAsync("SELECT Id, STRUCT('x' AS val, 42 AS num).*, Name FROM WinEmp WHERE Id = 1");
+		rows.Should().HaveCount(1);
+		rows[0]["Id"].Should().Be(1L);
+		rows[0]["val"].Should().Be("x");
+		rows[0]["num"].Should().Be(42L);
+		rows[0]["Name"].Should().Be("Alice");
+	}
 }

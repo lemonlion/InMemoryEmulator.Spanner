@@ -35,7 +35,7 @@ internal static class TypeConverter
 			TypeCode.Date => Google.Protobuf.WellKnownTypes.Value.ForString(FormatDate(value)),
 			TypeCode.Bytes => Google.Protobuf.WellKnownTypes.Value.ForString(Convert.ToBase64String((byte[])value)),
 			TypeCode.Numeric => Google.Protobuf.WellKnownTypes.Value.ForString(value.ToString()!),
-			TypeCode.Json => Google.Protobuf.WellKnownTypes.Value.ForString((string)value),
+			TypeCode.Json => Google.Protobuf.WellKnownTypes.Value.ForString(value is System.Text.Json.JsonElement je ? je.GetRawText() : (string)value),
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#uuid_type
 			//   "UUID values are encoded as lowercase hyphenated strings (RFC 9562)."
 			(TypeCode)17 => Google.Protobuf.WellKnownTypes.Value.ForString((string)value),

@@ -181,6 +181,43 @@ public class DdlParserTests
 		table.Columns[0].Name.Should().Be("SingerId");
 	}
 
+	// ─── ALTER COLUMN SET OPTIONS ───
+
+	[Fact]
+	public void AlterColumnSetOptions_AllowCommitTimestampTrue_SetsFlag()
+	{
+		using var db = new InMemorySpannerDatabase();
+		db.ExecuteDdl("CREATE TABLE T (Id INT64 NOT NULL, Ts TIMESTAMP) PRIMARY KEY (Id)");
+
+		db.ExecuteDdl("ALTER TABLE T ALTER COLUMN Ts SET OPTIONS (allow_commit_timestamp = true)");
+
+		var table = db.GetTableDefinition("T");
+		table.Columns.First(c => c.Name == "Ts").AllowCommitTimestamp.Should().BeTrue();
+	}
+
+	[Fact]
+	public void AlterColumnSetOptions_AllowCommitTimestampFalse_ClearsFlag()
+	{
+		using var db = new InMemorySpannerDatabase();
+		db.ExecuteDdl("CREATE TABLE T (Id INT64 NOT NULL, Ts TIMESTAMP OPTIONS (allow_commit_timestamp = true)) PRIMARY KEY (Id)");
+
+		db.ExecuteDdl("ALTER TABLE T ALTER COLUMN Ts SET OPTIONS (allow_commit_timestamp = false)");
+
+		var table = db.GetTableDefinition("T");
+		table.Columns.First(c => c.Name == "Ts").AllowCommitTimestamp.Should().BeFalse();
+	}
+
+	[Fact]
+	public void AlterColumnSetOptions_NonExistentColumn_Throws()
+	{
+		using var db = new InMemorySpannerDatabase();
+		db.ExecuteDdl("CREATE TABLE T (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+
+		var act = () => db.ExecuteDdl("ALTER TABLE T ALTER COLUMN Missing SET OPTIONS (allow_commit_timestamp = true)");
+
+		act.Should().Throw<InvalidOperationException>().WithMessage("*does not exist*");
+	}
+
 	// ─── CREATE INDEX ───
 
 	[Fact]

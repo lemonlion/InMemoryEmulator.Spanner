@@ -269,6 +269,36 @@ internal static class DdlParser
 				break;
 			}
 
+			case AlterColumnSetOptionsAction setOptions:
+			{
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_column
+				//   ALTER TABLE t ALTER COLUMN c SET OPTIONS (allow_commit_timestamp = true|false)
+				var optCol = table.Columns.FirstOrDefault(
+					c => string.Equals(c.Name, setOptions.ColumnName, StringComparison.OrdinalIgnoreCase));
+				if (optCol == null)
+					throw new InvalidOperationException($"Column '{setOptions.ColumnName}' does not exist in table '{stmt.Name}'.");
+
+				var updatedCol = new ColumnDef(
+					optCol.Name,
+					optCol.SpannerType,
+					optCol.IsNullable,
+					optCol.MaxLength,
+					setOptions.AllowCommitTimestamp,
+					optCol.ArrayElementType,
+					optCol.GeneratedExpression,
+					optCol.IsStored,
+					optCol.DefaultExpression,
+					optCol.IsHidden,
+					optCol.ProtoTypeFqn);
+
+				var newColumns = table.Columns.Select(c =>
+					string.Equals(c.Name, setOptions.ColumnName, StringComparison.OrdinalIgnoreCase) ? updatedCol : c)
+					.ToList();
+
+				RebuildTable(table, newColumns, schema);
+				break;
+			}
+
 			case AlterColumnAction alter:
 			{
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_column

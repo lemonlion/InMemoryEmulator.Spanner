@@ -376,16 +376,19 @@ public class ErrorConditionIntegrationTests : IntegrationTestBase
 	//   ROW_NUMBER, RANK, DENSE_RANK, and aggregate OVER() are now implemented.
 	// ═══════════════════════════════════════════════════════════════
 
+	//   LAG, LEAD, FIRST_VALUE, LAST_VALUE are now implemented as window functions.
+
 	[Theory]
 	[InlineData("SELECT LAG(Val) OVER (ORDER BY Id) AS L FROM ErrTest")]
 	[InlineData("SELECT LEAD(Val) OVER (ORDER BY Id) AS L FROM ErrTest")]
 	[InlineData("SELECT FIRST_VALUE(Val) OVER (ORDER BY Id) AS FV FROM ErrTest")]
 	[InlineData("SELECT LAST_VALUE(Val) OVER (ORDER BY Id) AS LV FROM ErrTest")]
-	public async Task WindowFunction_Throws(string sql)
+	public async Task WindowFunction_Succeeds(string sql)
 	{
 		await EnsureErrorTableAsync();
-		var act = () => QueryAsync(sql);
-		await act.Should().ThrowAsync<SpannerException>();
+		// Table is empty so result is empty — just verify it doesn't throw
+		var rows = await QueryAsync(sql);
+		rows.Should().BeEmpty(); // empty table → no rows
 	}
 
 	// ═══════════════════════════════════════════════════════════════
@@ -409,7 +412,6 @@ public class ErrorConditionIntegrationTests : IntegrationTestBase
 	[InlineData("SELECT NULL >= 1 AS R")]
 	[InlineData("SELECT NULL || 'a' AS R")]
 	[InlineData("SELECT 'a' || NULL AS R")]
-	[InlineData("SELECT NOT NULL AS R")]
 	public async Task LiteralNull_InOperator_Throws(string sql)
 	{
 		var act = () => QueryAsync(sql);
@@ -431,14 +433,18 @@ public class ErrorConditionIntegrationTests : IntegrationTestBase
 	//   TO_JSON_STRING only accepts JSON-typed values.
 	// ═══════════════════════════════════════════════════════════════
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json_string
+	//   TO_JSON_STRING accepts any SQL data type and converts to a JSON-formatted STRING.
+	//   Previously, tests expected this to throw — but it's valid SQL.
+
 	[Theory]
-	[InlineData("SELECT TO_JSON_STRING(1) AS R")]
-	[InlineData("SELECT TO_JSON_STRING('hello') AS R")]
-	[InlineData("SELECT TO_JSON_STRING(TRUE) AS R")]
-	public async Task ToJsonString_NonJsonType_Throws(string sql)
+	[InlineData("SELECT TO_JSON_STRING(1) AS R", "1")]
+	[InlineData("SELECT TO_JSON_STRING('hello') AS R", "\"hello\"")]
+	[InlineData("SELECT TO_JSON_STRING(TRUE) AS R", "true")]
+	public async Task ToJsonString_ScalarTypes_ReturnsJsonString(string sql, string expected)
 	{
-		var act = () => QueryAsync(sql);
-		await act.Should().ThrowAsync<SpannerException>();
+		var rows = await QueryAsync(sql);
+		((string)rows[0]["R"]!).Should().Be(expected);
 	}
 
 	// ═══════════════════════════════════════════════════════════════

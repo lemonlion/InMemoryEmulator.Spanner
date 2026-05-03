@@ -303,6 +303,12 @@ internal enum GoogleSqlToken
 	[Token(Example = "IGNORE")]
 	Ignore,
 
+	[Token(Example = "RESPECT")]
+	Respect,
+
+	[Token(Example = "NULLS")]
+	Nulls,
+
 	[Token(Example = "OPTIONS")]
 	Options,
 

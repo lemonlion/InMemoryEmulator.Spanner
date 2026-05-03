@@ -418,6 +418,16 @@ internal static class DdlParsers
 		select (AlterAction)new DropColumnAction(name);
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_column
+	//   ALTER TABLE t ALTER COLUMN c SET OPTIONS (allow_commit_timestamp = true|false)
+	private static TokenListParser<GoogleSqlToken, AlterAction> AlterColumnSetOptionsAction { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.Alter)
+		from __ in Token.EqualTo(GoogleSqlToken.Column)
+		from name in IdentifierOrKeywordAsName
+		from _set in Token.EqualTo(GoogleSqlToken.Set)
+		from val in AllowCommitTimestampOption
+		select (AlterAction)new AlterColumnSetOptionsAction(name, val);
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_column
 	//   ALTER TABLE t ALTER COLUMN c type [NOT NULL] [DEFAULT (expr)]
 	private static TokenListParser<GoogleSqlToken, AlterAction> AlterColumnAction { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.Alter)
@@ -490,6 +500,7 @@ internal static class DdlParsers
 		from name in IdentifierOrKeywordAsName
 		from action in AddRowDeletionPolicyAction.Try()
 			.Or(AddColumnAction.Try())
+			.Or(AlterColumnSetOptionsAction.Try())
 			.Or(AlterColumnAction.Try())
 			.Or(DropRowDeletionPolicyAction.Try())
 			.Or(DropConstraintAction.Try())

@@ -25,33 +25,42 @@ internal class QueryExecutor
 	public ResultSet Execute(FullQuery fullQuery, IDictionary<string, object?>? parameters)
 	{
 		// Register CTEs as virtual tables for subquery resolution
-		Dictionary<string, SelectStatement>? cteMap = null;
+		Dictionary<string, QueryBody>? cteMap = null;
 		if (fullQuery.Ctes is { Count: > 0 })
 		{
-			cteMap = new Dictionary<string, SelectStatement>(StringComparer.OrdinalIgnoreCase);
+			cteMap = new Dictionary<string, QueryBody>(StringComparer.OrdinalIgnoreCase);
 			foreach (var cte in fullQuery.Ctes)
 			{
 				cteMap[cte.Name] = cte.Query;
 			}
 		}
 
-		var result = Execute(fullQuery.Select, parameters, cteMap);
+		return Execute(fullQuery.Body, parameters, cteMap);
+	}
+
+	/// <summary>
+	/// Executes a QueryBody (SELECT with optional set operations, no CTEs).
+	/// </summary>
+	internal ResultSet Execute(QueryBody body, IDictionary<string, object?>? parameters,
+		Dictionary<string, QueryBody>? cteMap = null, Dictionary<string, object?>? outerRow = null)
+	{
+		var result = Execute(body.Select, parameters, cteMap, outerRow);
 
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#set_operators
 		// Apply set operations. A trailing ORDER BY applies to the final combined result,
 		// not to the last SELECT in the chain.
-		if (fullQuery.SetOps is { Count: > 0 })
+		if (body.SetOps is { Count: > 0 })
 		{
 			// Extract the trailing ORDER BY from the last right SELECT (it belongs to the full query)
-			var lastRight = fullQuery.SetOps[^1].Right;
+			var lastRight = body.SetOps[^1].Right;
 			var finalOrderBy = lastRight.OrderBy;
 			var finalLimit = lastRight.Limit;
 			var finalOffset = lastRight.Offset;
 
-			foreach (var setOp in fullQuery.SetOps)
+			foreach (var setOp in body.SetOps)
 			{
 				// For the last set op, strip ORDER BY/LIMIT from the right SELECT
-				var rightSelect = setOp == fullQuery.SetOps[^1] && finalOrderBy != null
+				var rightSelect = setOp == body.SetOps[^1] && finalOrderBy != null
 					? setOp.Right with { OrderBy = null, Limit = null, Offset = null }
 					: setOp.Right;
 				var rightResult = Execute(rightSelect, parameters, cteMap);
@@ -67,11 +76,13 @@ internal class QueryExecutor
 			// Apply LIMIT/OFFSET
 			if (finalLimit != null || finalOffset != null)
 			{
-				var offset = (int)(finalOffset ?? 0);
+				var evaluator = new ExpressionEvaluator(parameters);
+				var emptyRow = new Dictionary<string, object?>();
+				var offset = finalOffset != null ? Convert.ToInt32(evaluator.Evaluate(finalOffset, emptyRow)) : 0;
 				var rows = result.Rows.ToList();
 				rows = rows.Skip(offset).ToList();
 				if (finalLimit != null)
-					rows = rows.Take((int)finalLimit.Value).ToList();
+					rows = rows.Take(Convert.ToInt32(evaluator.Evaluate(finalLimit, emptyRow))).ToList();
 				result.Rows.Clear();
 				result.Rows.AddRange(rows);
 			}
@@ -138,7 +149,7 @@ internal class QueryExecutor
 	/// Executes a parsed SELECT statement and returns the result as a ResultSet protobuf.
 	/// </summary>
 	public ResultSet Execute(SelectStatement select, IDictionary<string, object?>? parameters,
-		Dictionary<string, SelectStatement>? cteMap = null, Dictionary<string, object?>? outerRow = null)
+		Dictionary<string, QueryBody>? cteMap = null, Dictionary<string, object?>? outerRow = null)
 	{
 		var evaluator = new ExpressionEvaluator(parameters, this, cteMap, outerRow);
 
@@ -304,6 +315,21 @@ internal class QueryExecutor
 			var hasGroupBy = select.GroupBy is { Count: > 0 } || HasAggregates(select.Columns);
 			var resolvedOrderBy = select.OrderBy.Select(ob =>
 			{
+				// Resolve integer ordinals (1-based) to SELECT column positions.
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#order_by_clause
+				//   "An integer literal ... is interpreted as a column number"
+				if (ob.Expr is LiteralExpr { Value: var v } && v is long or int or double)
+				{
+					var ordinal = Convert.ToInt32(v);
+					if (ordinal >= 1 && ordinal <= select.Columns.Count)
+					{
+						var col = select.Columns[ordinal - 1];
+						var resolved = col.Alias != null
+							? new ColumnRefExpr(null, col.Alias)
+							: col.Expr;
+						return new OrderByColumn(resolved, ob.Order);
+					}
+				}
 				if (hasGroupBy) return ob;
 				if (ob.Expr is ColumnRefExpr colRef && colRef.TableAlias == null)
 				{
@@ -327,15 +353,17 @@ internal class QueryExecutor
 		}
 
 		// 8. OFFSET
-		if (select.Offset.HasValue)
+		if (select.Offset != null)
 		{
-			projectedRows = projectedRows.Skip((int)select.Offset.Value).ToList();
+			var offsetVal = Convert.ToInt32(evaluator.Evaluate(select.Offset, new Dictionary<string, object?>()));
+			projectedRows = projectedRows.Skip(offsetVal).ToList();
 		}
 
 		// 9. LIMIT
-		if (select.Limit.HasValue)
+		if (select.Limit != null)
 		{
-			projectedRows = projectedRows.Take((int)select.Limit.Value).ToList();
+			var limitVal = Convert.ToInt32(evaluator.Evaluate(select.Limit, new Dictionary<string, object?>()));
+			projectedRows = projectedRows.Take(limitVal).ToList();
 		}
 
 		return ResultSetBuilder.Build(outputColumns, projectedRows);
@@ -398,6 +426,34 @@ internal class QueryExecutor
 					{
 						if (tablCol.IsHidden) continue;
 						expandedColumns.Add((new ColumnRefExpr(starRef.TableAlias, tablCol.Name), tablCol.Name));
+					}
+				}
+			}
+			else if (col.Expr is StructExpandExpr structExpand)
+			{
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#struct_field_access_operator
+				//   STRUCT(...).*  — expand all fields of the struct into individual columns.
+				if (structExpand.Struct is StructExpr structLit)
+				{
+					foreach (var field in structLit.Fields)
+					{
+						var fieldName = field.Name ?? "";
+						expandedColumns.Add((new StructFieldAccessExpr(structExpand.Struct, fieldName), fieldName));
+					}
+				}
+				else
+				{
+					// For non-literal struct expressions, evaluate against the first row to discover field names
+					if (rows.Count > 0)
+					{
+						var val = evaluator.Evaluate(structExpand.Struct, rows[0]);
+						if (val is Dictionary<string, object?> dict)
+						{
+							foreach (var key in dict.Keys)
+							{
+								expandedColumns.Add((new StructFieldAccessExpr(structExpand.Struct, key), key));
+							}
+						}
 					}
 				}
 			}
@@ -504,6 +560,7 @@ internal class QueryExecutor
 		DateTime dt => dt.TimeOfDay == TimeSpan.Zero ? TypeCode.Date : TypeCode.Timestamp,
 		byte[] => TypeCode.Bytes,
 		IList<object?> => TypeCode.Array,
+		System.Text.Json.JsonElement => TypeCode.Json,
 		_ => TypeCode.String
 	};
 
@@ -658,20 +715,39 @@ internal class QueryExecutor
 			return InferType(func.Arguments[0], table);
 		}
 
-		// GREATEST/LEAST/COALESCE — infer from first non-null-literal argument
+		// GREATEST/LEAST/COALESCE — infer supertype of all arguments
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_rules#supertypes
 		if (name is "GREATEST" or "LEAST" or "COALESCE" && func.Arguments.Count > 0)
 		{
+			var types = func.Arguments.Select(a => InferType(a, table)).ToList();
+			// INT64 + FLOAT64 → FLOAT64
+			if (types.Contains(TypeCode.Int64) && types.Contains(TypeCode.Float64))
+				return TypeCode.Float64;
 			return InferFirstNonNullArgType(func, table);
 		}
 
-		// IF(cond, then, else) — infer from the then expression
-		if (name is "IF" && func.Arguments.Count > 1)
-			return InferType(func.Arguments[1], table);
-		// IFNULL(expr, default) — infer from the first non-null argument type
+		// IF(cond, then, else) — infer supertype of then/else branches
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_rules#supertypes
+		if (name is "IF" && func.Arguments.Count > 2)
+		{
+			var thenType = InferType(func.Arguments[1], table);
+			var elseType = InferType(func.Arguments[2], table);
+			// INT64 + FLOAT64 → FLOAT64
+			if ((thenType == TypeCode.Int64 && elseType == TypeCode.Float64) ||
+				(thenType == TypeCode.Float64 && elseType == TypeCode.Int64))
+				return TypeCode.Float64;
+			return thenType;
+		}
+		// IFNULL(expr, default) — infer supertype of both arguments
 		if (name is "IFNULL" && func.Arguments.Count > 1)
+		{
+			var firstType = InferType(func.Arguments[0], table);
+			var secondType = InferType(func.Arguments[1], table);
+			if ((firstType == TypeCode.Int64 && secondType == TypeCode.Float64) ||
+				(firstType == TypeCode.Float64 && secondType == TypeCode.Int64))
+				return TypeCode.Float64;
 			return InferFirstNonNullArgType(func, table);
-		if (name is "IFNULL" && func.Arguments.Count > 0)
-			return InferType(func.Arguments[0], table);
+		}
 
 		// Navigation window functions — return type of their first argument
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/navigation_functions
@@ -748,8 +824,7 @@ internal class QueryExecutor
 			"FORMAT_TIMESTAMP" or "FORMAT_DATE" => TypeCode.String,
 
 			// Conversion
-			"TO_JSON" or "TO_JSON_STRING" => TypeCode.String,
-			"PARSE_JSON" => TypeCode.Json,
+			"TO_JSON_STRING" => TypeCode.String,
 
 			// Array
 			"ARRAY_LENGTH" => TypeCode.Int64,
@@ -760,6 +835,10 @@ internal class QueryExecutor
 			// JSON
 			"JSON_VALUE" or "JSON_QUERY" or "JSON_TYPE" => TypeCode.String,
 			"JSON_QUERY_ARRAY" => TypeCode.Array,
+			"JSON_ARRAY" or "JSON_OBJECT" or "JSON_ARRAY_APPEND" or "JSON_ARRAY_INSERT"
+				or "JSON_SET" or "JSON_REMOVE" or "JSON_STRIP_NULLS"
+				or "PARSE_JSON" or "SAFE_TO_JSON" or "TO_JSON" => TypeCode.Json,
+			"JSON_CONTAINS" => TypeCode.Bool,
 
 			// Byte
 			"FROM_HEX" => TypeCode.Bytes,
@@ -835,6 +914,7 @@ internal class QueryExecutor
 		FunctionCallExpr func => func.Arguments.Any(ContainsAggregate),
 		BinaryExpr bin => ContainsAggregate(bin.Left) || ContainsAggregate(bin.Right),
 		UnaryExpr un => ContainsAggregate(un.Operand),
+		CastExpr cast => ContainsAggregate(cast.Value),
 		CaseExpr cs => cs.Whens.Any(w => ContainsAggregate(w.Condition) || ContainsAggregate(w.Result))
 			|| (cs.Else != null && ContainsAggregate(cs.Else)),
 		_ => false
@@ -1025,12 +1105,271 @@ internal class QueryExecutor
 					}
 
 					default:
+					// Check if it's an aggregate function being used as a window function
+					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate-function-calls
+					//   Aggregate functions can be used as analytic (window) functions with an OVER clause.
+					if (funcName is "SUM" or "AVG" or "MIN" or "MAX" or "COUNT" or "$COUNT_STAR"
+						or "STRING_AGG" or "ARRAY_AGG" or "LOGICAL_AND" or "LOGICAL_OR" or "COUNTIF"
+						or "FIRST_VALUE" or "LAST_VALUE" or "LAG" or "LEAD" or "NTH_VALUE")
+					{
+						EvaluateAggregateOrNavWindowFunction(funcName, win, sorted, resultAlias, evaluator);
+					}
+					else
+					{
 						throw new NotSupportedException($"Unsupported built-in function: {funcName}.");
+					}
+					break;
 				}
 			}
 		}
 
 		return rows;
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls
+	//   Aggregate functions (SUM, AVG, MIN, MAX, COUNT, etc.) and navigation
+	//   functions (LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE) can be used
+	//   as analytic (window) functions with an OVER clause.
+	private void EvaluateAggregateOrNavWindowFunction(
+		string funcName,
+		WindowExpr win,
+		List<Dictionary<string, object?>> sorted,
+		string resultAlias,
+		ExpressionEvaluator evaluator)
+	{
+		// Navigation functions operate on sorted rows directly (no frame)
+		if (funcName is "LAG" or "LEAD" or "FIRST_VALUE" or "LAST_VALUE" or "NTH_VALUE")
+		{
+			EvaluateNavigationWindowFunction(funcName, win, sorted, resultAlias, evaluator);
+			return;
+		}
+
+		var func = win.Function as FunctionCallExpr;
+		SqlExpression? argExpr = func?.Arguments.FirstOrDefault();
+
+		for (int i = 0; i < sorted.Count; i++)
+		{
+			var frameRows = GetFrameRows(win, sorted, i);
+
+			object? result = funcName switch
+			{
+				"SUM" => ComputeWindowSum(argExpr!, frameRows, evaluator),
+				"AVG" => ComputeWindowAvg(argExpr!, frameRows, evaluator),
+				"MIN" => ComputeWindowMinMax(argExpr!, frameRows, evaluator, isMin: true),
+				"MAX" => ComputeWindowMinMax(argExpr!, frameRows, evaluator, isMin: false),
+				"COUNT" => ComputeWindowCount(argExpr!, frameRows, evaluator),
+				"$COUNT_STAR" => (long)frameRows.Count,
+				"STRING_AGG" => ComputeWindowStringAgg(func!, frameRows, evaluator),
+				"COUNTIF" => ComputeWindowCountIf(argExpr!, frameRows, evaluator),
+				_ => throw new NotSupportedException($"Unsupported window aggregate: {funcName}")
+			};
+
+			sorted[i][resultAlias] = result;
+		}
+	}
+
+	private void EvaluateNavigationWindowFunction(
+		string funcName,
+		WindowExpr win,
+		List<Dictionary<string, object?>> sorted,
+		string resultAlias,
+		ExpressionEvaluator evaluator)
+	{
+		var func = win.Function as FunctionCallExpr;
+		var args = func?.Arguments ?? new List<SqlExpression>();
+
+		for (int i = 0; i < sorted.Count; i++)
+		{
+			object? result = funcName switch
+			{
+				"LAG" => EvalLagLead(args, sorted, i, evaluator, isLag: true),
+				"LEAD" => EvalLagLead(args, sorted, i, evaluator, isLag: false),
+				"FIRST_VALUE" => EvalFirstLastValue(args, win, sorted, i, evaluator, isFirst: true),
+				"LAST_VALUE" => EvalFirstLastValue(args, win, sorted, i, evaluator, isFirst: false),
+				"NTH_VALUE" => EvalNthValue(args, win, sorted, i, evaluator),
+				_ => throw new NotSupportedException($"Unsupported navigation function: {funcName}")
+			};
+			sorted[i][resultAlias] = result;
+		}
+	}
+
+	private object? EvalLagLead(
+		List<SqlExpression> args,
+		List<Dictionary<string, object?>> sorted,
+		int currentIndex,
+		ExpressionEvaluator evaluator,
+		bool isLag)
+	{
+		var valueExpr = args[0];
+		int offset = args.Count > 1
+			? Convert.ToInt32(evaluator.Evaluate(args[1], sorted[currentIndex]))
+			: 1;
+		object? defaultValue = args.Count > 2
+			? evaluator.Evaluate(args[2], sorted[currentIndex])
+			: null;
+
+		int targetIndex = isLag ? currentIndex - offset : currentIndex + offset;
+		if (targetIndex < 0 || targetIndex >= sorted.Count)
+			return defaultValue;
+		return evaluator.Evaluate(valueExpr, sorted[targetIndex]);
+	}
+
+	private object? EvalFirstLastValue(
+		List<SqlExpression> args,
+		WindowExpr win,
+		List<Dictionary<string, object?>> sorted,
+		int currentIndex,
+		ExpressionEvaluator evaluator,
+		bool isFirst)
+	{
+		var valueExpr = args[0];
+		var frameRows = GetFrameRows(win, sorted, currentIndex);
+		if (frameRows.Count == 0) return null;
+		var targetRow = isFirst ? frameRows[0] : frameRows[^1];
+		return evaluator.Evaluate(valueExpr, targetRow);
+	}
+
+	private object? EvalNthValue(
+		List<SqlExpression> args,
+		WindowExpr win,
+		List<Dictionary<string, object?>> sorted,
+		int currentIndex,
+		ExpressionEvaluator evaluator)
+	{
+		var valueExpr = args[0];
+		int n = Convert.ToInt32(evaluator.Evaluate(args[1], sorted[currentIndex]));
+		var frameRows = GetFrameRows(win, sorted, currentIndex);
+		if (n < 1 || n > frameRows.Count) return null;
+		return evaluator.Evaluate(valueExpr, frameRows[n - 1]);
+	}
+
+	private List<Dictionary<string, object?>> GetFrameRows(
+		WindowExpr win,
+		List<Dictionary<string, object?>> sorted,
+		int currentIndex)
+	{
+		var frame = win.Frame;
+
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls#def_window_frame
+		//   Default frame when ORDER BY is present: RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+		//   Default frame when ORDER BY is absent: ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+		if (frame == null)
+		{
+			if (win.OrderBy != null && win.OrderBy.Count > 0)
+			{
+				// Default: UNBOUNDED PRECEDING to CURRENT ROW
+				return sorted.GetRange(0, currentIndex + 1);
+			}
+			else
+			{
+				// No ORDER BY: whole partition
+				return sorted;
+			}
+		}
+
+		int start = ResolveFrameBound(frame.Start, currentIndex, sorted.Count, isStart: true);
+		int end = ResolveFrameBound(frame.End, currentIndex, sorted.Count, isStart: false);
+
+		start = Math.Max(0, start);
+		end = Math.Min(sorted.Count - 1, end);
+
+		if (start > end) return new List<Dictionary<string, object?>>();
+		return sorted.GetRange(start, end - start + 1);
+	}
+
+	private static int ResolveFrameBound(WindowFrame bound, int currentIndex, int count, bool isStart)
+	{
+		return bound.Type switch
+		{
+			FrameBoundType.UnboundedPreceding => 0,
+			FrameBoundType.UnboundedFollowing => count - 1,
+			FrameBoundType.CurrentRow => currentIndex,
+			FrameBoundType.OffsetPreceding => currentIndex - (int)bound.Offset,
+			FrameBoundType.OffsetFollowing => currentIndex + (int)bound.Offset,
+			_ => throw new NotSupportedException($"Unsupported frame bound type: {bound.Type}")
+		};
+	}
+
+	private static object? ComputeWindowSum(SqlExpression argExpr, List<Dictionary<string, object?>> frameRows, ExpressionEvaluator evaluator)
+	{
+		double? sum = null;
+		bool isInt = true;
+		long intSum = 0;
+		foreach (var r in frameRows)
+		{
+			var v = evaluator.Evaluate(argExpr, r);
+			if (v is null) continue;
+			sum ??= 0;
+			if (v is long lv) { intSum += lv; sum = sum.Value + lv; }
+			else { isInt = false; var d = Convert.ToDouble(v); sum = sum.Value + d; }
+		}
+		if (sum == null) return null;
+		return isInt ? (object)intSum : sum.Value;
+	}
+
+	private static object? ComputeWindowAvg(SqlExpression argExpr, List<Dictionary<string, object?>> frameRows, ExpressionEvaluator evaluator)
+	{
+		double sum = 0;
+		int count = 0;
+		foreach (var r in frameRows)
+		{
+			var v = evaluator.Evaluate(argExpr, r);
+			if (v is null) continue;
+			sum += Convert.ToDouble(v);
+			count++;
+		}
+		return count == 0 ? null : sum / count;
+	}
+
+	private static object? ComputeWindowMinMax(SqlExpression argExpr, List<Dictionary<string, object?>> frameRows, ExpressionEvaluator evaluator, bool isMin)
+	{
+		object? result = null;
+		foreach (var r in frameRows)
+		{
+			var v = evaluator.Evaluate(argExpr, r);
+			if (v is null) continue;
+			if (result is null) { result = v; continue; }
+			int cmp = Comparer<object>.Default.Compare(v, result);
+			if ((isMin && cmp < 0) || (!isMin && cmp > 0)) result = v;
+		}
+		return result;
+	}
+
+	private static object? ComputeWindowCount(SqlExpression argExpr, List<Dictionary<string, object?>> frameRows, ExpressionEvaluator evaluator)
+	{
+		long count = 0;
+		foreach (var r in frameRows)
+		{
+			var v = evaluator.Evaluate(argExpr, r);
+			if (v is not null) count++;
+		}
+		return count;
+	}
+
+	private static object? ComputeWindowStringAgg(FunctionCallExpr func, List<Dictionary<string, object?>> frameRows, ExpressionEvaluator evaluator)
+	{
+		var argExpr = func.Arguments[0];
+		string sep = func.Arguments.Count > 1
+			? evaluator.Evaluate(func.Arguments[1], frameRows.FirstOrDefault() ?? new())?.ToString() ?? ","
+			: ",";
+		var parts = new List<string>();
+		foreach (var r in frameRows)
+		{
+			var v = evaluator.Evaluate(argExpr, r);
+			if (v is not null) parts.Add(v.ToString()!);
+		}
+		return parts.Count == 0 ? null : string.Join(sep, parts);
+	}
+
+	private static object? ComputeWindowCountIf(SqlExpression argExpr, List<Dictionary<string, object?>> frameRows, ExpressionEvaluator evaluator)
+	{
+		long count = 0;
+		foreach (var r in frameRows)
+		{
+			var v = evaluator.Evaluate(argExpr, r);
+			if (v is true) count++;
+		}
+		return count;
 	}
 
 	private List<List<Dictionary<string, object?>>> PartitionRows(
@@ -1199,6 +1538,9 @@ internal class QueryExecutor
 				PrecomputeAggregatesForHaving(betweenExpr.Low, groupRows, evaluator, outputRow);
 				PrecomputeAggregatesForHaving(betweenExpr.High, groupRows, evaluator, outputRow);
 				break;
+			case CastExpr castExpr:
+				PrecomputeAggregatesForHaving(castExpr.Value, groupRows, evaluator, outputRow);
+				break;
 		}
 	}
 
@@ -1255,9 +1597,12 @@ internal class QueryExecutor
 		if (expr is FunctionCallExpr func)
 		{
 			var funcName = func.Name.ToUpperInvariant();
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
+			// NullHandling: null=default (ignore nulls), false=IGNORE NULLS, true=RESPECT NULLS
+			var respectNulls = func.NullHandling == true;
 			var values = rows
 				.Select(r => evaluator.Evaluate(func.Arguments[0], r))
-				.Where(v => v != null)
+				.Where(v => respectNulls || v != null)
 				.ToList();
 
 			if (func.IsDistinct)
@@ -1312,6 +1657,10 @@ internal class QueryExecutor
 	{
 		if (values[0] is long)
 			return values.Sum(v => (long)v!);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#sum
+		//   SUM(NUMERIC) returns NUMERIC
+		if (values[0] is decimal)
+			return values.Aggregate(0m, (acc, v) => acc + (decimal)v!);
 		return values.Sum(v => Convert.ToDouble(v));
 	}
 
@@ -1319,6 +1668,10 @@ internal class QueryExecutor
 	{
 		if (values[0] is long)
 			return (double)values.Sum(v => (long)v!) / values.Count;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#avg
+		//   AVG(NUMERIC) returns NUMERIC
+		if (values[0] is decimal)
+			return values.Aggregate(0m, (acc, v) => acc + (decimal)v!) / values.Count;
 		return values.Sum(v => Convert.ToDouble(v)) / values.Count;
 	}
 
@@ -1382,22 +1735,24 @@ internal class QueryExecutor
 		return string.Join(delimiter, values.Select(v => v?.ToString()));
 	}
 
-	// ARRAY_AGG(expr [ORDER BY ...]): collects values into an array.
+	// ARRAY_AGG(expr [IGNORE/RESPECT NULLS] [ORDER BY ...]): collects values into an array.
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
 	private static object? ArrayAggOrdered(FunctionCallExpr func, List<Dictionary<string, object?>> rows,
 		ExpressionEvaluator evaluator, List<object?> values)
 	{
+		if (values.Count == 0 && func.NullHandling != true) return null;
 		if (func.AggregateOrderBy != null && func.AggregateOrderBy.Count > 0)
 		{
+			var respectNulls = func.NullHandling == true;
 			var sortedRows = OrderRows(func.AggregateOrderBy, rows, evaluator);
 			var sortedValues = sortedRows
 				.Select(r => evaluator.Evaluate(func.Arguments[0], r))
-				.Where(v => v != null);
+				.Where(v => respectNulls || v != null);
 			if (func.IsDistinct)
 				sortedValues = sortedValues.Distinct(new ObjectValueComparer());
 			return sortedValues.ToList();
 		}
-		return values.ToList();
+		return values.Count == 0 ? null : values.ToList();
 	}
 
 	// COUNTIF(expr): counts rows where the boolean expression is true.
@@ -1512,8 +1867,8 @@ internal class QueryExecutor
 	}
 
 	/// <summary>Executes a subquery and returns its rows as dictionaries.</summary>
-	internal List<Dictionary<string, object?>> ExecuteSubquery(SelectStatement subquery,
-		IDictionary<string, object?>? parameters, Dictionary<string, SelectStatement>? cteMap = null,
+	internal List<Dictionary<string, object?>> ExecuteSubquery(QueryBody subquery,
+		IDictionary<string, object?>? parameters, Dictionary<string, QueryBody>? cteMap = null,
 		Dictionary<string, object?>? outerRow = null)
 	{
 		var result = Execute(subquery, parameters, cteMap, outerRow);
@@ -1626,7 +1981,7 @@ internal class QueryExecutor
 		List<Dictionary<string, object?>> leftRows,
 		JoinClause join,
 		ExpressionEvaluator evaluator,
-		Dictionary<string, SelectStatement>? cteMap = null)
+		Dictionary<string, QueryBody>? cteMap = null)
 	{
 		List<Dictionary<string, object?>> rightRows;
 		TableDefinition? rightTable = null;

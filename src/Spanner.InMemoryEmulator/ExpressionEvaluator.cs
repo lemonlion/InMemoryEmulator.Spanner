@@ -1161,21 +1161,27 @@ internal class ExpressionEvaluator
 	{
 		var value = Evaluate(inUnnest.Value, row);
 		var array = Evaluate(inUnnest.ArrayExpr, row);
-		if (array == null || value == null) return inUnnest.IsNegated ? true : false;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#in_operators
+		//   NULL array → NULL, NULL value → NULL (three-valued logic).
+		if (array == null || value == null) return null;
 
 		bool found = false;
+		bool hasNull = false;
 		if (array is System.Collections.IEnumerable enumerable)
 		{
 			foreach (var item in enumerable)
 			{
-				if (item != null && CompareValues(value, item) == 0)
+				if (item == null) { hasNull = true; continue; }
+				if (CompareValues(value, item) == 0)
 				{
 					found = true;
 					break;
 				}
 			}
 		}
-		return inUnnest.IsNegated ? !found : found;
+		if (found) return !inUnnest.IsNegated;
+		if (hasNull) return null; // Three-valued: unknown whether value matches a NULL element
+		return inUnnest.IsNegated;
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/subqueries#array_subquery_concepts
@@ -1340,7 +1346,11 @@ internal class ExpressionEvaluator
 		// Truncate if length is less than the string length
 		if (len == 0) return "";
 		if (len <= str.Length) return str[..len];
-		var pad = func.Arguments.Count > 2 ? Convert.ToString(Evaluate(func.Arguments[2], row)) ?? " " : " ";
+		var padVal = func.Arguments.Count > 2 ? Evaluate(func.Arguments[2], row) : (object)" ";
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#lpad
+		//   "If original_value, return_length, or pattern is NULL, this function returns NULL."
+		if (padVal == null) return null;
+		var pad = Convert.ToString(padVal) ?? " ";
 		if (pad.Length == 0) return str;
 		var sb = new System.Text.StringBuilder(len);
 		if (!padLeft) sb.Append(str);
@@ -2189,7 +2199,12 @@ internal class ExpressionEvaluator
 		var ts = Evaluate(func.Arguments[0], row);
 		if (ts == null) return null;
 		var dt = ts is DateTime d ? d : DateTime.Parse(Convert.ToString(ts)!);
-		return new DateTimeOffset(dt, TimeSpan.Zero).ToUnixTimeMilliseconds() * 1000;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#unix_micros
+		//   "Returns the number of microseconds since 1970-01-01 00:00:00 UTC."
+		//   Must preserve sub-millisecond precision — use ticks-based calculation.
+		var dto = new DateTimeOffset(dt, TimeSpan.Zero);
+		const long unixEpochTicks = 621355968000000000L;
+		return (dto.UtcTicks - unixEpochTicks) / 10;
 	}
 
 	private object? EvalTimestampFromUnix(FunctionCallExpr func, Dictionary<string, object?> row, string unit)
@@ -2197,11 +2212,13 @@ internal class ExpressionEvaluator
 		var v = Evaluate(func.Arguments[0], row);
 		if (v == null) return null;
 		var n = Convert.ToInt64(v);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_micros
+		//   Must preserve sub-millisecond precision for MICROS.
 		return unit switch
 		{
 			"SECONDS" => DateTimeOffset.FromUnixTimeSeconds(n).UtcDateTime,
 			"MILLIS" => DateTimeOffset.FromUnixTimeMilliseconds(n).UtcDateTime,
-			"MICROS" => DateTimeOffset.FromUnixTimeMilliseconds(n / 1000).UtcDateTime,
+			"MICROS" => new DateTime(n * 10 + 621355968000000000L, DateTimeKind.Utc),
 			_ => throw new NotSupportedException()
 		};
 	}
@@ -2345,7 +2362,11 @@ internal class ExpressionEvaluator
 	{
 		var v = Evaluate(func.Arguments[0], row);
 		if (v == null) return null;
-		var sep = func.Arguments.Count > 1 ? Convert.ToString(Evaluate(func.Arguments[1], row)) ?? "," : ",";
+		var sepVal = func.Arguments.Count > 1 ? Evaluate(func.Arguments[1], row) : (object)",";
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#array_to_string
+		//   Returns NULL if the separator is NULL.
+		if (sepVal == null) return null;
+		var sep = Convert.ToString(sepVal) ?? ",";
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#array_to_string
 		//   Signature: ARRAY_TO_STRING(ARRAY<STRING>, STRING, [STRING])
 		//   or ARRAY_TO_STRING(ARRAY<BYTES>, BYTES, [BYTES])
@@ -2389,7 +2410,9 @@ internal class ExpressionEvaluator
 		var start = Evaluate(func.Arguments[0], row);
 		var end = Evaluate(func.Arguments[1], row);
 		if (start == null || end == null) return null;
-		var step = func.Arguments.Count > 2 ? Convert.ToInt64(Evaluate(func.Arguments[2], row)) : 1L;
+		var stepVal = func.Arguments.Count > 2 ? Evaluate(func.Arguments[2], row) : (object)1L;
+		if (stepVal == null) return null;
+		var step = Convert.ToInt64(stepVal);
 		var s = Convert.ToInt64(start);
 		var e = Convert.ToInt64(end);
 		var result = new List<object?>();
@@ -2414,9 +2437,12 @@ internal class ExpressionEvaluator
 	private object? EvalJsonValue(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		var json = Evaluate(func.Arguments[0], row);
-		var path = Convert.ToString(Evaluate(func.Arguments[1], row));
-		if (json == null || path == null) return null;
-		var elem = NavigateJsonPath(json, path);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_value
+		//   If no path is provided, defaults to "$" (root).
+		var pathObj = func.Arguments.Count > 1 ? Evaluate(func.Arguments[1], row) : (object)"$";
+		var path = Convert.ToString(pathObj);
+		if (json == null || pathObj == null) return null;
+		var elem = NavigateJsonPath(json, path!);
 		if (elem is JsonElement je)
 		{
 			return je.ValueKind switch
@@ -2435,9 +2461,12 @@ internal class ExpressionEvaluator
 	private object? EvalJsonQuery(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		var json = Evaluate(func.Arguments[0], row);
-		var path = Convert.ToString(Evaluate(func.Arguments[1], row));
-		if (json == null || path == null) return null;
-		var elem = NavigateJsonPath(json, path);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_query
+		//   If no path is provided, defaults to "$" (root). NULL path → NULL.
+		var pathObj = func.Arguments.Count > 1 ? Evaluate(func.Arguments[1], row) : (object)"$";
+		var path = Convert.ToString(pathObj);
+		if (json == null || pathObj == null) return null;
+		var elem = NavigateJsonPath(json, path!);
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_query
 		// Spanner returns compact JSON without extra whitespace.
 		if (elem is JsonElement je)
@@ -2598,6 +2627,9 @@ internal class ExpressionEvaluator
 		if (func.Arguments.Count != 1)
 			throw new InvalidOperationException("ARRAY_FIRST requires exactly 1 argument.");
 		var val = Evaluate(func.Arguments[0], row);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions
+		//   Scalar functions return NULL when any argument is NULL.
+		if (val == null) return null;
 		if (val is not System.Collections.IList list || list.Count == 0)
 			throw new InvalidOperationException("ARRAY_FIRST: empty or non-array argument.");
 		return list[0];
@@ -2608,6 +2640,9 @@ internal class ExpressionEvaluator
 		if (func.Arguments.Count != 1)
 			throw new InvalidOperationException("ARRAY_LAST requires exactly 1 argument.");
 		var val = Evaluate(func.Arguments[0], row);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions
+		//   Scalar functions return NULL when any argument is NULL.
+		if (val == null) return null;
 		if (val is not System.Collections.IList list || list.Count == 0)
 			throw new InvalidOperationException("ARRAY_LAST: empty or non-array argument.");
 		return list[list.Count - 1];
@@ -2660,8 +2695,13 @@ internal class ExpressionEvaluator
 		if (val == null) return null;
 		if (val is not System.Collections.IList list)
 			throw new InvalidOperationException("ARRAY_SLICE: first argument must be an array.");
-		var start = Convert.ToInt32(Evaluate(func.Arguments[1], row));
-		var end = Convert.ToInt32(Evaluate(func.Arguments[2], row));
+		var startVal = Evaluate(func.Arguments[1], row);
+		var endVal = Evaluate(func.Arguments[2], row);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#array_slice
+		//   Scalar functions return NULL when any argument is NULL.
+		if (startVal == null || endVal == null) return null;
+		var start = Convert.ToInt32(startVal);
+		var end = Convert.ToInt32(endVal);
 		// Spanner uses 0-based indexing; negative wraps from end
 		if (start < 0) start = list.Count + start;
 		if (end < 0) end = list.Count + end;

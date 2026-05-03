@@ -399,8 +399,11 @@ internal class QueryExecutor
 				else if (rows.Count > 0)
 				{
 					// No sourceTable (subquery/CTE) — use row keys
+					// Skip alias-prefixed keys (e.g., "t.col") to avoid duplicates
+					// from PrefixRow; only include the original column names.
 					foreach (var key in rows[0].Keys)
 					{
+						if (key.Contains('.')) continue;
 						expandedColumns.Add((new ColumnRefExpr(null, key), key));
 					}
 				}
@@ -1598,8 +1601,10 @@ internal class QueryExecutor
 		{
 			var funcName = func.Name.ToUpperInvariant();
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
-			// NullHandling: null=default (ignore nulls), false=IGNORE NULLS, true=RESPECT NULLS
-			var respectNulls = func.NullHandling == true;
+			// Most aggregates ignore NULLs by default. ARRAY_AGG includes NULLs by default.
+			// NullHandling: null=default, false=IGNORE NULLS, true=RESPECT NULLS
+			var respectNulls = func.NullHandling == true
+				|| (funcName == "ARRAY_AGG" && func.NullHandling != false);
 			var values = rows
 				.Select(r => evaluator.Evaluate(func.Arguments[0], r))
 				.Where(v => respectNulls || v != null)

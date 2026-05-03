@@ -1047,11 +1047,20 @@ internal static class SqlParsers
 	private static TokenListParser<GoogleSqlToken, SetOperation> SetOperationItem { get; } =
 		from opType in
 			(from _ in Token.EqualTo(GoogleSqlToken.Union) from __ in Token.EqualTo(GoogleSqlToken.All) select SetOperationType.UnionAll).Try()
-			.Or(from _ in Token.EqualTo(GoogleSqlToken.Union) from __ in Token.EqualTo(GoogleSqlToken.Distinct) select SetOperationType.UnionDistinct)
+			.Or(from _ in Token.EqualTo(GoogleSqlToken.Union) from __ in Token.EqualTo(GoogleSqlToken.Distinct) select SetOperationType.UnionDistinct).Try()
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#set_operators
+			//   "UNION: The default behavior is DISTINCT."
+			.Or(from _ in Token.EqualTo(GoogleSqlToken.Union) select SetOperationType.UnionDistinct)
 			.Or(from _ in Token.EqualTo(GoogleSqlToken.Intersect) from __ in Token.EqualTo(GoogleSqlToken.All) select SetOperationType.IntersectAll).Try()
-			.Or(from _ in Token.EqualTo(GoogleSqlToken.Intersect) from __ in Token.EqualTo(GoogleSqlToken.Distinct) select SetOperationType.IntersectDistinct)
+			.Or(from _ in Token.EqualTo(GoogleSqlToken.Intersect) from __ in Token.EqualTo(GoogleSqlToken.Distinct) select SetOperationType.IntersectDistinct).Try()
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#set_operators
+			//   "INTERSECT: The default behavior is DISTINCT."
+			.Or(from _ in Token.EqualTo(GoogleSqlToken.Intersect) select SetOperationType.IntersectDistinct)
 			.Or(from _ in Token.EqualTo(GoogleSqlToken.Except) from __ in Token.EqualTo(GoogleSqlToken.All) select SetOperationType.ExceptAll).Try()
-			.Or(from _ in Token.EqualTo(GoogleSqlToken.Except) from __ in Token.EqualTo(GoogleSqlToken.Distinct) select SetOperationType.ExceptDistinct)
+			.Or(from _ in Token.EqualTo(GoogleSqlToken.Except) from __ in Token.EqualTo(GoogleSqlToken.Distinct) select SetOperationType.ExceptDistinct).Try()
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#set_operators
+			//   "EXCEPT: The default behavior is DISTINCT."
+			.Or(from _ in Token.EqualTo(GoogleSqlToken.Except) select SetOperationType.ExceptDistinct)
 		from right in SelectStatement
 		select new SetOperation(opType, right);
 

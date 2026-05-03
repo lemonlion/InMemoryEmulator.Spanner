@@ -222,7 +222,7 @@ public class StringFunctionCoreIntegrationTests : IntegrationTestBase
 	[InlineData("SUBSTR('hello', 2)", "ello")]
 	[InlineData("SUBSTR('hello', 1, 3)", "hel")]
 	[InlineData("SUBSTR('hello', 2, 3)", "ell")]
-	[InlineData("SUBSTR('hello', 0, 3)", "he")]
+	[InlineData("SUBSTR('hello', 0, 3)", "hel")]
 	[InlineData("SUBSTR('hello', -1, 3)", "o")]  // -1 = last char, length 3 but only 1 char left
 	[InlineData("SUBSTR('hello', 6)", "")]
 	[InlineData("SUBSTR('', 1)", "")]

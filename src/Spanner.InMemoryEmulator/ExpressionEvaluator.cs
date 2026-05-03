@@ -811,6 +811,12 @@ internal class ExpressionEvaluator
 		//   with -1 indicating the last character.
 		//   If position is 0 or less than -LENGTH(value), it is set to 1.
 		var position = Convert.ToInt32(pos);
+
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#substr
+		//   "If position is 0 or less than -LENGTH(value), position is set to 1"
+		if (position == 0 || position < -str.Length)
+			position = 1;
+
 		int startIndex;
 
 		if (func.Arguments.Count > 2)
@@ -1295,7 +1301,18 @@ internal class ExpressionEvaluator
 		var s = Evaluate(func.Arguments[0], row);
 		if (s == null) return null;
 		var str = Convert.ToString(s) ?? "";
-		var delimiter = func.Arguments.Count > 1 ? Convert.ToString(Evaluate(func.Arguments[1], row)) ?? "," : ",";
+		string delimiter;
+		if (func.Arguments.Count > 1)
+		{
+			var delimVal = Evaluate(func.Arguments[1], row);
+			// Ref: Standard SQL NULL propagation — NULL delimiter → NULL result
+			if (delimVal is null) return null;
+			delimiter = Convert.ToString(delimVal) ?? ",";
+		}
+		else
+		{
+			delimiter = ",";
+		}
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#split
 		//   Empty delimiter splits the string into individual characters (no leading empty string).
 		if (delimiter.Length == 0)
@@ -1317,8 +1334,11 @@ internal class ExpressionEvaluator
 		var lenVal = Evaluate(func.Arguments[1], row);
 		if (lenVal == null) return null;
 		var len = Convert.ToInt32(lenVal);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#lpad
+		//   "This function returns an error if: return_length is negative"
+		if (len < 0) throw new InvalidOperationException($"{(padLeft ? "LPAD" : "RPAD")}: return_length must not be negative.");
 		// Truncate if length is less than the string length
-		if (len <= 0) return "";
+		if (len == 0) return "";
 		if (len <= str.Length) return str[..len];
 		var pad = func.Arguments.Count > 2 ? Convert.ToString(Evaluate(func.Arguments[2], row)) ?? " " : " ";
 		if (pad.Length == 0) return str;
@@ -2071,9 +2091,11 @@ internal class ExpressionEvaluator
 	private object? EvalDateAdd(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		var v = Evaluate(func.Arguments[0], row);
-		var amount = Convert.ToInt32(Evaluate(func.Arguments[1], row));
+		var amountVal = Evaluate(func.Arguments[1], row);
 		var part = Convert.ToString(Evaluate(func.Arguments[2], row))?.ToUpperInvariant();
-		if (v == null) return null;
+		// Ref: Standard SQL NULL propagation — NULL amount → NULL result
+		if (v == null || amountVal == null) return null;
+		var amount = Convert.ToInt32(amountVal);
 		var dt = v is DateTime d ? d : DateTime.Parse(Convert.ToString(v)!);
 		return AddToPart(dt, part!, amount).Date;
 	}
@@ -2081,9 +2103,11 @@ internal class ExpressionEvaluator
 	private object? EvalDateSub(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		var v = Evaluate(func.Arguments[0], row);
-		var amount = Convert.ToInt32(Evaluate(func.Arguments[1], row));
+		var amountVal = Evaluate(func.Arguments[1], row);
 		var part = Convert.ToString(Evaluate(func.Arguments[2], row))?.ToUpperInvariant();
-		if (v == null) return null;
+		// Ref: Standard SQL NULL propagation — NULL amount → NULL result
+		if (v == null || amountVal == null) return null;
+		var amount = Convert.ToInt32(amountVal);
 		var dt = v is DateTime d ? d : DateTime.Parse(Convert.ToString(v)!);
 		return AddToPart(dt, part!, -amount).Date;
 	}

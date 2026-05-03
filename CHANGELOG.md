@@ -7,7 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.20] - 2026-04-27
+## [1.0.23] - 2026-05-11
+
+### Fixed
+- **SUBSTR position 0 / very negative**: `SUBSTR('apple', 0, 3)` now correctly returns `"app"` instead of `"ap"`. Position 0 and positions less than `-LENGTH(value)` are clamped to 1 per Spanner docs.
+- **Bare UNION/INTERSECT/EXCEPT parsing**: `SELECT 1 UNION SELECT 2` (without `ALL` or `DISTINCT`) now parses correctly, defaulting to `DISTINCT` per Spanner specification.
+- **LPAD/RPAD negative return_length**: `LPAD('abc', -1)` and `RPAD('abc', -1)` now throw an error instead of returning an empty string, matching Spanner behavior.
+- **SPLIT NULL delimiter**: `SPLIT('a,b', CAST(NULL AS STRING))` now returns `NULL` instead of splitting on comma, following standard SQL NULL propagation.
+- **DATE_ADD/DATE_SUB NULL amount**: `DATE_ADD(d, INTERVAL CAST(NULL AS INT64) DAY)` now returns `NULL` instead of throwing, following standard SQL NULL propagation.
+- **Duplicate key → ALREADY_EXISTS**: DML INSERT and mutation INSERT of a duplicate primary key now return gRPC status `ALREADY_EXISTS` (6) instead of `INVALID_ARGUMENT` or `FAILED_PRECONDITION`.
+- **Read-only transaction DML enforcement**: DML statements on read-only transactions now return `FAILED_PRECONDITION` on `ExecuteSql`, `ExecuteStreamingSql`, and `ExecuteBatchDml`.
+- **ExecuteBatchDml duplicate key status**: Batch DML now returns `ALREADY_EXISTS` for duplicate key errors in the response status.
+
+### Added
+- Integration tests: 28 new (SUBSTR edge cases, LPAD/RPAD negative length, SPLIT NULL delimiter, DATE_ADD/SUB NULL amount, bare UNION/INTERSECT/EXCEPT, duplicate key status codes, read-only transaction DML enforcement)
+
+## [1.0.22] - 2026-05-10
 
 ### Added
 - **Observer callbacks**: `OnRequestReceived` and `OnResponseSent` real-time observer callbacks on `FakeSpannerService` and `FakeSpannerServer`. Fires for all 16 gRPC method overrides (13 unary + 3 streaming). Includes method name, protobuf request/response, duration, gRPC status code. Error-safe — observer exceptions are silently swallowed. Works alongside `FaultInjector` and `RequestLog`/`SqlLog`.

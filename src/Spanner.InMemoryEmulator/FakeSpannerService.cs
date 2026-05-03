@@ -295,7 +295,12 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 			}
 			catch (InvalidOperationException ex)
 			{
-				throw new RpcException(new Status(StatusCode.FailedPrecondition, ex.Message));
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.rpc#google.rpc.Code
+				//   Duplicate primary key → ALREADY_EXISTS (6)
+				var code = ex.Message.Contains("already exists")
+					? StatusCode.AlreadyExists
+					: StatusCode.FailedPrecondition;
+				throw new RpcException(new Status(code, ex.Message));
 			}
 
 			var response = new CommitResponse
@@ -337,6 +342,17 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 		Mutation.OperationOneofCase.Delete => m.Delete.KeySet.Keys.Count + (m.Delete.KeySet.All ? 1 : 0),
 		_ => 0
 	};
+
+	/// <summary>
+	/// Checks if a SQL statement is a DML (INSERT, UPDATE, DELETE) statement.
+	/// </summary>
+	private static bool IsDmlStatement(string sql)
+	{
+		var trimmed = sql.TrimStart();
+		return trimmed.StartsWith("INSERT", StringComparison.OrdinalIgnoreCase) ||
+			   trimmed.StartsWith("UPDATE", StringComparison.OrdinalIgnoreCase) ||
+			   trimmed.StartsWith("DELETE", StringComparison.OrdinalIgnoreCase);
+	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.Rollback
 	public override Task<Empty> Rollback(RollbackRequest request, ServerCallContext context)
@@ -397,6 +413,13 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 			try
 			{
 				var txnState = ResolveTransactionState(request.Session, request.Transaction);
+
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.TransactionOptions
+				//   Read-only transactions cannot contain DML statements.
+				if (txnState?.IsReadOnly == true && IsDmlStatement(request.Sql))
+					throw new RpcException(new Status(StatusCode.FailedPrecondition,
+						"DML statements cannot be executed in a read-only transaction."));
+
 				var engine = new SqlEngine(_database, txnState?.DmlUndoLog);
 				var parameters = SqlEngine.ExtractParameters(request);
 				var resultSet = engine.ExecuteSql(request.Sql, parameters);
@@ -411,7 +434,12 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 			}
 			catch (InvalidOperationException ex)
 			{
-				throw new RpcException(new Status(StatusCode.InvalidArgument, ex.Message));
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.rpc#google.rpc.Code
+				//   Duplicate primary key → ALREADY_EXISTS (6)
+				var code = ex.Message.Contains("already exists")
+					? StatusCode.AlreadyExists
+					: StatusCode.InvalidArgument;
+				throw new RpcException(new Status(code, ex.Message));
 			}
 			catch (NotSupportedException ex)
 			{
@@ -441,6 +469,13 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 			try
 			{
 				var txnState = ResolveTransactionState(request.Session, request.Transaction);
+
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.TransactionOptions
+				//   Read-only transactions cannot contain DML statements.
+				if (txnState?.IsReadOnly == true && IsDmlStatement(request.Sql))
+					throw new RpcException(new Status(StatusCode.FailedPrecondition,
+						"DML statements cannot be executed in a read-only transaction."));
+
 				var engine = new SqlEngine(_database, txnState?.DmlUndoLog);
 				var parameters = SqlEngine.ExtractParameters(request);
 				var resultSet = engine.ExecuteSql(request.Sql, parameters);
@@ -471,7 +506,12 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 			}
 			catch (InvalidOperationException ex)
 			{
-				throw new RpcException(new Status(StatusCode.InvalidArgument, ex.Message));
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.rpc#google.rpc.Code
+				//   Duplicate primary key → ALREADY_EXISTS (6)
+				var code = ex.Message.Contains("already exists")
+					? StatusCode.AlreadyExists
+					: StatusCode.InvalidArgument;
+				throw new RpcException(new Status(code, ex.Message));
 			}
 			catch (NotSupportedException ex)
 			{
@@ -618,6 +658,13 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 			var response = new ExecuteBatchDmlResponse();
 			var txnState = ResolveTransactionState(request.Session, request.Transaction);
+
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.TransactionOptions
+			//   Read-only transactions cannot contain DML statements.
+			if (txnState?.IsReadOnly == true)
+				throw new RpcException(new Status(StatusCode.FailedPrecondition,
+					"DML statements cannot be executed in a read-only transaction."));
+
 			var engine = new SqlEngine(_database, txnState?.DmlUndoLog);
 
 			foreach (var statement in request.Statements)
@@ -633,9 +680,12 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 				{
 					// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#executebatchdmlresponse
 					//   "If a statement fails, the status in the response body identifies the cause."
+					var errorCode = ex.Message.Contains("already exists")
+						? Google.Rpc.Code.AlreadyExists
+						: Google.Rpc.Code.InvalidArgument;
 					response.Status = new Google.Rpc.Status
 					{
-						Code = (int)Google.Rpc.Code.InvalidArgument,
+						Code = (int)errorCode,
 						Message = ex.Message
 					};
 					break;

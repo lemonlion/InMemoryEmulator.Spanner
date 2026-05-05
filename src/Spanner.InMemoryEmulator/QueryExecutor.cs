@@ -231,7 +231,7 @@ internal class QueryExecutor
 				var leftAlias = select.From.Alias ?? select.From.Table;
 				rows = sourceTable.Rows.Values
 					.Where(r => !sourceTable.IsRowExpired(r))
-					.Select(r => PrefixRow(r.Columns, leftAlias))
+					.Select(r => PrefixRow(FillMissingColumns(r.Columns, sourceTable), leftAlias))
 					.ToList();
 			}
 
@@ -1982,6 +1982,27 @@ internal class QueryExecutor
 		return row;
 	}
 
+	/// <summary>
+	/// Ensures all columns defined in the table schema are present in the row.
+	/// Columns added by ALTER TABLE after the row was inserted will be missing; fill with NULL.
+	/// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_table
+	///   "Existing rows have NULL for the new column."
+	/// </summary>
+	private static IDictionary<string, object?> FillMissingColumns(IDictionary<string, object?> rowColumns, TableDefinition table)
+	{
+		// Fast path: if all columns are present, skip allocation
+		if (table.Columns.All(c => rowColumns.ContainsKey(c.Name)))
+			return rowColumns;
+
+		var filled = new Dictionary<string, object?>(rowColumns, StringComparer.OrdinalIgnoreCase);
+		foreach (var col in table.Columns)
+		{
+			if (!filled.ContainsKey(col.Name))
+				filled[col.Name] = null;
+		}
+		return filled;
+	}
+
 	private List<Dictionary<string, object?>> ExecuteJoin(
 		List<Dictionary<string, object?>> leftRows,
 		JoinClause join,
@@ -2042,7 +2063,7 @@ internal class QueryExecutor
 				throw new InvalidOperationException($"Table '{join.Table}' not found.");
 
 			rightRows = rightTable.Rows.Values
-				.Select(r => PrefixRow(r.Columns, rightAlias))
+				.Select(r => PrefixRow(FillMissingColumns(r.Columns, rightTable), rightAlias))
 				.ToList();
 		}
 

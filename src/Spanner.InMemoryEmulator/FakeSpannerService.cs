@@ -802,10 +802,17 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 		else if (request.KeySet != null)
 		{
 			// Specific keys
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.KeySet
+			//   Key values correspond to primary key columns in their definition order.
 			foreach (var key in request.KeySet.Keys)
 			{
 				var pkValues = key.Values
-					.Select((v, i) => TypeConverter.FromProtobufValue(v, tableDef.Columns[i].SpannerType))
+					.Select((v, i) =>
+					{
+						var pkColName = tableDef.PrimaryKeyColumns[i];
+						var colDef = tableDef.Columns.First(c => string.Equals(c.Name, pkColName, StringComparison.OrdinalIgnoreCase));
+						return TypeConverter.FromProtobufValue(v, colDef.SpannerType);
+					})
 					.ToArray();
 				var rowKey = new RowKey(pkValues);
 				if (tableDef.Rows.TryGetValue(rowKey, out var rowData) && !tableDef.IsRowExpired(rowData))
@@ -889,8 +896,15 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 		if (keyValues == null || keyValues.Values.Count == 0)
 			return null;
 
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.KeyRange
+		//   Key range boundaries correspond to primary key columns in their definition order.
 		var pkValues = keyValues.Values
-			.Select((v, i) => TypeConverter.FromProtobufValue(v, tableDef.Columns[i].SpannerType))
+			.Select((v, i) =>
+			{
+				var pkColName = tableDef.PrimaryKeyColumns[i];
+				var colDef = tableDef.Columns.First(c => string.Equals(c.Name, pkColName, StringComparison.OrdinalIgnoreCase));
+				return TypeConverter.FromProtobufValue(v, colDef.SpannerType);
+			})
 			.ToArray();
 		return new RowKey(pkValues);
 	}

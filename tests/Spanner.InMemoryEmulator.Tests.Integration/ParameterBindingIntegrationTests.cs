@@ -644,4 +644,40 @@ public class ParameterBindingIntegrationTests : IntegrationTestBase
 		var result = reader.GetFieldValue<long[]>(0);
 		result.Should().BeEmpty();
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// ARRAY<INT64> element type deserialization
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#typecode
+	//   "INT64 is encoded as string."
+	//   Array element types must be preserved during deserialization.
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task Param_ArrayInt64_OrderByElement()
+	{
+		// If array elements are deserialized as strings, ordering will be lexicographic:
+		// "1", "10", "2", "3" instead of numeric: 1, 2, 3, 10.
+		using var conn = Fixture.CreateConnection();
+		using var cmd = conn.CreateSelectCommand("SELECT elem FROM UNNEST(@arr) AS elem ORDER BY elem");
+		cmd.Parameters.Add("arr", SpannerDbType.ArrayOf(SpannerDbType.Int64), new long[] { 10L, 3L, 1L, 2L });
+		using var reader = await cmd.ExecuteReaderAsync();
+		var results = new List<long>();
+		while (await reader.ReadAsync())
+			results.Add(reader.GetInt64(0));
+		results.Should().Equal(1L, 2L, 3L, 10L);
+	}
+
+	[Fact]
+	public async Task Param_ArrayInt64_WhereGreaterThan()
+	{
+		// If array elements are strings, "3" > "10" lexicographically, which is wrong numerically.
+		using var conn = Fixture.CreateConnection();
+		using var cmd = conn.CreateSelectCommand("SELECT elem FROM UNNEST(@arr) AS elem WHERE elem > 3 ORDER BY elem");
+		cmd.Parameters.Add("arr", SpannerDbType.ArrayOf(SpannerDbType.Int64), new long[] { 1L, 2L, 3L, 10L, 20L });
+		using var reader = await cmd.ExecuteReaderAsync();
+		var results = new List<long>();
+		while (await reader.ReadAsync())
+			results.Add(reader.GetInt64(0));
+		results.Should().Equal(10L, 20L);
+	}
 }

@@ -119,9 +119,12 @@ internal class SqlEngine
 
 			// Determine the type from ParamTypes if available
 			TypeCode typeCode = TypeCode.String;
+			TypeCode? arrayElementType = null;
 			if (paramTypes != null && paramTypes.TryGetValue(paramName, out var paramType))
 			{
 				typeCode = paramType.Code;
+				if (typeCode == TypeCode.Array && paramType.ArrayElementType != null)
+					arrayElementType = paramType.ArrayElementType.Code;
 			}
 			else
 			{
@@ -136,7 +139,7 @@ internal class SqlEngine
 				};
 			}
 
-			parameters[paramName] = TypeConverter.FromProtobufValue(paramValue, typeCode);
+			parameters[paramName] = TypeConverter.FromProtobufValue(paramValue, typeCode, arrayElementType);
 		}
 
 		return parameters;

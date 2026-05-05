@@ -465,4 +465,44 @@ public class SchemaExtendedIntegrationTests : IntegrationTestBase
 		var rows = await QueryAsync("SELECT ChildId FROM SchInterleavedChild WHERE ParentId = 1 ORDER BY ChildId");
 		rows.Should().HaveCount(2);
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// ALTER TABLE ADD COLUMN — querying existing rows after schema change
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_table
+	//   "Existing rows have NULL for the new column."
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task AlterTable_AddColumn_ExistingRows_ReturnNull()
+	{
+		await ExecuteDdlAsync(
+			"CREATE TABLE SchAddColExist (Id INT64 NOT NULL, Name STRING(MAX)) PRIMARY KEY (Id)");
+		await InsertAsync("SchAddColExist", new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice" });
+		await InsertAsync("SchAddColExist", new Dictionary<string, object?> { ["Id"] = 2L, ["Name"] = "Bob" });
+
+		// Add a new column after data exists
+		await ExecuteDdlAsync("ALTER TABLE SchAddColExist ADD COLUMN Score FLOAT64");
+
+		// Query the new column — should return NULL for all existing rows
+		var rows = await QueryAsync("SELECT Id, Score FROM SchAddColExist ORDER BY Id");
+		rows.Should().HaveCount(2);
+		rows[0]["Score"].Should().BeNull();
+		rows[1]["Score"].Should().BeNull();
+	}
+
+	[Fact]
+	public async Task AlterTable_AddColumn_WhereIsNull()
+	{
+		await ExecuteDdlAsync(
+			"CREATE TABLE SchAddColNull (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+		await InsertAsync("SchAddColNull", new Dictionary<string, object?> { ["Id"] = 1L });
+
+		// Add a new column after data exists
+		await ExecuteDdlAsync("ALTER TABLE SchAddColNull ADD COLUMN Tag STRING(MAX)");
+
+		// WHERE clause on the new column should treat it as NULL
+		var rows = await QueryAsync("SELECT Id FROM SchAddColNull WHERE Tag IS NULL");
+		rows.Should().ContainSingle();
+		rows[0]["Id"].Should().Be(1L);
+	}
 }

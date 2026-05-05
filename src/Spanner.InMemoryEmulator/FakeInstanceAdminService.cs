@@ -85,8 +85,14 @@ public class FakeInstanceAdminService : InstanceAdmin.InstanceAdminBase
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.admin.instance.v1#google.spanner.admin.instance.v1.InstanceAdmin.UpdateInstance
 	//   Updates an instance. Returns a long-running operation.
+	//   "Returns NOT_FOUND if the instance does not exist."
 	public override Task<Operation> UpdateInstance(UpdateInstanceRequest request, ServerCallContext context)
 	{
+		if (request.Instance?.Name != _instanceName)
+		{
+			throw new RpcException(new Status(StatusCode.NotFound, $"Instance not found: {request.Instance?.Name}"));
+		}
+
 		var instance = BuildInstanceProto();
 
 		var metadata = new UpdateInstanceMetadata
@@ -108,11 +114,68 @@ public class FakeInstanceAdminService : InstanceAdmin.InstanceAdminBase
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.admin.instance.v1#google.spanner.admin.instance.v1.InstanceAdmin.DeleteInstance
-	//   Deletes an instance.
+	//   Deletes an instance. "Returns NOT_FOUND if the instance does not exist."
 	public override Task<Empty> DeleteInstance(DeleteInstanceRequest request, ServerCallContext context)
 	{
+		if (request.Name != _instanceName)
+		{
+			throw new RpcException(new Status(StatusCode.NotFound, $"Instance not found: {request.Name}"));
+		}
+
 		// In the single-instance emulator, we don't actually delete the instance.
 		// Just acknowledge the request.
 		return Task.FromResult(new Empty());
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.admin.instance.v1#google.spanner.admin.instance.v1.InstanceAdmin.GetInstanceConfig
+	//   "Gets information about a particular instance configuration."
+	public override Task<InstanceConfig> GetInstanceConfig(GetInstanceConfigRequest request, ServerCallContext context)
+	{
+		var expectedConfigName = $"projects/{_options.ProjectId}/instanceConfigs/emulator-config";
+
+		// Accept any config name under this project — the emulator returns a synthetic config.
+		if (!request.Name.StartsWith($"projects/{_options.ProjectId}/instanceConfigs/"))
+		{
+			throw new RpcException(new Status(StatusCode.NotFound, $"Instance config not found: {request.Name}"));
+		}
+
+		var config = new InstanceConfig
+		{
+			Name = request.Name,
+			DisplayName = request.Name.Split('/').Last(),
+		};
+		config.Replicas.Add(new ReplicaInfo
+		{
+			Location = "us-central1",
+			Type = ReplicaInfo.Types.ReplicaType.ReadWrite,
+			DefaultLeaderLocation = true,
+		});
+
+		return Task.FromResult(config);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.admin.instance.v1#google.spanner.admin.instance.v1.InstanceAdmin.ListInstanceConfigs
+	//   "Lists the supported instance configurations for a given project."
+	public override Task<ListInstanceConfigsResponse> ListInstanceConfigs(ListInstanceConfigsRequest request, ServerCallContext context)
+	{
+		var response = new ListInstanceConfigsResponse();
+
+		if (request.Parent == _projectName)
+		{
+			var config = new InstanceConfig
+			{
+				Name = $"projects/{_options.ProjectId}/instanceConfigs/emulator-config",
+				DisplayName = "Emulator Config",
+			};
+			config.Replicas.Add(new ReplicaInfo
+			{
+				Location = "us-central1",
+				Type = ReplicaInfo.Types.ReplicaType.ReadWrite,
+				DefaultLeaderLocation = true,
+			});
+			response.InstanceConfigs.Add(config);
+		}
+
+		return Task.FromResult(response);
 	}
 }

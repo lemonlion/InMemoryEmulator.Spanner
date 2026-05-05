@@ -183,6 +183,71 @@ public class AdminApiIntegrationTests : IntegrationTestBase
 		await act.Should().NotThrowAsync();
 	}
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.admin.instance.v1#google.spanner.admin.instance.v1.InstanceAdmin.DeleteInstance
+	//   "Returns NOT_FOUND if the instance does not exist."
+	[Fact]
+	public async Task DeleteInstance_NotFound_ThrowsNotFound()
+	{
+		var client = await BuildInstanceAdminClientAsync();
+		var instanceName = $"projects/{_session.ProjectId}/instances/nonexistent-instance";
+
+		var act = async () => await client.DeleteInstanceAsync(instanceName);
+
+		var ex = await act.Should().ThrowAsync<Grpc.Core.RpcException>();
+		ex.Which.StatusCode.Should().Be(Grpc.Core.StatusCode.NotFound);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.admin.instance.v1#google.spanner.admin.instance.v1.InstanceAdmin.UpdateInstance
+	//   "Returns NOT_FOUND if the instance does not exist."
+	[Fact]
+	public async Task UpdateInstance_NotFound_ThrowsNotFound()
+	{
+		var client = await BuildInstanceAdminClientAsync();
+
+		var act = async () => await client.UpdateInstanceAsync(new UpdateInstanceRequest
+		{
+			Instance = new Instance
+			{
+				Name = $"projects/{_session.ProjectId}/instances/nonexistent-instance",
+				DisplayName = "Updated",
+			},
+			FieldMask = new Google.Protobuf.WellKnownTypes.FieldMask { Paths = { "display_name" } }
+		});
+
+		var ex = await act.Should().ThrowAsync<Grpc.Core.RpcException>();
+		ex.Which.StatusCode.Should().Be(Grpc.Core.StatusCode.NotFound);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.admin.instance.v1#google.spanner.admin.instance.v1.InstanceAdmin.GetInstanceConfig
+	//   "Gets information about a particular instance configuration."
+	[Fact]
+	public async Task GetInstanceConfig_ReturnsConfig()
+	{
+		var client = await BuildInstanceAdminClientAsync();
+		var configName = $"projects/{_session.ProjectId}/instanceConfigs/emulator-config";
+
+		var config = await client.GetInstanceConfigAsync(configName);
+
+		config.Should().NotBeNull();
+		config.Name.Should().Be(configName);
+		config.DisplayName.Should().NotBeNullOrEmpty();
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.admin.instance.v1#google.spanner.admin.instance.v1.InstanceAdmin.ListInstanceConfigs
+	//   "Lists the supported instance configurations for a given project."
+	[Fact]
+	public async Task ListInstanceConfigs_ReturnsAtLeastOneConfig()
+	{
+		var client = await BuildInstanceAdminClientAsync();
+		var parent = $"projects/{_session.ProjectId}";
+
+		var response = client.ListInstanceConfigs(parent);
+		var configs = response.ToList();
+
+		configs.Should().NotBeEmpty();
+		configs[0].Name.Should().StartWith($"projects/{_session.ProjectId}/instanceConfigs/");
+	}
+
 	// ─── Helpers ───
 
 	private async Task<DatabaseAdminClient> BuildDatabaseAdminClientAsync()

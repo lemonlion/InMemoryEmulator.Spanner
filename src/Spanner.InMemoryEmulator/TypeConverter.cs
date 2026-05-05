@@ -59,7 +59,7 @@ internal static class TypeConverter
 	/// <summary>
 	/// Converts a protobuf <c>Value</c> to a .NET value for the given Spanner type.
 	/// </summary>
-	public static object? FromProtobufValue(Google.Protobuf.WellKnownTypes.Value value, TypeCode spannerType)
+	public static object? FromProtobufValue(Google.Protobuf.WellKnownTypes.Value value, TypeCode spannerType, TypeCode? arrayElementType = null)
 	{
 		if (value.KindCase == Google.Protobuf.WellKnownTypes.Value.KindOneofCase.NullValue)
 		{
@@ -86,7 +86,7 @@ internal static class TypeConverter
 			(TypeCode)14 => value.StringValue,
 			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#typecode
 			//   "ARRAY values are encoded as list_value."
-			TypeCode.Array => FromProtobufArrayValue(value),
+			TypeCode.Array => FromProtobufArrayValue(value, arrayElementType),
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#interval_type
 			TypeCode.Interval => value.StringValue,
 			// Ref: https://cloud.google.com/spanner/docs/full-text-search/search-indexes
@@ -207,21 +207,34 @@ internal static class TypeConverter
 		return result;
 	}
 
-	private static List<object?> FromProtobufArrayValue(Google.Protobuf.WellKnownTypes.Value value)
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#typecode
+	//   Array elements must be deserialized using the array_element_type.
+	private static List<object?> FromProtobufArrayValue(Google.Protobuf.WellKnownTypes.Value value, TypeCode? elementType)
 	{
 		var result = new List<object?>();
 		if (value.KindCase == Google.Protobuf.WellKnownTypes.Value.KindOneofCase.ListValue)
 		{
 			foreach (var item in value.ListValue.Values)
 			{
-				result.Add(item.KindCase switch
+				if (item.KindCase == Google.Protobuf.WellKnownTypes.Value.KindOneofCase.NullValue)
 				{
-					Google.Protobuf.WellKnownTypes.Value.KindOneofCase.NullValue => null,
-					Google.Protobuf.WellKnownTypes.Value.KindOneofCase.StringValue => item.StringValue,
-					Google.Protobuf.WellKnownTypes.Value.KindOneofCase.NumberValue => item.NumberValue,
-					Google.Protobuf.WellKnownTypes.Value.KindOneofCase.BoolValue => item.BoolValue,
-					_ => item.StringValue
-				});
+					result.Add(null);
+				}
+				else if (elementType.HasValue)
+				{
+					result.Add(FromProtobufValue(item, elementType.Value));
+				}
+				else
+				{
+					// Fallback: infer from wire format
+					result.Add(item.KindCase switch
+					{
+						Google.Protobuf.WellKnownTypes.Value.KindOneofCase.StringValue => item.StringValue,
+						Google.Protobuf.WellKnownTypes.Value.KindOneofCase.NumberValue => item.NumberValue,
+						Google.Protobuf.WellKnownTypes.Value.KindOneofCase.BoolValue => item.BoolValue,
+						_ => item.StringValue
+					});
+				}
 			}
 		}
 		return result;

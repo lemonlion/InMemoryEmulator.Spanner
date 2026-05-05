@@ -141,4 +141,45 @@ public ReadAndTimestampIntegrationTests(EmulatorSession session) : base(session)
 		using var reader = await cmd.ExecuteReaderAsync();
 		(await reader.ReadAsync()).Should().BeFalse();
 	}
+
+	// ─── READ with PK column not first in column list ───
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.Read
+	//   Key values in the KeySet correspond to the primary key columns (not by column position in the schema).
+
+	[Fact]
+	public async Task Read_SpecificKey_WhenPkIsNotFirstColumn()
+	{
+		await ExecuteDdlAsync("CREATE TABLE ReadT8 (Name STRING(MAX), Id INT64 NOT NULL) PRIMARY KEY (Id)");
+		await InsertAsync("ReadT8", new Dictionary<string, object?> { ["Id"] = 42L, ["Name"] = "Alice" });
+		await InsertAsync("ReadT8", new Dictionary<string, object?> { ["Id"] = 99L, ["Name"] = "Bob" });
+
+		using var conn = Fixture.CreateConnection();
+		var keySet = KeySet.FromKeys(new Key(42L));
+		using var cmd = conn.CreateReadCommand("ReadT8",
+			ReadOptions.FromColumns("Name"),
+			keySet);
+		using var reader = await cmd.ExecuteReaderAsync();
+		(await reader.ReadAsync()).Should().BeTrue();
+		reader.GetString(0).Should().Be("Alice");
+		(await reader.ReadAsync()).Should().BeFalse();
+	}
+
+	[Fact]
+	public async Task Read_KeyRange_WhenPkIsNotFirstColumn()
+	{
+		await ExecuteDdlAsync("CREATE TABLE ReadT9 (Label STRING(MAX), Seq INT64 NOT NULL) PRIMARY KEY (Seq)");
+		for (long i = 1; i <= 5; i++)
+			await InsertAsync("ReadT9", new Dictionary<string, object?> { ["Seq"] = i, ["Label"] = $"L{i}" });
+
+		using var conn = Fixture.CreateConnection();
+		var keySet = KeySet.FromRanges(KeyRange.ClosedClosed(new Key(2L), new Key(4L)));
+		using var cmd = conn.CreateReadCommand("ReadT9",
+			ReadOptions.FromColumns("Seq", "Label"),
+			keySet);
+		using var reader = await cmd.ExecuteReaderAsync();
+		var results = new List<(long Seq, string Label)>();
+		while (await reader.ReadAsync())
+			results.Add((reader.GetInt64(0), reader.GetString(1)));
+		results.Should().BeEquivalentTo(new[] { (2L, "L2"), (3L, "L3"), (4L, "L4") });
+	}
 }

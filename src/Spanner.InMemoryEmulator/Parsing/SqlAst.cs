@@ -226,8 +226,10 @@ internal record UnaryExpr(UnaryOp Op, SqlExpression Operand) : SqlExpression;
 
 // Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions
 // NullHandling: null=default, true=RESPECT NULLS, false=IGNORE NULLS
+// HavingBound: optional (isMax, expression) for HAVING MAX/MIN clause
 internal record FunctionCallExpr(string Name, List<SqlExpression> Arguments, bool IsDistinct = false,
-	List<OrderByColumn>? AggregateOrderBy = null, bool? NullHandling = null) : SqlExpression;
+	List<OrderByColumn>? AggregateOrderBy = null, bool? NullHandling = null,
+	(bool IsMax, SqlExpression Expr)? HavingBound = null) : SqlExpression;
 
 /// <summary>Named argument in a function call, e.g. dialect => 'words'.</summary>
 internal record NamedArgExpr(string ArgName, SqlExpression Value) : SqlExpression;

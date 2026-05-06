@@ -1769,12 +1769,41 @@ internal class QueryExecutor
 		if (expr is FunctionCallExpr func)
 		{
 			var funcName = func.Name.ToUpperInvariant();
+
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#having_clause
+			//   HAVING {MAX | MIN} expression — restricts rows to those where the HAVING expression
+			//   achieves its maximum (or minimum) value within the group.
+			var effectiveRows = rows;
+			if (func.HavingBound is var (isMax, havingExpr))
+			{
+				var rowsWithHaving = rows
+					.Select(r => (Row: r, Val: evaluator.Evaluate(havingExpr, r)))
+					.Where(x => x.Val != null)
+					.ToList();
+				if (rowsWithHaving.Count > 0)
+				{
+					var bound = rowsWithHaving
+						.Select(x => x.Val)
+						.Aggregate((a, b) => isMax
+							? (ExpressionEvaluator.CompareValues(a, b) >= 0 ? a : b)
+							: (ExpressionEvaluator.CompareValues(a, b) <= 0 ? a : b));
+					effectiveRows = rowsWithHaving
+						.Where(x => ExpressionEvaluator.CompareValues(x.Val, bound) == 0)
+						.Select(x => x.Row)
+						.ToList();
+				}
+				else
+				{
+					effectiveRows = new List<Dictionary<string, object?>>();
+				}
+			}
+
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
 			// Most aggregates ignore NULLs by default. ARRAY_AGG includes NULLs by default.
 			// NullHandling: null=default, false=IGNORE NULLS, true=RESPECT NULLS
 			var respectNulls = func.NullHandling == true
 				|| (funcName == "ARRAY_AGG" && func.NullHandling != false);
-			var values = rows
+			var values = effectiveRows
 				.Select(r => evaluator.Evaluate(func.Arguments[0], r))
 				.Where(v => respectNulls || v != null)
 				.ToList();
@@ -1794,11 +1823,11 @@ internal class QueryExecutor
 				"MAX" => values.Count == 0 ? null : values.Aggregate((a, b) =>
 					ExpressionEvaluator.CompareValues(a, b) >= 0 ? a : b),
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
-				"ARRAY_AGG" => ArrayAggOrdered(func, rows, evaluator, values),
+				"ARRAY_AGG" => ArrayAggOrdered(func, effectiveRows, evaluator, values),
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#string_agg
-				"STRING_AGG" => StringAgg(func, rows, evaluator, values),
+				"STRING_AGG" => StringAgg(func, effectiveRows, evaluator, values),
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#countif
-				"COUNTIF" => CountIf(func, rows, evaluator),
+				"COUNTIF" => CountIf(func, effectiveRows, evaluator),
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#any_value
 				"ANY_VALUE" => values.Count == 0 ? null : values[0],
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#logical_and

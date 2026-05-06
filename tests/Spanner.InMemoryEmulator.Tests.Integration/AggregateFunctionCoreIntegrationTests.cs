@@ -551,4 +551,61 @@ public class AggregateFunctionCoreIntegrationTests : IntegrationTestBase
 		var result = await Eval($"SELECT APPROX_COUNT_DISTINCT(Val) FROM {table}");
 		result.Should().Be(1L);
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// HAVING MAX / MIN
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#having_clause
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task AnyValue_HavingMax_ReturnsValueFromMaxRow()
+	{
+		var table = "AggHavMax1";
+		await ExecuteDdlAsync($"CREATE TABLE {table} (Id INT64 NOT NULL, Name STRING(MAX), Score INT64) PRIMARY KEY (Id)");
+		await InsertAsync(table,
+			new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Score"] = 10L },
+			new Dictionary<string, object?> { ["Id"] = 2L, ["Name"] = "Bob", ["Score"] = 30L },
+			new Dictionary<string, object?> { ["Id"] = 3L, ["Name"] = "Carol", ["Score"] = 20L });
+		var result = await Eval($"SELECT ANY_VALUE(Name HAVING MAX Score) FROM {table}");
+		result.Should().Be("Bob");
+	}
+
+	[Fact]
+	public async Task AnyValue_HavingMin_ReturnsValueFromMinRow()
+	{
+		var table = "AggHavMin1";
+		await ExecuteDdlAsync($"CREATE TABLE {table} (Id INT64 NOT NULL, Name STRING(MAX), Score INT64) PRIMARY KEY (Id)");
+		await InsertAsync(table,
+			new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Score"] = 10L },
+			new Dictionary<string, object?> { ["Id"] = 2L, ["Name"] = "Bob", ["Score"] = 30L },
+			new Dictionary<string, object?> { ["Id"] = 3L, ["Name"] = "Carol", ["Score"] = 20L });
+		var result = await Eval($"SELECT ANY_VALUE(Name HAVING MIN Score) FROM {table}");
+		result.Should().Be("Alice");
+	}
+
+	[Fact]
+	public async Task Max_HavingMax_WorksWithGroups()
+	{
+		var table = "AggHavMax2";
+		await ExecuteDdlAsync($"CREATE TABLE {table} (Id INT64 NOT NULL, Category STRING(MAX), Val INT64, Weight INT64) PRIMARY KEY (Id)");
+		await InsertAsync(table,
+			new Dictionary<string, object?> { ["Id"] = 1L, ["Category"] = "A", ["Val"] = 5L, ["Weight"] = 1L },
+			new Dictionary<string, object?> { ["Id"] = 2L, ["Category"] = "A", ["Val"] = 10L, ["Weight"] = 3L },
+			new Dictionary<string, object?> { ["Id"] = 3L, ["Category"] = "A", ["Val"] = 7L, ["Weight"] = 2L });
+		// MAX(Val HAVING MAX Weight) = Val from the row where Weight=3, which is 10
+		var result = await Eval($"SELECT MAX(Val HAVING MAX Weight) FROM {table}");
+		result.Should().Be(10L);
+	}
+
+	[Fact]
+	public async Task AnyValue_HavingMax_AllNullHavingExpr_ReturnsNull()
+	{
+		var table = "AggHavMax3";
+		await ExecuteDdlAsync($"CREATE TABLE {table} (Id INT64 NOT NULL, Name STRING(MAX), Score INT64) PRIMARY KEY (Id)");
+		await InsertAsync(table,
+			new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Score"] = null },
+			new Dictionary<string, object?> { ["Id"] = 2L, ["Name"] = "Bob", ["Score"] = null });
+		var result = await Eval($"SELECT ANY_VALUE(Name HAVING MAX Score) FROM {table}");
+		result.Should().BeNull();
+	}
 }

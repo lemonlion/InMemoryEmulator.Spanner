@@ -516,4 +516,10 @@ internal enum GoogleSqlToken
 
 	[Token(Example = "FOR")]
 	For,
+
+	[Token(Example = "ANY")]
+	Any,
+
+	[Token(Example = "SOME")]
+	Some,
 }

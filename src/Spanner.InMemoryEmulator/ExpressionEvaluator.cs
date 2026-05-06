@@ -355,6 +355,11 @@ internal class ExpressionEvaluator
 			//   LIKE is parsed as FunctionCallExpr("LIKE", [value, pattern]).
 			//   % matches any number of characters; _ matches a single character.
 			"LIKE" => EvalLike(func, row),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
+			//   LIKE ANY/SOME — true if value matches any pattern in the list.
+			//   LIKE ALL — true if value matches all patterns in the list.
+			"LIKE_ANY" => EvalLikeQuantified(func, row, any: true),
+			"LIKE_ALL" => EvalLikeQuantified(func, row, any: false),
 			// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
 			//   LEFT and RIGHT do not exist in GCP Spanner. Use SUBSTR instead.
 			"LEFT" => throw new NotSupportedException($"Unsupported built-in function: {func.Name}."),
@@ -1714,6 +1719,32 @@ internal class ExpressionEvaluator
 		}
 		sb.Append('$');
 		return Regex.IsMatch(valStr, sb.ToString(), RegexOptions.Singleline);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
+	//   LIKE ANY/SOME: returns TRUE if value matches at least one pattern.
+	//   LIKE ALL: returns TRUE if value matches every pattern.
+	//   Returns NULL if value is NULL. NULL patterns are treated as non-matching (ANY) / matching (ALL).
+	private object? EvalLikeQuantified(FunctionCallExpr func, Dictionary<string, object?> row, bool any)
+	{
+		var val = Evaluate(func.Arguments[0], row);
+		if (val == null) return null;
+
+		// Arguments[1..] are the patterns
+		for (int i = 1; i < func.Arguments.Count; i++)
+		{
+			var likeFunc = new FunctionCallExpr("LIKE", new List<SqlExpression> { func.Arguments[0], func.Arguments[i] });
+			var result = EvalLike(likeFunc, row);
+			if (result == null)
+			{
+				// NULL pattern: for ANY, skip (doesn't contribute); for ALL, causes NULL propagation
+				if (!any) return null;
+				continue;
+			}
+			if (any && (bool)result) return true;
+			if (!any && !(bool)result) return false;
+		}
+		return !any; // ALL: all matched → true; ANY: none matched → false
 	}
 
 	private object? EvalRegexpReplace(FunctionCallExpr func, Dictionary<string, object?> row)

@@ -254,4 +254,51 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 		var results = await EvalMultiRow("SELECT x FROM UNNEST([1, 2, 3]) AS x LIMIT 2 OFFSET 1 FOR UPDATE");
 		results.Should().HaveCount(2);
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// LIKE ANY / ALL / SOME
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task LikeAny_MatchesOnePattern()
+	{
+		var result = await Eval("SELECT 'hello' LIKE ANY ('%ello', '%world')");
+		result.Should().Be(true);
+	}
+
+	[Fact]
+	public async Task LikeAny_NoMatch()
+	{
+		var result = await Eval("SELECT 'hello' LIKE ANY ('%xyz', '%abc')");
+		result.Should().Be(false);
+	}
+
+	[Fact]
+	public async Task LikeAll_MatchesAllPatterns()
+	{
+		var result = await Eval("SELECT 'hello' LIKE ALL ('h%', '%o', '_____')");
+		result.Should().Be(true);
+	}
+
+	[Fact]
+	public async Task LikeAll_FailsOnePattern()
+	{
+		var result = await Eval("SELECT 'hello' LIKE ALL ('h%', '%xyz')");
+		result.Should().Be(false);
+	}
+
+	[Fact]
+	public async Task LikeSome_IsSynonymForAny()
+	{
+		var result = await Eval("SELECT 'hello' LIKE SOME ('%ello', '%world')");
+		result.Should().Be(true);
+	}
+
+	[Fact]
+	public async Task NotLikeAny_NegatesResult()
+	{
+		var result = await Eval("SELECT 'hello' NOT LIKE ANY ('%ello', '%world')");
+		result.Should().Be(false);
+	}
 }

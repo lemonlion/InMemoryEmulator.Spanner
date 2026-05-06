@@ -148,7 +148,9 @@ internal static class SqlParsers
 		.Or(Token.EqualTo(GoogleSqlToken.Excluded).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.Conflict).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.Do).Select(t => t.ToStringValue()))
-		.Or(Token.EqualTo(GoogleSqlToken.Nothing).Select(t => t.ToStringValue()));
+		.Or(Token.EqualTo(GoogleSqlToken.Nothing).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Any).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Some).Select(t => t.ToStringValue()));
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls#def_window_frame
@@ -237,6 +239,15 @@ internal static class SqlParsers
 			.Or(from open in Token.EqualTo(GoogleSqlToken.OpenParen)
 			 from distinct in Token.EqualTo(GoogleSqlToken.Distinct).Value(true).OptionalOrDefault(false)
 			 from args in FunctionArgument.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
+			 // Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#having_clause
+			 //   HAVING {MAX | MIN} expression — restricts rows to those with the max/min of expression
+			 from havingBound in (
+				from _h in Token.EqualTo(GoogleSqlToken.Having)
+				from isMax in Token.EqualTo(GoogleSqlToken.Max).Value(true)
+					.Or(Token.EqualTo(GoogleSqlToken.Min).Value(false))
+				from hExpr in ExpressionRef
+				select ((bool IsMax, SqlExpression Expr)?)(isMax, hExpr)
+			 ).OptionalOrDefault(((bool, SqlExpression)?)null)
 			 // IGNORE NULLS or RESPECT NULLS
 			 // Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
 			 from nullHandling in (
@@ -263,8 +274,8 @@ internal static class SqlParsers
 			 from close in Token.EqualTo(GoogleSqlToken.CloseParen)
 			 from window in OverClause.AsNullable().OptionalOrDefault()
 			 select window != null
-				? (SqlExpression)new WindowExpr(new FunctionCallExpr(name, args.ToList(), distinct, orderBy, nullHandling), window.PartitionBy, window.OrderBy, window.Frame)
-				: (SqlExpression)new FunctionCallExpr(name, args.ToList(), distinct, orderBy, nullHandling))
+				? (SqlExpression)new WindowExpr(new FunctionCallExpr(name, args.ToList(), distinct, orderBy, nullHandling, havingBound), window.PartitionBy, window.OrderBy, window.Frame)
+				: (SqlExpression)new FunctionCallExpr(name, args.ToList(), distinct, orderBy, nullHandling, havingBound))
 			// Qualified star: alias.* (Try needed so dot is backtracked when next token is not *)
 			.Or((from dot in Token.EqualTo(GoogleSqlToken.Dot)
 				from _ in Token.EqualTo(GoogleSqlToken.Star)
@@ -296,11 +307,19 @@ internal static class SqlParsers
 		from open in Token.EqualTo(GoogleSqlToken.OpenParen)
 		from distinct in Token.EqualTo(GoogleSqlToken.Distinct).Value(true).OptionalOrDefault(false)
 		from arg in ExpressionRef
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#having_clause
+		from havingBound in (
+			from _h in Token.EqualTo(GoogleSqlToken.Having)
+			from isMax in Token.EqualTo(GoogleSqlToken.Max).Value(true)
+				.Or(Token.EqualTo(GoogleSqlToken.Min).Value(false))
+			from hExpr in ExpressionRef
+			select ((bool IsMax, SqlExpression Expr)?)(isMax, hExpr)
+		).OptionalOrDefault(((bool, SqlExpression)?)null)
 		from close in Token.EqualTo(GoogleSqlToken.CloseParen)
 		from window in OverClause.AsNullable().OptionalOrDefault()
 		select window != null
-			? (SqlExpression)new WindowExpr(new FunctionCallExpr(name, new List<SqlExpression> { arg }, distinct), window.PartitionBy, window.OrderBy, window.Frame)
-			: (SqlExpression)new FunctionCallExpr(name, new List<SqlExpression> { arg }, distinct);
+			? (SqlExpression)new WindowExpr(new FunctionCallExpr(name, new List<SqlExpression> { arg }, distinct, HavingBound: havingBound), window.PartitionBy, window.OrderBy, window.Frame)
+			: (SqlExpression)new FunctionCallExpr(name, new List<SqlExpression> { arg }, distinct, HavingBound: havingBound);
 
 	// CAST(expr AS type) — supports bare type names without length specifiers
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
@@ -769,6 +788,23 @@ internal static class SqlParsers
 				from __ in Token.EqualTo(GoogleSqlToken.And)
 				from high in Additive
 				select (Func<SqlExpression, SqlExpression>)(l => new BetweenExpr(l, low, high, not))).Try())
+			// [NOT] LIKE {ANY | ALL | SOME} (patterns)
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
+			.Or((from not in Token.EqualTo(GoogleSqlToken.Not).Value(true).OptionalOrDefault(false)
+				from _ in Token.EqualTo(GoogleSqlToken.Like)
+				from quantifier in Token.EqualTo(GoogleSqlToken.Any).Value("ANY")
+					.Or(Token.EqualTo(GoogleSqlToken.All).Value("ALL"))
+					.Or(Token.EqualTo(GoogleSqlToken.Some).Value("ANY")) // SOME is synonym for ANY
+				from open in Token.EqualTo(GoogleSqlToken.OpenParen)
+				from patterns in ExpressionRef.AtLeastOnceDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
+				from close in Token.EqualTo(GoogleSqlToken.CloseParen)
+				select (Func<SqlExpression, SqlExpression>)(l =>
+				{
+					SqlExpression result = new FunctionCallExpr(
+						quantifier == "ANY" ? "LIKE_ANY" : "LIKE_ALL",
+						new List<SqlExpression> { l }.Concat(patterns).ToList());
+					return not ? new UnaryExpr(UnaryOp.Not, result) : result;
+				})).Try())
 			// [NOT] LIKE pattern
 			.Or(from not in Token.EqualTo(GoogleSqlToken.Not).Value(true).OptionalOrDefault(false)
 				from _ in Token.EqualTo(GoogleSqlToken.Like)

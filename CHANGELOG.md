@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.38] - 2026-05-19
+
+### Added
+- **HAVING MAX/MIN clause**: Aggregate functions now support `HAVING MAX expr` and `HAVING MIN expr` to restrict computation to rows where the HAVING expression achieves its extremum. Works with all aggregates (ANY_VALUE, MAX, MIN, SUM, etc.).
+- **LIKE ANY/ALL/SOME**: Quantified LIKE operator — `value LIKE ANY (patterns)` matches if any pattern matches, `LIKE ALL (patterns)` requires all patterns to match. `SOME` is a synonym for `ANY`. `NOT LIKE ANY/ALL` also supported.
+- Integration tests: 10 new tests (4 HAVING MAX/MIN, 6 LIKE ANY/ALL/SOME).
+
 ## [1.0.37] - 2026-05-19
 
 ### Added

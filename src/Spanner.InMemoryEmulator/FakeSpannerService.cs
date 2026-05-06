@@ -270,6 +270,14 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 			ValidateSession(request.Session);
 
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.CommitRequest
+			//   "Required. The transaction in which to commit." — one of transaction_id or single_use_transaction must be set
+			if ((request.TransactionId == null || request.TransactionId.IsEmpty) && request.SingleUseTransaction == null)
+			{
+				throw new RpcException(new Status(StatusCode.InvalidArgument,
+					"Either transaction_id or single_use_transaction must be specified."));
+			}
+
 			var commitTimestamp = DateTimeOffset.UtcNow;
 			var mutationExecutor = new MutationExecutor(_database);
 
@@ -280,6 +288,20 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 			{
 				if (_transactionManager.TryGetByBytes(request.TransactionId, out var txnState) && txnState != null)
 				{
+					// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.CommitRequest
+					//   "transaction_id: Commit a previously-started transaction."
+					//   A committed or rolled-back transaction is no longer active.
+					if (txnState.IsCommitted)
+					{
+						throw new RpcException(new Status(StatusCode.FailedPrecondition,
+							"Cannot commit a transaction that has already been committed."));
+					}
+					if (txnState.IsRolledBack)
+					{
+						throw new RpcException(new Status(StatusCode.FailedPrecondition,
+							"Cannot commit a transaction that has already been rolled back."));
+					}
+
 					allMutations.AddRange(txnState.BufferedMutations);
 					_transactionManager.MarkCommitted(txnState.Id);
 				}
@@ -369,21 +391,26 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 			if (_transactionManager.TryGetByBytes(request.TransactionId, out var txnState) && txnState != null)
 			{
 				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.Rollback
-				//   "Rolls back a transaction, releasing any locks it holds."
-				// Undo DML changes applied during this transaction (in reverse order).
-				for (int i = txnState.DmlUndoLog.Count - 1; i >= 0; i--)
+				//   "Rollback returns OK if it successfully aborts the transaction, the transaction
+				//    was already aborted, or the transaction isn't found."
+				//   A committed transaction cannot be rolled back — skip undo logic but return OK.
+				if (!txnState.IsCommitted && !txnState.IsRolledBack)
 				{
-					var entry = txnState.DmlUndoLog[i];
-					if (_database.Schema.TryGetTable(entry.TableName, out var table) && table != null)
+					// Undo DML changes applied during this transaction (in reverse order).
+					for (int i = txnState.DmlUndoLog.Count - 1; i >= 0; i--)
 					{
-						if (entry.OriginalRow == null)
-							table.Rows.TryRemove(entry.Key, out _); // Was INSERT → undo = delete
-						else
-							table.Rows[entry.Key] = entry.OriginalRow; // Was UPDATE/DELETE → undo = restore
+						var entry = txnState.DmlUndoLog[i];
+						if (_database.Schema.TryGetTable(entry.TableName, out var table) && table != null)
+						{
+							if (entry.OriginalRow == null)
+								table.Rows.TryRemove(entry.Key, out _); // Was INSERT → undo = delete
+							else
+								table.Rows[entry.Key] = entry.OriginalRow; // Was UPDATE/DELETE → undo = restore
+						}
 					}
-				}
 
-				_transactionManager.MarkRolledBack(txnState.Id);
+					_transactionManager.MarkRolledBack(txnState.Id);
+				}
 			}
 
 			var result = new Empty();
@@ -546,6 +573,19 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 			case TransactionSelector.SelectorOneofCase.Id:
 				_transactionManager.TryGetByBytes(selector.Id, out var existingState);
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.TransactionSelector
+				//   "id: Execute the read or SQL query in a previously-started transaction."
+				//   A committed or rolled-back transaction is no longer "started".
+				if (existingState != null && existingState.IsCommitted)
+				{
+					throw new RpcException(new Status(StatusCode.FailedPrecondition,
+						"Cannot use a transaction that has already been committed."));
+				}
+				if (existingState != null && existingState.IsRolledBack)
+				{
+					throw new RpcException(new Status(StatusCode.FailedPrecondition,
+						"Cannot use a transaction that has already been rolled back."));
+				}
 				return existingState;
 
 			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.TransactionSelector

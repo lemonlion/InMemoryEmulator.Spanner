@@ -1,4 +1,5 @@
 ﻿using FluentAssertions;
+using Google.Cloud.Spanner.V1;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
@@ -360,4 +361,36 @@ public class CastAndTypeIntegrationTests : IntegrationTestBase
 	[InlineData("FORMAT('%s %s', 'hello', 'world')", "hello world")]
 	public async Task Format_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
+
+	// ═══════════════════════════════════════════════════════════════
+	// NUMERIC arithmetic precision
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task Numeric_Addition_PreservesPrecision()
+	{
+		var result = await Eval("CAST(1.1 AS NUMERIC) + CAST(2.2 AS NUMERIC)");
+		// Should be exactly 3.3, not 3.3000000000000003 (FLOAT64 error)
+		result.Should().BeOfType<SpannerNumeric>();
+		((SpannerNumeric)result!).ToDecimal(LossOfPrecisionHandling.Truncate).Should().Be(3.3m);
+	}
+
+	[Fact]
+	public async Task Numeric_Multiplication_PreservesPrecision()
+	{
+		var result = await Eval("CAST(10 AS NUMERIC) * CAST(0.1 AS NUMERIC)");
+		result.Should().BeOfType<SpannerNumeric>();
+		((SpannerNumeric)result!).ToDecimal(LossOfPrecisionHandling.Truncate).Should().Be(1.0m);
+	}
+
+	[Fact]
+	public async Task Numeric_Division_PreservesPrecision()
+	{
+		var result = await Eval("CAST(1 AS NUMERIC) / CAST(3 AS NUMERIC)");
+		result.Should().BeOfType<SpannerNumeric>();
+		// NUMERIC division truncates to 9 decimal places in Spanner; we just need decimal result, not float
+		var dec = ((SpannerNumeric)result!).ToDecimal(LossOfPrecisionHandling.Truncate);
+		dec.Should().BeApproximately(0.333333333m, 0.000000001m);
+	}
 }

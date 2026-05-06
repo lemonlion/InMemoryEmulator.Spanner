@@ -1366,17 +1366,34 @@ internal class ExpressionEvaluator
 			}
 		}
 
-		var da = Convert.ToDouble(a);
-		var db = Convert.ToDouble(b);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
+		//   NUMERIC arithmetic preserves precision within NUMERIC type.
+		if (a is decimal || b is decimal)
+		{
+			var da = Convert.ToDecimal(a);
+			var db = Convert.ToDecimal(b);
+			return op switch
+			{
+				'+' => da + db,
+				'-' => da - db,
+				'*' => da * db,
+				'/' => db == 0m ? throw new InvalidOperationException("Division by zero.") : da / db,
+				'%' => db == 0m ? throw new InvalidOperationException("Division by zero.") : da % db,
+				_ => throw new NotSupportedException()
+			};
+		}
+
+		var dda = Convert.ToDouble(a);
+		var ddb = Convert.ToDouble(b);
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
 		//   FLOAT64 division by zero follows IEEE 754: returns +/-Inf or NaN.
 		return op switch
 		{
-			'+' => da + db,
-			'-' => da - db,
-			'*' => da * db,
-			'/' => da / db,
-			'%' => da % db,
+			'+' => dda + ddb,
+			'-' => dda - ddb,
+			'*' => dda * ddb,
+			'/' => dda / ddb,
+			'%' => dda % ddb,
 			_ => throw new NotSupportedException()
 		};
 	}
@@ -2147,8 +2164,10 @@ internal class ExpressionEvaluator
 		"HOUR" => dt.AddHours(amount),
 		"DAY" => dt.AddDays(amount),
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date_add
-		//   DATE_ADD supports MONTH and YEAR. Clamps to last day of month if needed.
+		//   DATE_ADD supports WEEK, MONTH, QUARTER, and YEAR.
+		"WEEK" => dt.AddDays(amount * 7),
 		"MONTH" => dt.AddMonths((int)amount),
+		"QUARTER" => dt.AddMonths((int)amount * 3),
 		"YEAR" => dt.AddYears((int)amount),
 		_ => throw new InvalidOperationException($"Unsupported INTERVAL part: {part}")
 	};

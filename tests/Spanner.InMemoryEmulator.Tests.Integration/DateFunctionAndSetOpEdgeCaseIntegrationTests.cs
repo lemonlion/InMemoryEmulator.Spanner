@@ -84,4 +84,39 @@ public class DateFunctionAndSetOpEdgeCaseIntegrationTests : IntegrationTestBase
 		rows.Should().HaveCount(1);
 		Convert.ToInt64(rows[0]["x"]).Should().Be(1);
 	}
+
+	// ─── DATE_ADD/DATE_SUB with WEEK and QUARTER intervals ───
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date_add
+
+	[Fact]
+	[Trait(TestTraits.Category, "DateFunction")]
+	public async Task DateAdd_Week_Adds7Days()
+	{
+		var result = await Eval("DATE_ADD(DATE '2024-01-01', INTERVAL 2 WEEK)");
+		result.Should().Be(new DateTime(2024, 1, 15));
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "DateFunction")]
+	public async Task DateSub_Week_Subtracts7Days()
+	{
+		var result = await Eval("DATE_SUB(DATE '2024-01-15', INTERVAL 1 WEEK)");
+		result.Should().Be(new DateTime(2024, 1, 8));
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "DateFunction")]
+	public async Task DateAdd_Quarter_Adds3Months()
+	{
+		var result = await Eval("DATE_ADD(DATE '2024-01-01', INTERVAL 1 QUARTER)");
+		result.Should().Be(new DateTime(2024, 4, 1));
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "DateFunction")]
+	public async Task DateSub_Quarter_Subtracts3Months()
+	{
+		var result = await Eval("DATE_SUB(DATE '2024-07-01', INTERVAL 2 QUARTER)");
+		result.Should().Be(new DateTime(2024, 1, 1));
+	}
 }

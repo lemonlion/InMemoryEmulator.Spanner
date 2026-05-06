@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.40] - 2026-05-19
+
+### Fixed
+- **NUMERIC arithmetic precision**: Operations between NUMERIC values (addition, subtraction, multiplication, division, modulo) now correctly preserve decimal precision instead of converting to FLOAT64.
+- **DATE_ADD/DATE_SUB WEEK interval**: `INTERVAL n WEEK` now correctly adds/subtracts `n * 7` days instead of throwing "Unsupported INTERVAL part".
+- **DATE_ADD/DATE_SUB QUARTER interval**: `INTERVAL n QUARTER` now correctly adds/subtracts `n * 3` months instead of throwing "Unsupported INTERVAL part".
+
+### Added
+- Integration tests: 7 new tests (3 NUMERIC arithmetic precision, 4 DATE_ADD/SUB WEEK/QUARTER).
+
 ## [1.0.39] - 2026-05-19
 
 ### Fixed

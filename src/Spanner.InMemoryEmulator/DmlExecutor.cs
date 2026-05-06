@@ -183,6 +183,10 @@ internal class DmlExecutor
 			if (update.Where != null && !evaluator.EvaluateAsBool(update.Where, row))
 				continue;
 
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#update_statement
+			//   "All SET clause column value expressions are evaluated before any are assigned."
+			var originalRow = new Dictionary<string, object?>(row, StringComparer.OrdinalIgnoreCase);
+
 			foreach (var set in update.Sets)
 			{
 				var colDef = table.Columns.FirstOrDefault(
@@ -190,7 +194,7 @@ internal class DmlExecutor
 				if (colDef == null)
 					throw new InvalidOperationException($"Column '{set.Column}' not found in table '{update.Table}'.");
 
-				row[colDef.Name] = evaluator.Evaluate(set.Value, row);
+				row[colDef.Name] = evaluator.Evaluate(set.Value, originalRow);
 			}
 
 			// Re-evaluate generated columns after applying SET clauses

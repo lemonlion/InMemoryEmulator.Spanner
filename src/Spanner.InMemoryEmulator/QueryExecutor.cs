@@ -355,15 +355,23 @@ internal class QueryExecutor
 		// 8. OFFSET
 		if (select.Offset != null)
 		{
-			var offsetVal = Convert.ToInt32(evaluator.Evaluate(select.Offset, new Dictionary<string, object?>()));
-			projectedRows = projectedRows.Skip(offsetVal).ToList();
+			var offsetVal = Convert.ToInt64(evaluator.Evaluate(select.Offset, new Dictionary<string, object?>()));
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#limit_and_offset_clause
+			//   "OFFSET must be a non-negative integer."
+			if (offsetVal < 0)
+				throw new InvalidOperationException("OFFSET must not be negative.");
+			projectedRows = projectedRows.Skip((int)offsetVal).ToList();
 		}
 
 		// 9. LIMIT
 		if (select.Limit != null)
 		{
-			var limitVal = Convert.ToInt32(evaluator.Evaluate(select.Limit, new Dictionary<string, object?>()));
-			projectedRows = projectedRows.Take(limitVal).ToList();
+			var limitVal = Convert.ToInt64(evaluator.Evaluate(select.Limit, new Dictionary<string, object?>()));
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#limit_and_offset_clause
+			//   "LIMIT count must be a non-negative integer."
+			if (limitVal < 0)
+				throw new InvalidOperationException("LIMIT must not be negative.");
+			projectedRows = projectedRows.Take((int)limitVal).ToList();
 		}
 
 		return ResultSetBuilder.Build(outputColumns, projectedRows);
@@ -1419,8 +1427,7 @@ internal class QueryExecutor
 		if (a == null && b == null) return 0;
 		if (a == null) return -1;
 		if (b == null) return 1;
-		if (a is IComparable ca) return ca.CompareTo(Convert.ChangeType(b, a.GetType()));
-		return 0;
+		return ExpressionEvaluator.CompareValues(a, b);
 	}
 
 	private List<Dictionary<string, object?>> ExecuteGroupBy(
@@ -1811,8 +1818,13 @@ internal class QueryExecutor
 
 		foreach (var row in rows)
 		{
-			var key = string.Join("|", columns.Select(c =>
-				row.TryGetValue(c.Name, out var v) ? v?.ToString() ?? "NULL" : "NULL"));
+			// Use Unit Separator (\x1F) as delimiter and type-prefix values to avoid collisions:
+			// - NULL value vs string "NULL"
+			// - Values containing the delimiter character
+			var key = string.Join("\x1F", columns.Select(c =>
+				row.TryGetValue(c.Name, out var v) && v != null
+					? $"{v.GetType().Name}\x1E{v}"
+					: "\x00"));
 			if (seen.Add(key))
 			{
 				result.Add(row);

@@ -852,4 +852,90 @@ public class RpcValidationTests
 		result.Rows.Should().HaveCount(1);
 		result.Rows[0].Values[0].StringValue.Should().Be("1000000000");
 	}
+
+	// ─── UPDATE SET evaluates expressions against original row ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#update_statement
+	//   "All SET clause column value expressions are evaluated before any are assigned."
+	[Fact]
+	public async Task ExecuteSql_UpdateSwapColumns_EvaluatesAgainstOriginal()
+	{
+		// Arrange: create table and insert a row
+		_database.ExecuteDdl("CREATE TABLE SwapTable (Id INT64 NOT NULL, A INT64, B INT64) PRIMARY KEY (Id)");
+		var txn = await _service.BeginTransaction(
+			new BeginTransactionRequest
+			{
+				Session = _sessionName,
+				Options = new TransactionOptions { ReadWrite = new TransactionOptions.Types.ReadWrite() }
+			},
+			TestServerCallContext.Create());
+
+		await _service.Commit(
+			new CommitRequest
+			{
+				Session = _sessionName,
+				TransactionId = txn.Id,
+				Mutations =
+				{
+					new Mutation
+					{
+						Insert = new Mutation.Types.Write
+						{
+							Table = "SwapTable",
+							Columns = { "Id", "A", "B" },
+							Values = { new ListValue { Values = { Value.ForString("1"), Value.ForString("10"), Value.ForString("20") } } }
+						}
+					}
+				}
+			},
+			TestServerCallContext.Create());
+
+		// Act: swap A and B
+		var txn2 = await _service.BeginTransaction(
+			new BeginTransactionRequest
+			{
+				Session = _sessionName,
+				Options = new TransactionOptions { ReadWrite = new TransactionOptions.Types.ReadWrite() }
+			},
+			TestServerCallContext.Create());
+
+		await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { Id = txn2.Id },
+				Sql = "UPDATE SwapTable SET A = B, B = A WHERE Id = 1"
+			},
+			TestServerCallContext.Create());
+
+		await _service.Commit(
+			new CommitRequest
+			{
+				Session = _sessionName,
+				TransactionId = txn2.Id
+			},
+			TestServerCallContext.Create());
+
+		// Assert: A should be 20, B should be 10 (swapped)
+		var readTxn = await _service.BeginTransaction(
+			new BeginTransactionRequest
+			{
+				Session = _sessionName,
+				Options = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() }
+			},
+			TestServerCallContext.Create());
+
+		var result = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { Id = readTxn.Id },
+				Sql = "SELECT A, B FROM SwapTable WHERE Id = 1"
+			},
+			TestServerCallContext.Create());
+
+		result.Rows.Should().HaveCount(1);
+		result.Rows[0].Values[0].StringValue.Should().Be("20"); // A = original B
+		result.Rows[0].Values[1].StringValue.Should().Be("10"); // B = original A
+	}
 }

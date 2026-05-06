@@ -1091,4 +1091,17 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		var result = await Eval("ARRAY_LENGTH([1, 2] || [3, 4])");
 		result.Should().Be(4L);
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// HAVING without GROUP BY
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#having_clause
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task Having_WithoutGroupBy_ImplicitAggregation()
+	{
+		// SELECT 1 with HAVING should work (implicit whole-table aggregation)
+		var result = await Eval("(SELECT 1 FROM UNNEST([1,2,3]) HAVING COUNT(*) > 0)");
+		result.Should().Be(1L);
+	}
 }

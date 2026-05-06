@@ -362,9 +362,9 @@ internal class QueryExecutor
 		{
 			rows = ExecuteGroupBy(select, rows, evaluator);
 		}
-		else if (HasAggregates(select.Columns))
+		else if (HasAggregates(select.Columns) || (select.Having != null && ContainsAggregate(select.Having)))
 		{
-			// Whole-table aggregation (no GROUP BY but SELECT has aggregates)
+			// Whole-table aggregation (no GROUP BY but SELECT has aggregates or HAVING references aggregates)
 			rows = ExecuteWholeTableAggregation(select, rows, evaluator);
 		}
 
@@ -1746,6 +1746,14 @@ internal class QueryExecutor
 		foreach (var col in select.Columns)
 		{
 			PrecomputeAggregatesForHaving(col.Expr, rows, evaluator, outputRow);
+		}
+
+		// Pre-compute aggregate expressions in HAVING clause
+		// so HAVING evaluation can look them up as row values
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#having_clause
+		if (select.Having != null)
+		{
+			PrecomputeAggregatesForHaving(select.Having, rows, evaluator, outputRow);
 		}
 
 		foreach (var col in select.Columns)

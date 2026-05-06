@@ -616,4 +616,240 @@ public class RpcValidationTests
 		// Act & Assert — INTERLEAVE IN clause should be accepted
 		_database.ExecuteDdl("CREATE INDEX IdxChildByVal ON IdxChild (Val), INTERLEAVE IN IdxParent");
 	}
+
+	// ─── Commit rejects read-only and partitioned DML transactions ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.TransactionOptions
+	//   "Read-only transactions do not support commit."
+	[Fact]
+	public async Task Commit_ReadOnlyTransaction_ReturnsFailedPrecondition()
+	{
+		// Arrange
+		var txn = await _service.BeginTransaction(
+			new BeginTransactionRequest
+			{
+				Session = _sessionName,
+				Options = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() }
+			},
+			TestServerCallContext.Create());
+
+		// Act & Assert
+		var ex = await Assert.ThrowsAsync<RpcException>(() => _service.Commit(
+			new CommitRequest
+			{
+				Session = _sessionName,
+				TransactionId = txn.Id
+			},
+			TestServerCallContext.Create()));
+
+		ex.StatusCode.Should().Be(StatusCode.FailedPrecondition);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.TransactionOptions
+	//   "Partitioned DML transactions auto-commit; explicit Commit is not supported."
+	[Fact]
+	public async Task Commit_PartitionedDmlTransaction_ReturnsFailedPrecondition()
+	{
+		// Arrange
+		var txn = await _service.BeginTransaction(
+			new BeginTransactionRequest
+			{
+				Session = _sessionName,
+				Options = new TransactionOptions { PartitionedDml = new TransactionOptions.Types.PartitionedDml() }
+			},
+			TestServerCallContext.Create());
+
+		// Act & Assert
+		var ex = await Assert.ThrowsAsync<RpcException>(() => _service.Commit(
+			new CommitRequest
+			{
+				Session = _sessionName,
+				TransactionId = txn.Id
+			},
+			TestServerCallContext.Create()));
+
+		ex.StatusCode.Should().Be(StatusCode.FailedPrecondition);
+	}
+
+	// ─── ExecuteBatchDml validates empty statements ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteBatchDmlRequest
+	//   "Required. The list of statements... At least one statement must be provided."
+	[Fact]
+	public async Task ExecuteBatchDml_EmptyStatements_ReturnsInvalidArgument()
+	{
+		// Arrange
+		var txn = await _service.BeginTransaction(
+			new BeginTransactionRequest
+			{
+				Session = _sessionName,
+				Options = new TransactionOptions { ReadWrite = new TransactionOptions.Types.ReadWrite() }
+			},
+			TestServerCallContext.Create());
+
+		// Act & Assert
+		var ex = await Assert.ThrowsAsync<RpcException>(() => _service.ExecuteBatchDml(
+			new ExecuteBatchDmlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { Id = txn.Id }
+			},
+			TestServerCallContext.Create()));
+
+		ex.StatusCode.Should().Be(StatusCode.InvalidArgument);
+	}
+
+	// ─── ExecuteBatchDml rejects partitioned DML ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteBatchDmlRequest
+	//   "Must be a read-write transaction." — partitioned DML is not read-write.
+	[Fact]
+	public async Task ExecuteBatchDml_PartitionedDml_ReturnsFailedPrecondition()
+	{
+		// Arrange
+		var txn = await _service.BeginTransaction(
+			new BeginTransactionRequest
+			{
+				Session = _sessionName,
+				Options = new TransactionOptions { PartitionedDml = new TransactionOptions.Types.PartitionedDml() }
+			},
+			TestServerCallContext.Create());
+
+		// Act & Assert
+		var ex = await Assert.ThrowsAsync<RpcException>(() => _service.ExecuteBatchDml(
+			new ExecuteBatchDmlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { Id = txn.Id },
+				Statements = { new ExecuteBatchDmlRequest.Types.Statement { Sql = "DELETE FROM TestTable WHERE true" } }
+			},
+			TestServerCallContext.Create()));
+
+		ex.StatusCode.Should().Be(StatusCode.FailedPrecondition);
+	}
+
+	// ─── Read API returns proper error codes ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ReadRequest
+	//   "Required. The name of the table in the database to be read."
+	[Fact]
+	public async Task Read_NonExistentTable_ReturnsNotFound()
+	{
+		// Act & Assert
+		var ex = await Assert.ThrowsAsync<RpcException>(() => _service.Read(
+			new ReadRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() } },
+				Table = "NonExistentTable",
+				Columns = { "Id" },
+				KeySet = new KeySet { All = true }
+			},
+			TestServerCallContext.Create()));
+
+		ex.StatusCode.Should().Be(StatusCode.NotFound);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ReadRequest
+	//   "Required. The columns of table to be returned for each row matching this request."
+	[Fact]
+	public async Task Read_NonExistentColumn_ReturnsNotFound()
+	{
+		// Act & Assert
+		var ex = await Assert.ThrowsAsync<RpcException>(() => _service.Read(
+			new ReadRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() } },
+				Table = "TestTable",
+				Columns = { "NonExistentColumn" },
+				KeySet = new KeySet { All = true }
+			},
+			TestServerCallContext.Create()));
+
+		ex.StatusCode.Should().Be(StatusCode.NotFound);
+	}
+
+	// ─── Partitioned DML returns RowCountLowerBound ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ResultSetStats
+	//   "Partitioned DML doesn't offer exactly-once semantics, so it returns a lower bound."
+	[Fact]
+	public async Task ExecuteSql_PartitionedDml_ReturnsRowCountLowerBound()
+	{
+		// Arrange: insert a row first
+		var txn = await _service.BeginTransaction(
+			new BeginTransactionRequest
+			{
+				Session = _sessionName,
+				Options = new TransactionOptions { ReadWrite = new TransactionOptions.Types.ReadWrite() }
+			},
+			TestServerCallContext.Create());
+
+		await _service.Commit(
+			new CommitRequest
+			{
+				Session = _sessionName,
+				TransactionId = txn.Id,
+				Mutations =
+				{
+					new Mutation
+					{
+						Insert = new Mutation.Types.Write
+						{
+							Table = "TestTable",
+							Columns = { "Id", "Name" },
+							Values = { new ListValue { Values = { Value.ForString("1"), Value.ForString("Alice") } } }
+						}
+					}
+				}
+			},
+			TestServerCallContext.Create());
+
+		// Begin partitioned DML transaction
+		var pdmlTxn = await _service.BeginTransaction(
+			new BeginTransactionRequest
+			{
+				Session = _sessionName,
+				Options = new TransactionOptions { PartitionedDml = new TransactionOptions.Types.PartitionedDml() }
+			},
+			TestServerCallContext.Create());
+
+		// Act
+		var result = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { Id = pdmlTxn.Id },
+				Sql = "UPDATE TestTable SET Name = 'Updated' WHERE Id = 1"
+			},
+			TestServerCallContext.Create());
+
+		// Assert
+		result.Stats.Should().NotBeNull();
+		result.Stats.RowCountCase.Should().Be(ResultSetStats.RowCountOneofCase.RowCountLowerBound);
+		result.Stats.RowCountLowerBound.Should().Be(1);
+	}
+
+	// ─── TIMESTAMP_DIFF with NANOSECOND ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_diff
+	//   NANOSECOND is a supported date part.
+	[Fact]
+	public async Task ExecuteSql_TimestampDiff_Nanosecond_Works()
+	{
+		// Act
+		var result = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() } },
+				Sql = "SELECT TIMESTAMP_DIFF(TIMESTAMP '2024-01-01T00:00:01Z', TIMESTAMP '2024-01-01T00:00:00Z', NANOSECOND) AS diff"
+			},
+			TestServerCallContext.Create());
+
+		// Assert: 1 second = 1,000,000,000 nanoseconds
+		result.Rows.Should().HaveCount(1);
+		result.Rows[0].Values[0].StringValue.Should().Be("1000000000");
+	}
 }

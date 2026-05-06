@@ -323,6 +323,22 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 						"Cannot commit a transaction that has already been rolled back."));
 				}
 
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.TransactionOptions
+				//   "Read-only transactions do not support commit."
+				if (txnState.IsReadOnly)
+				{
+					throw new RpcException(new Status(StatusCode.FailedPrecondition,
+						"Cannot commit a read-only transaction."));
+				}
+
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.TransactionOptions
+				//   "Partitioned DML transactions auto-commit; explicit Commit is not supported."
+				if (txnState.IsPartitionedDml)
+				{
+					throw new RpcException(new Status(StatusCode.FailedPrecondition,
+						"Cannot commit a partitioned DML transaction."));
+				}
+
 				allMutations.AddRange(txnState.BufferedMutations);
 				_transactionManager.MarkCommitted(txnState.Id);
 			}
@@ -488,6 +504,16 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 				var parameters = SqlEngine.ExtractParameters(request);
 				var resultSet = engine.ExecuteSql(request.Sql, parameters);
 
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ResultSetStats
+				//   "Partitioned DML doesn't offer exactly-once semantics, so it returns a lower bound
+				//    of the rows modified."
+				if (txnState?.IsPartitionedDml == true && resultSet.Stats != null &&
+					resultSet.Stats.RowCountCase == ResultSetStats.RowCountOneofCase.RowCountExact)
+				{
+					var count = resultSet.Stats.RowCountExact;
+					resultSet.Stats.RowCountLowerBound = count;
+				}
+
 				SetTransactionMetadata(request.Transaction, txnState, resultSet);
 
 				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteSqlRequest.QueryMode
@@ -553,6 +579,16 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 				var engine = new SqlEngine(_database, txnState?.DmlUndoLog);
 				var parameters = SqlEngine.ExtractParameters(request);
 				var resultSet = engine.ExecuteSql(request.Sql, parameters);
+
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ResultSetStats
+				//   "Partitioned DML doesn't offer exactly-once semantics, so it returns a lower bound
+				//    of the rows modified."
+				if (txnState?.IsPartitionedDml == true && resultSet.Stats != null &&
+					resultSet.Stats.RowCountCase == ResultSetStats.RowCountOneofCase.RowCountExact)
+				{
+					var count = resultSet.Stats.RowCountExact;
+					resultSet.Stats.RowCountLowerBound = count;
+				}
 
 				SetTransactionMetadata(request.Transaction, txnState, resultSet);
 
@@ -765,6 +801,16 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 					"ExecuteBatchDml does not support single-use transactions, to protect against replays."));
 			}
 
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteBatchDmlRequest
+			//   "Required. The list of statements to execute in this batch. Statements are
+			//    executed serially, such that the effects of statement i are visible to statement i+1.
+			//    At least one statement must be provided."
+			if (request.Statements.Count == 0)
+			{
+				throw new RpcException(new Status(StatusCode.InvalidArgument,
+					"No statements provided in ExecuteBatchDml request."));
+			}
+
 			var response = new ExecuteBatchDmlResponse();
 			var txnState = ResolveTransactionState(request.Session, request.Transaction);
 
@@ -773,6 +819,12 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 			if (txnState?.IsReadOnly == true)
 				throw new RpcException(new Status(StatusCode.FailedPrecondition,
 					"DML statements cannot be executed in a read-only transaction."));
+
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteBatchDmlRequest
+			//   "Must be a read-write transaction." — partitioned DML is not read-write.
+			if (txnState?.IsPartitionedDml == true)
+				throw new RpcException(new Status(StatusCode.FailedPrecondition,
+					"ExecuteBatchDml is not supported for partitioned DML transactions."));
 
 			var engine = new SqlEngine(_database, txnState?.DmlUndoLog);
 			var isFirst = true;
@@ -917,13 +969,26 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 	private ResultSet ExecuteRead(ReadRequest request)
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ReadRequest
+		//   "Required. The name of the table in the database to be read."
 		if (!_database.Schema.TryGetTable(request.Table, out var tableDef) || tableDef == null)
-			throw new InvalidOperationException($"Table '{request.Table}' not found.");
+			throw new RpcException(new Status(StatusCode.NotFound, $"Table not found: {request.Table}"));
 
 		// Determine which columns to return
 		var requestedColumns = request.Columns.Count > 0
 			? request.Columns.ToList()
 			: tableDef.Columns.Select(c => c.Name).ToList();
+
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ReadRequest
+		//   "Required. The columns of table to be returned for each row matching this request."
+		//   If a requested column does not exist, return NOT_FOUND.
+		foreach (var colName in requestedColumns)
+		{
+			if (!tableDef.Columns.Any(c => string.Equals(c.Name, colName, StringComparison.OrdinalIgnoreCase)))
+			{
+				throw new RpcException(new Status(StatusCode.NotFound, $"Column not found: {colName}"));
+			}
+		}
 
 		// Get all matching rows based on KeySet
 		var matchingRows = new List<Dictionary<string, object?>>();
@@ -998,11 +1063,9 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 		var outputColumns = requestedColumns
 			.Select(colName =>
 			{
-				var colDef = tableDef.Columns.FirstOrDefault(c =>
+				var colDef = tableDef.Columns.First(c =>
 					string.Equals(c.Name, colName, StringComparison.OrdinalIgnoreCase));
-				return colDef != null
-					? new ColumnDef(colDef.Name, colDef.SpannerType, protoTypeFqn: colDef.ProtoTypeFqn, arrayElementType: colDef.ArrayElementType)
-					: new ColumnDef(colName, Google.Cloud.Spanner.V1.TypeCode.String);
+				return new ColumnDef(colDef.Name, colDef.SpannerType, protoTypeFqn: colDef.ProtoTypeFqn, arrayElementType: colDef.ArrayElementType);
 			})
 			.ToList();
 

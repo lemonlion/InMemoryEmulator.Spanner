@@ -2040,6 +2040,9 @@ internal class ExpressionEvaluator
 
 	private static DateTime AddToPart(DateTime dt, string part, long amount) => part switch
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_add
+		//   Supported date parts: NANOSECOND, MICROSECOND, MILLISECOND, SECOND, MINUTE, HOUR, DAY
+		"NANOSECOND" => dt.AddTicks(amount / 100),
 		"MICROSECOND" => dt.AddTicks(amount * 10),
 		"MILLISECOND" => dt.AddMilliseconds(amount),
 		"SECOND" => dt.AddSeconds(amount),
@@ -2065,6 +2068,7 @@ internal class ExpressionEvaluator
 		var diff = dt1 - dt2;
 		return part switch
 		{
+			"NANOSECOND" => diff.Ticks * 100,
 			"MICROSECOND" => diff.Ticks / 10,
 			"MILLISECOND" => (long)diff.TotalMilliseconds,
 			"SECOND" => (long)diff.TotalSeconds,

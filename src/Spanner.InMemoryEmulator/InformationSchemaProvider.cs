@@ -125,10 +125,11 @@ internal class InformationSchemaProvider
 					["ORDINAL_POSITION"] = (long)(i + 1),
 					["IS_NULLABLE"] = c.IsNullable ? "YES" : "NO",
 					["SPANNER_TYPE"] = FormatSpannerType(c),
-					["COLUMN_DEFAULT"] = null,
-					["GENERATION_EXPRESSION"] = null,
-					["IS_GENERATED"] = "NEVER",
-					["IS_STORED"] = null,
+					// Ref: https://cloud.google.com/spanner/docs/information-schema#columns
+					["COLUMN_DEFAULT"] = c.DefaultExpression,
+					["GENERATION_EXPRESSION"] = c.GeneratedExpression,
+					["IS_GENERATED"] = c.GeneratedExpression != null ? "ALWAYS" : "NEVER",
+					["IS_STORED"] = c.GeneratedExpression != null ? (c.IsStored ? "YES" : "NO") : null,
 					["SPANNER_STATE"] = "COMMITTED"
 				});
 			}

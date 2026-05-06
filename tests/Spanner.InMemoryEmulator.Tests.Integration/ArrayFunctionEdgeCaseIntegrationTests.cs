@@ -166,6 +166,31 @@ public class ArrayFunctionEdgeCaseIntegrationTests : IntegrationTestBase
 		result.Should().Be(0L); // empty
 	}
 
+	[Fact]
+	public async Task GenerateArray_StepZero_ThrowsError()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#generate_array
+		//   "Returns an error if step is 0."
+		using var conn = Fixture.CreateConnection();
+		using var cmd = conn.CreateSelectCommand("SELECT ARRAY_LENGTH(GENERATE_ARRAY(1, 5, 0))");
+		var act = async () =>
+		{
+			using var reader = await cmd.ExecuteReaderAsync();
+			await reader.ReadAsync();
+		};
+		await act.Should().ThrowAsync<Exception>();
+	}
+
+	[Fact]
+	public async Task GenerateArray_Float64_GeneratesCorrectly()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#generate_array
+		//   "GENERATE_ARRAY supports INT64, FLOAT64, and NUMERIC."
+		var result = await Eval("ARRAY_LENGTH(GENERATE_ARRAY(CAST(0.0 AS FLOAT64), CAST(5.0 AS FLOAT64), CAST(2.5 AS FLOAT64)))");
+		// 0.0, 2.5, 5.0 → 3 elements
+		result.Should().Be(3L);
+	}
+
 	// ═══════════════════════════════════════════════════════════════
 	// ARRAY_TO_STRING - NULL separator should return NULL
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#array_to_string

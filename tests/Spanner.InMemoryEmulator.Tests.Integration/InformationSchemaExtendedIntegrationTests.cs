@@ -955,4 +955,52 @@ public class InformationSchemaExtendedIntegrationTests : IntegrationTestBase
 			$"SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_NAME = '{table}'");
 		rows.Should().BeEmpty();
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Generated / Default columns metadata
+	// Ref: https://cloud.google.com/spanner/docs/information-schema#columns
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "InformationSchemaExtended")]
+	public async Task Columns_GeneratedColumn_IsGeneratedAlways()
+	{
+		var table = $"ISG_{Guid.NewGuid():N}".Substring(0, 30);
+		await ExecuteDdlAsync($"CREATE TABLE {table} (Id INT64 NOT NULL, Val INT64, Doubled INT64 AS (Val * 2) STORED) PRIMARY KEY (Id)");
+
+		var rows = await QueryAsync(
+			$"SELECT IS_GENERATED, GENERATION_EXPRESSION, IS_STORED FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '{table}' AND COLUMN_NAME = 'Doubled'");
+		rows.Should().ContainSingle();
+		rows[0]["IS_GENERATED"]!.ToString().Should().Be("ALWAYS");
+		rows[0]["GENERATION_EXPRESSION"]!.ToString().Should().NotBeNullOrEmpty();
+		rows[0]["IS_STORED"]!.ToString().Should().Be("YES");
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "InformationSchemaExtended")]
+	public async Task Columns_NonGeneratedColumn_IsGeneratedNever()
+	{
+		var table = $"ISG2_{Guid.NewGuid():N}".Substring(0, 30);
+		await ExecuteDdlAsync($"CREATE TABLE {table} (Id INT64 NOT NULL, Val INT64) PRIMARY KEY (Id)");
+
+		var rows = await QueryAsync(
+			$"SELECT IS_GENERATED, GENERATION_EXPRESSION, IS_STORED FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '{table}' AND COLUMN_NAME = 'Val'");
+		rows.Should().ContainSingle();
+		rows[0]["IS_GENERATED"]!.ToString().Should().Be("NEVER");
+		rows[0]["GENERATION_EXPRESSION"].Should().BeNull();
+		rows[0]["IS_STORED"].Should().BeNull();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "InformationSchemaExtended")]
+	public async Task Columns_DefaultColumn_ShowsDefault()
+	{
+		var table = $"ISD_{Guid.NewGuid():N}".Substring(0, 30);
+		await ExecuteDdlAsync($"CREATE TABLE {table} (Id INT64 NOT NULL, Status STRING(MAX) DEFAULT ('active')) PRIMARY KEY (Id)");
+
+		var rows = await QueryAsync(
+			$"SELECT COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '{table}' AND COLUMN_NAME = 'Status'");
+		rows.Should().ContainSingle();
+		rows[0]["COLUMN_DEFAULT"].Should().NotBeNull();
+	}
 }

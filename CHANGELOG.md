@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.39] - 2026-05-19
+
+### Fixed
+- **INFORMATION_SCHEMA.COLUMNS metadata**: `IS_GENERATED`, `GENERATION_EXPRESSION`, `IS_STORED`, and `COLUMN_DEFAULT` now correctly reflect generated columns and default expressions instead of returning hardcoded NULL/NEVER values.
+- **GENERATE_ARRAY step=0 error**: `GENERATE_ARRAY(start, end, 0)` now throws an error instead of silently returning an empty array, matching real Spanner behavior.
+
+### Added
+- **GENERATE_ARRAY FLOAT64/NUMERIC support**: `GENERATE_ARRAY` now supports FLOAT64 and NUMERIC types in addition to INT64 (e.g., `GENERATE_ARRAY(0.0, 5.0, 2.5)`).
+- Integration tests: 5 new tests (3 INFORMATION_SCHEMA metadata, 2 GENERATE_ARRAY edge cases).
+
 ## [1.0.38] - 2026-05-19
 
 ### Added

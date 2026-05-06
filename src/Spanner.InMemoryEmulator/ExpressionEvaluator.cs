@@ -2557,15 +2557,44 @@ internal class ExpressionEvaluator
 		var start = Evaluate(func.Arguments[0], row);
 		var end = Evaluate(func.Arguments[1], row);
 		if (start == null || end == null) return null;
-		var stepVal = func.Arguments.Count > 2 ? Evaluate(func.Arguments[2], row) : (object)1L;
-		if (stepVal == null) return null;
-		var step = Convert.ToInt64(stepVal);
-		var s = Convert.ToInt64(start);
-		var e = Convert.ToInt64(end);
-		var result = new List<object?>();
-		if (step > 0) for (long i = s; i <= e; i += step) result.Add(i);
-		else if (step < 0) for (long i = s; i >= e; i += step) result.Add(i);
-		return result;
+		var stepVal = func.Arguments.Count > 2 ? Evaluate(func.Arguments[2], row) : null;
+		if (func.Arguments.Count > 2 && stepVal == null) return null;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#generate_array
+		//   Supports INT64, NUMERIC, and FLOAT64 types.
+		if (start is double || end is double || stepVal is double)
+		{
+			var s = Convert.ToDouble(start);
+			var e = Convert.ToDouble(end);
+			var step = stepVal != null ? Convert.ToDouble(stepVal) : 1.0;
+			if (step == 0.0) throw new InvalidOperationException("GENERATE_ARRAY step cannot be 0.");
+			var result = new List<object?>();
+			if (step > 0) for (double i = s; i <= e; i += step) result.Add(i);
+			else for (double i = s; i >= e; i += step) result.Add(i);
+			return result;
+		}
+		if (start is decimal || end is decimal || stepVal is decimal)
+		{
+			var s = Convert.ToDecimal(start);
+			var e = Convert.ToDecimal(end);
+			var step = stepVal != null ? Convert.ToDecimal(stepVal) : 1m;
+			if (step == 0m) throw new InvalidOperationException("GENERATE_ARRAY step cannot be 0.");
+			var result = new List<object?>();
+			if (step > 0) for (decimal i = s; i <= e; i += step) result.Add(i);
+			else for (decimal i = s; i >= e; i += step) result.Add(i);
+			return result;
+		}
+		{
+			var step = stepVal != null ? Convert.ToInt64(stepVal) : 1L;
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#generate_array
+			//   "Returns an error if step is 0."
+			if (step == 0) throw new InvalidOperationException("GENERATE_ARRAY step cannot be 0.");
+			var s = Convert.ToInt64(start);
+			var e = Convert.ToInt64(end);
+			var result = new List<object?>();
+			if (step > 0) for (long i = s; i <= e; i += step) result.Add(i);
+			else for (long i = s; i >= e; i += step) result.Add(i);
+			return result;
+		}
 	}
 
 	private object? EvalArrayIncludes(FunctionCallExpr func, Dictionary<string, object?> row)

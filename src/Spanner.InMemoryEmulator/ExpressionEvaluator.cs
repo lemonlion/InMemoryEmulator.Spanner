@@ -407,7 +407,7 @@ internal class ExpressionEvaluator
 			"TRUNC" => EvalTrunc(func, row),
 			"GREATEST" => EvalGreatestLeast(func, row, greatest: true),
 			"LEAST" => EvalGreatestLeast(func, row, greatest: false),
-			"SIGN" => EvalMathFunc1(func, row, l => Math.Sign(l), d => Math.Sign(d)),
+			"SIGN" => EvalMathFunc1(func, row, l => Math.Sign(l), d => Math.Sign(d), d => Math.Sign(d)),
 			"DIV" => EvalDiv(func, row),
 			"IEEE_DIVIDE" => EvalIeeeDivide(func, row),
 			"SAFE_DIVIDE" => EvalSafeDivide(func, row),
@@ -897,7 +897,7 @@ internal class ExpressionEvaluator
 	}
 
 	private object? EvalMathFunc1(FunctionCallExpr func, Dictionary<string, object?> row,
-		Func<long, long> longFn, Func<double, double> doubleFn)
+		Func<long, long> longFn, Func<double, double> doubleFn, Func<decimal, decimal>? decimalFn = null)
 	{
 		var val = Evaluate(func.Arguments[0], row);
 		if (val is null) return null;
@@ -906,7 +906,7 @@ internal class ExpressionEvaluator
 			long l => longFn(l),
 			double d => doubleFn(d),
 			float f => (float)doubleFn(f),
-			decimal dec => Math.Abs(dec),
+			decimal dec => (decimalFn ?? Math.Abs)(dec),
 			_ => throw new InvalidOperationException($"Cannot apply math function to {val.GetType().Name}")
 		};
 	}
@@ -1359,6 +1359,15 @@ internal class ExpressionEvaluator
 	private static object? ConcatValues(object? a, object? b)
 	{
 		if (a is null || b is null) return null;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#concatenation_operator
+		//   || is overloaded: STRING || STRING, BYTES || BYTES, ARRAY<T> || ARRAY<T>
+		if (a is IList<object?> arrA && b is IList<object?> arrB)
+		{
+			var result = new List<object?>(arrA.Count + arrB.Count);
+			result.AddRange(arrA);
+			result.AddRange(arrB);
+			return result;
+		}
 		return a.ToString() + b.ToString();
 	}
 

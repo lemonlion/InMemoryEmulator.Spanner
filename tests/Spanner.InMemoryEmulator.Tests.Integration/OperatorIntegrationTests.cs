@@ -1079,4 +1079,16 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		var result = await Eval("EXTRACT(NANOSECOND FROM TIMESTAMP '2020-01-01 00:00:01.1234567Z')");
 		result.Should().Be(123456700L);
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// || operator array concatenation
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#concatenation_operator
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task ConcatOperator_Arrays()
+	{
+		var result = await Eval("ARRAY_LENGTH([1, 2] || [3, 4])");
+		result.Should().Be(4L);
+	}
 }

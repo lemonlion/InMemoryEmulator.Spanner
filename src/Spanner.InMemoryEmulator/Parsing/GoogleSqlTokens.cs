@@ -231,6 +231,9 @@ internal enum GoogleSqlToken
 	[Token(Example = "WITH")]
 	With,
 
+	[Token(Example = "RECURSIVE")]
+	Recursive,
+
 	[Token(Example = "DISTINCT")]
 	Distinct,
 

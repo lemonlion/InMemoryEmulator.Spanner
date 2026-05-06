@@ -46,6 +46,9 @@ internal static class TypeConverter
 			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#typecode
 			//   "ARRAY values are encoded as list_value."
 			TypeCode.Array => ToProtobufArrayValue(value),
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#typecode
+			//   "STRUCT values are encoded as list_value where field order matches the struct type definition."
+			TypeCode.Struct => ToProtobufStructValue(value),
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#interval_type
 			//   INTERVAL is serialized as its canonical string representation.
 			TypeCode.Interval => Google.Protobuf.WellKnownTypes.Value.ForString(value.ToString()!),
@@ -87,6 +90,9 @@ internal static class TypeConverter
 			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#typecode
 			//   "ARRAY values are encoded as list_value."
 			TypeCode.Array => FromProtobufArrayValue(value, arrayElementType),
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#typecode
+			//   "STRUCT values are encoded as list_value where field order matches the struct type definition."
+			TypeCode.Struct => value.ListValue?.Values?.Select(v => (object?)v).ToList() as object,
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#interval_type
 			TypeCode.Interval => value.StringValue,
 			// Ref: https://cloud.google.com/spanner/docs/full-text-search/search-indexes
@@ -198,7 +204,50 @@ internal static class TypeConverter
 					long l => Google.Protobuf.WellKnownTypes.Value.ForString(l.ToString()),
 					double d => Google.Protobuf.WellKnownTypes.Value.ForNumber(d),
 					bool b => Google.Protobuf.WellKnownTypes.Value.ForBool(b),
+					Dictionary<string, object?> dict => ToProtobufStructValue(dict),
+					IList<object?> structList => ToProtobufStructValue(structList),
 					_ => Google.Protobuf.WellKnownTypes.Value.ForString(item.ToString()!)
+				});
+			}
+		}
+		var result = new Google.Protobuf.WellKnownTypes.Value();
+		result.ListValue = listValue;
+		return result;
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#typecode
+	//   "STRUCT values are encoded as list_value where field order matches the struct type definition."
+	private static Google.Protobuf.WellKnownTypes.Value ToProtobufStructValue(object value)
+	{
+		var listValue = new Google.Protobuf.WellKnownTypes.ListValue();
+		if (value is Dictionary<string, object?> dict)
+		{
+			foreach (var val in dict.Values)
+			{
+				listValue.Values.Add(val switch
+				{
+					null => Google.Protobuf.WellKnownTypes.Value.ForNull(),
+					string s => Google.Protobuf.WellKnownTypes.Value.ForString(s),
+					long l => Google.Protobuf.WellKnownTypes.Value.ForString(l.ToString()),
+					double d => Google.Protobuf.WellKnownTypes.Value.ForNumber(d),
+					bool b => Google.Protobuf.WellKnownTypes.Value.ForBool(b),
+					_ => Google.Protobuf.WellKnownTypes.Value.ForString(val.ToString()!)
+				});
+			}
+		}
+		else if (value is IList<object?> list)
+		{
+			foreach (var val in list)
+			{
+				listValue.Values.Add(val switch
+				{
+					null => Google.Protobuf.WellKnownTypes.Value.ForNull(),
+					Google.Protobuf.WellKnownTypes.Value protoVal => protoVal,
+					string s => Google.Protobuf.WellKnownTypes.Value.ForString(s),
+					long l => Google.Protobuf.WellKnownTypes.Value.ForString(l.ToString()),
+					double d => Google.Protobuf.WellKnownTypes.Value.ForNumber(d),
+					bool b => Google.Protobuf.WellKnownTypes.Value.ForBool(b),
+					_ => Google.Protobuf.WellKnownTypes.Value.ForString(val?.ToString() ?? "")
 				});
 			}
 		}

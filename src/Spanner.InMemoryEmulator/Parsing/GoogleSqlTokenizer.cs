@@ -85,6 +85,7 @@ internal static class GoogleSqlTokenizer
 		["IFNULL"] = GoogleSqlToken.Ifnull,
 		["UNNEST"] = GoogleSqlToken.Unnest,
 		["WITH"] = GoogleSqlToken.With,
+		["RECURSIVE"] = GoogleSqlToken.Recursive,
 		["DISTINCT"] = GoogleSqlToken.Distinct,
 		["IGNORE"] = GoogleSqlToken.Ignore,
 		["RESPECT"] = GoogleSqlToken.Respect,

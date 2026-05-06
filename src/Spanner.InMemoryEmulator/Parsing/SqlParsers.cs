@@ -905,6 +905,11 @@ internal static class SqlParsers
 
 	public static TokenListParser<GoogleSqlToken, SelectStatement> SelectStatement { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.Select)
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#select_as_struct
+		//   "SELECT AS STRUCT produces a value table with a STRUCT row type."
+		from asStruct in (from __ in Token.EqualTo(GoogleSqlToken.As)
+			from ___ in Token.EqualTo(GoogleSqlToken.Struct)
+			select true).Try().OptionalOrDefault(false)
 		from distinct in Token.EqualTo(GoogleSqlToken.Distinct).Value(true).OptionalOrDefault(false)
 		from columns in SelectColumnItem.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
 		from fromClause in (
@@ -1028,7 +1033,7 @@ internal static class SqlParsers
 		).AsNullable().OptionalOrDefault()
 		from limit in LimitValue.AsNullable().OptionalOrDefault()
 		from offset in OffsetValue.AsNullable().OptionalOrDefault()
-		select new SelectStatement(distinct, columns.ToList(), fromClause, whereExpr, groupBy, having, qualify, orderBy, limit, offset);
+		select new SelectStatement(distinct, columns.ToList(), fromClause, whereExpr, groupBy, having, qualify, orderBy, limit, offset, asStruct);
 
 	// ──────────────────────────────────────────
 	// CTE + Set Operations → FullQuery
@@ -1073,11 +1078,13 @@ internal static class SqlParsers
 	public static TokenListParser<GoogleSqlToken, FullQuery> FullQueryParser { get; } =
 		from ctes in (
 			from _ in Token.EqualTo(GoogleSqlToken.With)
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#recursive_keyword
+			from recursive in Token.EqualTo(GoogleSqlToken.Recursive).Value(true).OptionalOrDefault(false)
 			from items in CteItem.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
-			select items.ToList()
-		).AsNullable().OptionalOrDefault()
+			select (items.ToList(), recursive)
+		).OptionalOrDefault((null, false))
 		from body in QueryBodyParser
-		select new FullQuery(ctes, body);
+		select new FullQuery(ctes.Item1, body, ctes.recursive);
 
 	// ──────────────────────────────────────────
 	// DML Statements

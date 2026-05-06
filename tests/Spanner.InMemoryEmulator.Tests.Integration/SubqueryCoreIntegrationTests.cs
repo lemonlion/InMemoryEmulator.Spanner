@@ -399,4 +399,91 @@ public class SubqueryCoreIntegrationTests : IntegrationTestBase
 		var rows = await QueryAsync($"SELECT Name FROM {p}_Emp WHERE EmpId NOT IN (1, 3) ORDER BY Name");
 		rows.Select(r => (string)r["Name"]!).Should().Equal("Bob", "Diana");
 	}
+
+	// ─── SELECT AS STRUCT ───
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#select_as_struct
+
+	[Fact]
+	[Trait(TestTraits.Category, "Subquery")]
+	public async Task SelectAsStruct_InArraySubquery_CountMatchesRows()
+	{
+		var p = "SAS1";
+		await SetupData(p);
+
+		// ARRAY(SELECT AS STRUCT ...) should produce one struct element per row
+		var rows = await QueryAsync(
+			$"SELECT ARRAY_LENGTH(ARRAY(SELECT AS STRUCT EmpId, Name FROM {p}_Emp)) AS cnt");
+		rows.Should().HaveCount(1);
+		rows[0]["cnt"].Should().Be(4L);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "Subquery")]
+	public async Task SelectAsStruct_WithWhereClause_FiltersCorrectly()
+	{
+		var p = "SAS2";
+		await SetupData(p);
+
+		var rows = await QueryAsync(
+			$"SELECT ARRAY_LENGTH(ARRAY(SELECT AS STRUCT EmpId, Name FROM {p}_Emp WHERE DeptId = 1)) AS cnt");
+		rows.Should().HaveCount(1);
+		rows[0]["cnt"].Should().Be(2L);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "Subquery")]
+	public async Task SelectAsStruct_EmptyResult_ReturnsEmptyArray()
+	{
+		var p = "SAS3";
+		await SetupData(p);
+
+		var rows = await QueryAsync(
+			$"SELECT ARRAY_LENGTH(ARRAY(SELECT AS STRUCT EmpId, Name FROM {p}_Emp WHERE false)) AS cnt");
+		rows.Should().HaveCount(1);
+		rows[0]["cnt"].Should().Be(0L);
+	}
+
+	// ─── WITH RECURSIVE ───
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#recursive_keyword
+
+	[Fact]
+	[Trait(TestTraits.Category, "Subquery")]
+	public async Task WithRecursive_GenerateNumbers()
+	{
+		var rows = await QueryAsync(@"
+			WITH RECURSIVE nums AS (
+				SELECT 1 AS n
+				UNION ALL
+				SELECT n + 1 FROM nums WHERE n < 5
+			)
+			SELECT n FROM nums ORDER BY n");
+		rows.Select(r => (long)r["n"]!).Should().Equal(1L, 2L, 3L, 4L, 5L);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "Subquery")]
+	public async Task WithRecursive_HierarchyTraversal()
+	{
+		var p = "RCT1";
+		await ExecuteDdlAsync(
+			$"CREATE TABLE {p}_Nodes (Id INT64 NOT NULL, ParentId INT64, Name STRING(MAX)) PRIMARY KEY (Id)");
+		await InsertAsync($"{p}_Nodes",
+			new() { ["Id"] = 1L, ["ParentId"] = null, ["Name"] = "Root" },
+			new() { ["Id"] = 2L, ["ParentId"] = 1L, ["Name"] = "Child1" },
+			new() { ["Id"] = 3L, ["ParentId"] = 1L, ["Name"] = "Child2" },
+			new() { ["Id"] = 4L, ["ParentId"] = 2L, ["Name"] = "Grandchild1" });
+
+		var rows = await QueryAsync($@"
+			WITH RECURSIVE tree AS (
+				SELECT Id, Name, 0 AS depth FROM {p}_Nodes WHERE ParentId IS NULL
+				UNION ALL
+				SELECT n.Id, n.Name, t.depth + 1 FROM {p}_Nodes n JOIN tree t ON n.ParentId = t.Id
+			)
+			SELECT Name, depth FROM tree ORDER BY depth, Name");
+		rows.Should().HaveCount(4);
+		rows[0]["Name"].Should().Be("Root");
+		((long)rows[0]["depth"]!).Should().Be(0L);
+		rows[3]["Name"].Should().Be("Grandchild1");
+		((long)rows[3]["depth"]!).Should().Be(2L);
+	}
 }

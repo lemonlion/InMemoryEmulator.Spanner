@@ -156,7 +156,10 @@ internal record SelectStatement(
 	SqlExpression? Qualify,
 	List<OrderByColumn>? OrderBy,
 	SqlExpression? Limit,
-	SqlExpression? Offset);
+	SqlExpression? Offset,
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#select_as_struct
+	//   "SELECT AS STRUCT produces a value table with a STRUCT row type."
+	bool AsStruct = false);
 
 internal record SelectColumn(SqlExpression Expr, string? Alias);
 
@@ -322,7 +325,10 @@ internal record QueryBody(SelectStatement Select, List<SetOperation>? SetOps);
 /// <summary>A query with optional CTEs and a body (SELECT + set operations).</summary>
 internal record FullQuery(
 	List<CteDefinition>? Ctes,
-	QueryBody Body);
+	QueryBody Body,
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#recursive_keyword
+	//   "RECURSIVE enables references to CTEs from within their own definitions."
+	bool IsRecursive = false);
 
 internal record CteDefinition(string Name, QueryBody Query);
 

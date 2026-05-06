@@ -29,14 +29,101 @@ internal class QueryExecutor
 		if (fullQuery.Ctes is { Count: > 0 })
 		{
 			cteMap = new Dictionary<string, QueryBody>(StringComparer.OrdinalIgnoreCase);
-			foreach (var cte in fullQuery.Ctes)
+
+			if (fullQuery.IsRecursive)
 			{
-				cteMap[cte.Name] = cte.Query;
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#recursive_keyword
+				//   "RECURSIVE enables references to CTEs from within their own definitions."
+				//   The CTE body must be UNION ALL of base case + recursive reference.
+				foreach (var cte in fullQuery.Ctes)
+				{
+					ExecuteRecursiveCte(cte, cteMap, parameters);
+				}
+			}
+			else
+			{
+				foreach (var cte in fullQuery.Ctes)
+				{
+					cteMap[cte.Name] = cte.Query;
+				}
 			}
 		}
 
 		return Execute(fullQuery.Body, parameters, cteMap);
 	}
+
+	/// <summary>
+	/// Executes a recursive CTE by iteratively computing the fixpoint.
+	/// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#recursive_keyword
+	///   "The base term runs first, then the recursive term runs repeatedly until
+	///    it produces no new rows."
+	/// </summary>
+	private void ExecuteRecursiveCte(CteDefinition cte, Dictionary<string, QueryBody> cteMap,
+		IDictionary<string, object?>? parameters)
+	{
+		const int maxIterations = 1000; // Safety limit to prevent infinite recursion
+
+		// The recursive CTE body must be a UNION ALL between base case and recursive case
+		var body = cte.Query;
+		if (body.SetOps is not { Count: > 0 } || body.SetOps[0].Type != SetOperationType.UnionAll)
+		{
+			// Non-recursive reference — treat as normal
+			cteMap[cte.Name] = cte.Query;
+			return;
+		}
+
+		// Execute the base case (the initial SELECT)
+		var baseResult = Execute(body.Select, parameters, cteMap);
+		var allRows = baseResult.Rows.ToList();
+
+		// Iterative execution of recursive term
+		// Build a temporary QueryBody that represents just the accumulated results
+		var currentRows = baseResult.Rows.ToList();
+
+		for (int i = 0; i < maxIterations && currentRows.Count > 0; i++)
+		{
+			// Create a "virtual" result for the CTE name that contains current iteration rows
+			var tempResult = new ResultSet { Metadata = baseResult.Metadata };
+			tempResult.Rows.AddRange(currentRows);
+
+			// Store the current rows as a materialized CTE
+			cteMap[cte.Name] = MaterializeCteResult(tempResult);
+
+			// Execute the recursive term
+			var recursiveResult = Execute(body.SetOps[0].Right, parameters, cteMap);
+			currentRows = recursiveResult.Rows.ToList();
+
+			// Add new rows to accumulated results
+			allRows.AddRange(currentRows);
+		}
+
+		// Store the final accumulated result as the CTE
+		var finalResult = new ResultSet { Metadata = baseResult.Metadata };
+		finalResult.Rows.AddRange(allRows);
+		cteMap[cte.Name] = MaterializeCteResult(finalResult);
+	}
+
+	/// <summary>
+	/// Creates a QueryBody that produces a fixed result (materialized CTE rows).
+	/// This is achieved by creating a synthetic SelectStatement that references the materialized data.
+	/// </summary>
+	private QueryBody MaterializeCteResult(ResultSet result)
+	{
+		// Store materialized results in a dictionary keyed by a unique identifier
+		var key = $"__materialized_cte_{Guid.NewGuid():N}";
+		_materializedCtes[key] = result;
+
+		// Create a SELECT * FROM __materialized_cte_xxx (will be intercepted in Execute)
+		var select = new SelectStatement(
+			IsDistinct: false,
+			Columns: new List<SelectColumn> { new(new StarExpr(), null) },
+			From: new FromClause(key, null, null),
+			Where: null, GroupBy: null, Having: null, Qualify: null,
+			OrderBy: null, Limit: null, Offset: null);
+		return new QueryBody(select, null);
+	}
+
+	private readonly Dictionary<string, ResultSet> _materializedCtes = new(StringComparer.OrdinalIgnoreCase);
 
 	/// <summary>
 	/// Executes a QueryBody (SELECT with optional set operations, no CTEs).
@@ -172,6 +259,13 @@ internal class QueryExecutor
 				// FROM references a CTE
 				var cteResult = Execute(cteQuery, parameters, cteMap);
 				rows = ResultSetToRows(cteResult);
+				var leftAlias = select.From.Alias ?? select.From.Table;
+				rows = rows.Select(r => PrefixRow(r, leftAlias)).ToList();
+			}
+			else if (_materializedCtes.TryGetValue(select.From.Table, out var materializedResult))
+			{
+				// FROM references a materialized recursive CTE result
+				rows = ResultSetToRows(materializedResult);
 				var leftAlias = select.From.Alias ?? select.From.Table;
 				rows = rows.Select(r => PrefixRow(r, leftAlias)).ToList();
 			}
@@ -374,6 +468,39 @@ internal class QueryExecutor
 			projectedRows = projectedRows.Take((int)limitVal).ToList();
 		}
 
+		// 10. SELECT AS STRUCT: wrap all columns into a single struct column
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#select_as_struct
+		//   "SELECT AS STRUCT produces a value table with a STRUCT row type,
+		//    where the SELECT list columns become struct fields."
+		if (select.AsStruct)
+		{
+			var structRows = new List<Dictionary<string, object?>>();
+			foreach (var row in projectedRows)
+			{
+				var structDict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+				foreach (var col in outputColumns)
+				{
+					row.TryGetValue(col.Name, out var val);
+					structDict[col.Name] = val;
+				}
+				structRows.Add(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+				{
+					[""] = structDict
+				});
+			}
+			var structFieldType = new StructType();
+			foreach (var col in outputColumns)
+			{
+				structFieldType.Fields.Add(new StructType.Types.Field
+				{
+					Name = col.Name,
+					Type = TypeConverter.ToProtobufType(col.SpannerType, col.ArrayElementType, col.ProtoTypeFqn)
+				});
+			}
+			var structColDef = new ColumnDef("", Google.Cloud.Spanner.V1.TypeCode.Struct);
+			return BuildStructResult(structColDef, structFieldType, structRows, outputColumns);
+		}
+
 		return ResultSetBuilder.Build(outputColumns, projectedRows);
 	}
 
@@ -560,6 +687,40 @@ internal class QueryExecutor
 		}
 
 		return (outputColumns.AsReadOnly(), projectedRows);
+	}
+
+	/// <summary>
+	/// Builds a ResultSet for SELECT AS STRUCT queries where all columns are wrapped into a single struct.
+	/// </summary>
+	private static ResultSet BuildStructResult(ColumnDef structColDef, StructType structFieldType,
+		List<Dictionary<string, object?>> structRows, IReadOnlyList<ColumnDef> originalColumns)
+	{
+		var metadata = new ResultSetMetadata
+		{
+			RowType = new StructType()
+		};
+		metadata.RowType.Fields.Add(new StructType.Types.Field
+		{
+			Name = "",
+			Type = new Google.Cloud.Spanner.V1.Type { Code = TypeCode.Struct, StructType = structFieldType }
+		});
+
+		var resultSet = new ResultSet { Metadata = metadata };
+		foreach (var row in structRows)
+		{
+			var structDict = (Dictionary<string, object?>)row[""]!;
+			var listValue = new Google.Protobuf.WellKnownTypes.ListValue();
+			var structListValue = new Google.Protobuf.WellKnownTypes.ListValue();
+			foreach (var col in originalColumns)
+			{
+				structDict.TryGetValue(col.Name, out var val);
+				structListValue.Values.Add(TypeConverter.ToProtobufValue(val, col.SpannerType));
+			}
+			listValue.Values.Add(Google.Protobuf.WellKnownTypes.Value.ForList(structListValue.Values.ToArray()));
+			resultSet.Rows.Add(listValue);
+		}
+
+		return resultSet;
 	}
 
 	private static TypeCode InferTypeFromValue(object value) => value switch

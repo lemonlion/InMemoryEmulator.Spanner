@@ -962,6 +962,147 @@ public class RpcValidationTests
 		result.Rows[0].Values[0].HasNullValue.Should().BeTrue();
 	}
 
+	// ─── WITH RECURSIVE ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#recursive_keyword
+	//   "RECURSIVE allows named references back to the same CTE."
+	[Fact]
+	public async Task ExecuteSql_WithRecursive_GeneratesHierarchy()
+	{
+		// Act: generate numbers 1..5 using recursive CTE
+		var result = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() } },
+				Sql = @"
+					WITH RECURSIVE nums AS (
+						SELECT 1 AS n
+						UNION ALL
+						SELECT n + 1 FROM nums WHERE n < 5
+					)
+					SELECT n FROM nums ORDER BY n"
+			},
+			TestServerCallContext.Create());
+
+		// Assert: should produce 1, 2, 3, 4, 5
+		result.Rows.Should().HaveCount(5);
+		result.Rows.Select(r => long.Parse(r.Values[0].StringValue)).Should().Equal(1L, 2L, 3L, 4L, 5L);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#recursive_keyword
+	//   "Recursive CTE with base case returning no rows produces empty result."
+	[Fact]
+	public async Task ExecuteSql_WithRecursive_BaseReturnsNoRows_EmptyResult()
+	{
+		// Act: base case WHERE 1=0 returns no rows, so recursion never starts
+		var result = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() } },
+				Sql = @"
+					WITH RECURSIVE empty AS (
+						SELECT 1 AS n WHERE 1 = 0
+						UNION ALL
+						SELECT n + 1 FROM empty WHERE n < 5
+					)
+					SELECT n FROM empty"
+			},
+			TestServerCallContext.Create());
+
+		// Assert: should produce no rows
+		result.Rows.Should().BeEmpty();
+	}
+
+	// ─── SELECT AS STRUCT ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#select_as_struct
+	//   "SELECT AS STRUCT produces a value table with a STRUCT row type."
+	[Fact]
+	public async Task ExecuteSql_SelectAsStruct_ReturnsStructColumn()
+	{
+		// Act
+		var result = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() } },
+				Sql = "SELECT AS STRUCT 1 AS x, 'hello' AS y"
+			},
+			TestServerCallContext.Create());
+
+		// Assert: should have a single row with a single STRUCT column
+		result.Rows.Should().HaveCount(1);
+		// The struct should be represented as a list value containing the field values
+		var structVal = result.Rows[0].Values[0];
+		structVal.KindCase.Should().Be(Value.KindOneofCase.ListValue);
+		structVal.ListValue.Values.Should().HaveCount(2);
+		structVal.ListValue.Values[0].StringValue.Should().Be("1");
+		structVal.ListValue.Values[1].StringValue.Should().Be("hello");
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#select_as_struct
+	//   "ARRAY(SELECT AS STRUCT col1, col2 FROM ...) produces an array of structs."
+	[Fact]
+	public async Task ExecuteSql_ArraySelectAsStruct_ReturnsArrayOfStructs()
+	{
+		// Arrange: insert data
+		var txn = await _service.BeginTransaction(
+			new BeginTransactionRequest
+			{
+				Session = _sessionName,
+				Options = new TransactionOptions { ReadWrite = new TransactionOptions.Types.ReadWrite() }
+			},
+			TestServerCallContext.Create());
+
+		await _service.Commit(
+			new CommitRequest
+			{
+				Session = _sessionName,
+				TransactionId = txn.Id,
+				Mutations =
+				{
+					new Mutation
+					{
+						Insert = new Mutation.Types.Write
+						{
+							Table = "TestTable",
+							Columns = { "Id", "Name" },
+							Values =
+							{
+								new ListValue { Values = { Value.ForString("1"), Value.ForString("Alice") } },
+								new ListValue { Values = { Value.ForString("2"), Value.ForString("Bob") } }
+							}
+						}
+					}
+				}
+			},
+			TestServerCallContext.Create());
+
+		// Act
+		var result = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() } },
+				Sql = "SELECT ARRAY(SELECT AS STRUCT Id, Name FROM TestTable ORDER BY Id) AS arr"
+			},
+			TestServerCallContext.Create());
+
+		// Assert: should have a single row with an array of structs
+		result.Rows.Should().HaveCount(1);
+		var arrVal = result.Rows[0].Values[0];
+		arrVal.KindCase.Should().Be(Value.KindOneofCase.ListValue);
+		arrVal.ListValue.Values.Should().HaveCount(2);
+		// Each element is a struct (list)
+		arrVal.ListValue.Values[0].KindCase.Should().Be(Value.KindOneofCase.ListValue);
+		arrVal.ListValue.Values[0].ListValue.Values[0].StringValue.Should().Be("1");
+		arrVal.ListValue.Values[0].ListValue.Values[1].StringValue.Should().Be("Alice");
+		arrVal.ListValue.Values[1].ListValue.Values[0].StringValue.Should().Be("2");
+		arrVal.ListValue.Values[1].ListValue.Values[1].StringValue.Should().Be("Bob");
+	}
+
 	// ─── INFORMATION_SCHEMA.INDEXES returns PARENT_TABLE_NAME and SPANNER_IS_MANAGED ───
 
 	// Ref: https://cloud.google.com/spanner/docs/information-schema#indexes

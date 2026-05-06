@@ -117,11 +117,14 @@ internal class DmlExecutor
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#insert_or_update
 				if (insert.Mode == InsertMode.InsertOrUpdate)
 				{
-					// Update existing row
+					// Update existing row — only modify explicitly specified columns
 					RecordUndo(insert.Table, rowKey, table.Rows[rowKey]);
-					var existing = table.Rows[rowKey].Columns;
-					foreach (var kvp in rowValues)
-						existing[kvp.Key] = kvp.Value;
+					var existing = new Dictionary<string, object?>(table.Rows[rowKey].Columns, StringComparer.OrdinalIgnoreCase);
+					foreach (var col in explicitCols)
+					{
+						if (rowValues.TryGetValue(col, out var val))
+							existing[col] = val;
+					}
 					_database.Schema.ValidateWriteConstraints(insert.Table, existing, rowKey);
 					table.Rows[rowKey] = new RowData(existing, DateTimeOffset.UtcNow);
 					affectedRows?.Add((new Dictionary<string, object?>(existing, StringComparer.OrdinalIgnoreCase), "UPDATE"));

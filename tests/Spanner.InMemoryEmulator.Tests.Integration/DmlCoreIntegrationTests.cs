@@ -377,4 +377,41 @@ public class DmlCoreIntegrationTests : IntegrationTestBase
 		var rows = await QueryAsync($"SELECT UpperName FROM {table}");
 		rows[0]["UpperName"].Should().Be("HELLO");
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// INSERT OR UPDATE (DML)
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#insert_or_update
+	//   "Columns that aren't specified in the INSERT statement are not modified."
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task InsertOrUpdate_ExistingRow_OnlyUpdatesSpecifiedColumns()
+	{
+		var table = "DcInsOrUpd1";
+		await ExecuteDdlAsync($"CREATE TABLE {table} (Id INT64 NOT NULL, Name STRING(MAX), Score INT64) PRIMARY KEY (Id)");
+		await InsertAsync(table, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Score"] = 100L });
+
+		// INSERT OR UPDATE specifying only Id and Name — Score should remain unchanged
+		await ExecuteDmlAsync($"INSERT OR UPDATE INTO {table} (Id, Name) VALUES (1, 'Bob')");
+
+		var rows = await QueryAsync($"SELECT Name, Score FROM {table} WHERE Id = 1");
+		rows.Should().ContainSingle();
+		rows[0]["Name"].Should().Be("Bob");
+		rows[0]["Score"].Should().Be(100L); // Score should NOT be null
+	}
+
+	[Fact]
+	public async Task InsertOrUpdate_NewRow_InsertsWithNullsForMissing()
+	{
+		var table = "DcInsOrUpd2";
+		await ExecuteDdlAsync($"CREATE TABLE {table} (Id INT64 NOT NULL, Name STRING(MAX), Score INT64) PRIMARY KEY (Id)");
+
+		// INSERT OR UPDATE with a new row — unspecified columns should be NULL
+		await ExecuteDmlAsync($"INSERT OR UPDATE INTO {table} (Id, Name) VALUES (1, 'Alice')");
+
+		var rows = await QueryAsync($"SELECT Name, Score FROM {table} WHERE Id = 1");
+		rows.Should().ContainSingle();
+		rows[0]["Name"].Should().Be("Alice");
+		rows[0]["Score"].Should().BeNull();
+	}
 }

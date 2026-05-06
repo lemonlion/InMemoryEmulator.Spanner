@@ -459,6 +459,16 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 			try
 			{
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteSqlRequest
+				//   "Standard DML statements require a read-write transaction. To protect against replays,
+				//    single-use transactions are not supported."
+				if (IsDmlStatement(request.Sql) &&
+					request.Transaction?.SelectorCase == TransactionSelector.SelectorOneofCase.SingleUse)
+				{
+					throw new RpcException(new Status(StatusCode.InvalidArgument,
+						"DML statements may not be performed in single-use transactions, to protect against replays."));
+				}
+
 				var txnState = ResolveTransactionState(request.Session, request.Transaction);
 
 				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.TransactionOptions
@@ -515,6 +525,16 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 			try
 			{
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteSqlRequest
+				//   "Standard DML statements require a read-write transaction. To protect against replays,
+				//    single-use transactions are not supported."
+				if (IsDmlStatement(request.Sql) &&
+					request.Transaction?.SelectorCase == TransactionSelector.SelectorOneofCase.SingleUse)
+				{
+					throw new RpcException(new Status(StatusCode.InvalidArgument,
+						"DML statements may not be performed in single-use transactions, to protect against replays."));
+				}
+
 				var txnState = ResolveTransactionState(request.Session, request.Transaction);
 
 				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.TransactionOptions
@@ -715,6 +735,15 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 			CheckFault(nameof(ExecuteBatchDml), request);
 
 			ValidateSession(request.Session);
+
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteBatchDmlRequest
+			//   "Must be a read-write transaction. To protect against replays,
+			//    single-use transactions are not supported."
+			if (request.Transaction?.SelectorCase == TransactionSelector.SelectorOneofCase.SingleUse)
+			{
+				throw new RpcException(new Status(StatusCode.InvalidArgument,
+					"ExecuteBatchDml does not support single-use transactions, to protect against replays."));
+			}
 
 			var response = new ExecuteBatchDmlResponse();
 			var txnState = ResolveTransactionState(request.Session, request.Transaction);

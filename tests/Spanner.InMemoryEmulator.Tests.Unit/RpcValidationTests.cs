@@ -194,4 +194,81 @@ public class RpcValidationTests
 		var ex = await act.Should().ThrowAsync<RpcException>();
 		ex.Which.StatusCode.Should().Be(StatusCode.FailedPrecondition);
 	}
+
+	// ─── ExecuteSql DML with SingleUse returns INVALID_ARGUMENT ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteSqlRequest
+	//   "Standard DML statements require a read-write transaction. To protect against replays,
+	//    single-use transactions are not supported."
+	[Fact]
+	public async Task ExecuteSql_DmlWithSingleUse_ReturnsInvalidArgument()
+	{
+		// Act
+		var act = () => _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector
+				{
+					SingleUse = new TransactionOptions { ReadWrite = new TransactionOptions.Types.ReadWrite() }
+				},
+				Sql = "INSERT INTO TestTable (Id, Name) VALUES (1, 'Alice')"
+			},
+			TestServerCallContext.Create());
+
+		// Assert
+		var ex = await act.Should().ThrowAsync<RpcException>();
+		ex.Which.StatusCode.Should().Be(StatusCode.InvalidArgument);
+	}
+
+	// ─── ExecuteSql query with SingleUse is allowed ───
+
+	[Fact]
+	public async Task ExecuteSql_QueryWithSingleUse_Succeeds()
+	{
+		// Act: SELECT queries are allowed with SingleUse
+		var result = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector
+				{
+					SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly { Strong = true } }
+				},
+				Sql = "SELECT 1"
+			},
+			TestServerCallContext.Create());
+
+		// Assert
+		result.Should().NotBeNull();
+	}
+
+	// ─── ExecuteBatchDml with SingleUse returns INVALID_ARGUMENT ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteBatchDmlRequest
+	//   "Must be a read-write transaction. To protect against replays,
+	//    single-use transactions are not supported."
+	[Fact]
+	public async Task ExecuteBatchDml_WithSingleUse_ReturnsInvalidArgument()
+	{
+		// Act
+		var act = () => _service.ExecuteBatchDml(
+			new ExecuteBatchDmlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector
+				{
+					SingleUse = new TransactionOptions { ReadWrite = new TransactionOptions.Types.ReadWrite() }
+				},
+				Statements =
+				{
+					new ExecuteBatchDmlRequest.Types.Statement { Sql = "INSERT INTO TestTable (Id, Name) VALUES (1, 'Alice')" }
+				}
+			},
+			TestServerCallContext.Create());
+
+		// Assert
+		var ex = await act.Should().ThrowAsync<RpcException>();
+		ex.Which.StatusCode.Should().Be(StatusCode.InvalidArgument);
+	}
 }

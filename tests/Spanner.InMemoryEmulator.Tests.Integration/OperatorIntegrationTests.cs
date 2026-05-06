@@ -984,4 +984,99 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		result.Should().NotBeNull();
 		result.Should().BeOfType<DateTime>();
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// LIKE ANY/ALL with NULL patterns
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task LikeAny_WithNullPattern_MatchesOtherPattern()
+	{
+		// 'hello' matches '%' even though NULL is in pattern list
+		var result = await Eval("'hello' LIKE ANY ('%', CAST(NULL AS STRING))");
+		result.Should().Be(true);
+	}
+
+	[Fact]
+	public async Task LikeAny_OnlyNullPatterns_ReturnsNull()
+	{
+		var result = await Eval("'hello' LIKE ANY (CAST(NULL AS STRING))");
+		result.Should().BeNull();
+	}
+
+	[Fact]
+	public async Task LikeAll_WithNullPattern_ReturnsNull()
+	{
+		// Even though 'hello' matches '%', NULL pattern makes ALL return NULL
+		var result = await Eval("'hello' LIKE ALL ('%', CAST(NULL AS STRING))");
+		result.Should().BeNull();
+	}
+
+	[Fact]
+	public async Task LikeAll_NonMatchBeforeNull_ReturnsFalse()
+	{
+		// 'hello' doesn't match 'xyz', so ALL short-circuits to FALSE regardless of NULL
+		var result = await Eval("'hello' LIKE ALL ('xyz', CAST(NULL AS STRING))");
+		result.Should().Be(false);
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// STRUCT field access on NULL
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#struct_field_access_operator
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task StructFieldAccess_NullStruct_ReturnsNull()
+	{
+		// Use IF to produce a NULL struct — IF condition is false so returns NULL
+		var result = await Eval("IF(FALSE, STRUCT(1 AS x), NULL).x");
+		result.Should().BeNull();
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// String escape sequences
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#string_and_bytes_literals
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task StringLiteral_NewlineEscape()
+	{
+		var result = await Eval("LENGTH('a\\nb')");
+		result.Should().Be(3L); // 'a' + newline + 'b' = 3 chars
+	}
+
+	[Fact]
+	public async Task StringLiteral_TabEscape()
+	{
+		var result = await Eval("LENGTH('a\\tb')");
+		result.Should().Be(3L); // 'a' + tab + 'b' = 3 chars
+	}
+
+	[Fact]
+	public async Task StringLiteral_BackslashEscape()
+	{
+		var result = await Eval("LENGTH('a\\\\b')");
+		result.Should().Be(3L); // 'a' + backslash + 'b' = 3 chars
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// EXTRACT MICROSECOND/NANOSECOND
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#extract
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task Extract_Microsecond_FromTimestamp()
+	{
+		var result = await Eval("EXTRACT(MICROSECOND FROM TIMESTAMP '2020-01-01 00:00:01.123456Z')");
+		result.Should().Be(123456L);
+	}
+
+	[Fact]
+	public async Task Extract_Nanosecond_FromTimestamp()
+	{
+		// .NET DateTime has 100ns precision, so 123456700 nanoseconds
+		var result = await Eval("EXTRACT(NANOSECOND FROM TIMESTAMP '2020-01-01 00:00:01.1234567Z')");
+		result.Should().Be(123456700L);
+	}
 }

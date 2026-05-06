@@ -66,7 +66,7 @@ public class SelectExpressionExtendedIntegrationTests : IntegrationTestBase
     [InlineData("'abc def'", "abc def")]
     [InlineData("'123'", "123")]
     [InlineData("'Hello, World!'", "Hello, World!")]
-    [InlineData("'line1\\nline2'", "line1\\nline2")]
+    [InlineData("'line1\\nline2'", "line1\nline2")]
     [Trait(TestTraits.Category, "SelectExpressionExtended")]
     public async Task Literal_String(string expr, string expected)
     {
@@ -701,13 +701,13 @@ public class SelectExpressionExtendedIntegrationTests : IntegrationTestBase
     }
 
     [Theory]
-    [InlineData("'tab\\there'", "tab\\there")]
-    [InlineData("'back\\\\slash'", "back\\\\slash")]
+    [InlineData("'tab\\there'", "tab\there")]
+    [InlineData("'back\\\\slash'", "back\\slash")]
     [Trait(TestTraits.Category, "SelectExpressionExtended")]
     public async Task StringEscape_Backslash(string expr, string expected)
     {
-        // Standard strings in Spanner do not interpret backslash escapes
         // Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#string_and_bytes_literals
+        //   Standard strings interpret backslash escapes: \t→tab, \\→backslash
         (await Eval(expr))!.ToString().Should().Be(expected);
     }
 

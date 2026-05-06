@@ -57,7 +57,10 @@ internal class ExpressionEvaluator
 			WindowExpr win => EvalWindowExpr(win, row),
 			StructExpr structExpr => EvalStructExpr(structExpr, row),
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#struct_field_access_operator
-			StructFieldAccessExpr sfa => ((Dictionary<string, object?>)Evaluate(sfa.Struct, row)!)[sfa.FieldName],
+			//   Field access on NULL struct returns NULL.
+			StructFieldAccessExpr sfa => Evaluate(sfa.Struct, row) is Dictionary<string, object?> structDict
+				? structDict[sfa.FieldName]
+				: null,
 			StructExpandExpr => throw new InvalidOperationException("StructExpandExpr must be expanded in ProjectColumns, not evaluated as a scalar."),
 			NamedArgExpr named => Evaluate(named.Value, row),
 			StarExpr => throw new InvalidOperationException("Star expression cannot be evaluated as a value."),
@@ -1774,19 +1777,22 @@ internal class ExpressionEvaluator
 		if (val == null) return null;
 
 		// Arguments[1..] are the patterns
+		bool hasNull = false;
 		for (int i = 1; i < func.Arguments.Count; i++)
 		{
-			var likeFunc = new FunctionCallExpr("LIKE", new List<SqlExpression> { func.Arguments[0], func.Arguments[i] });
-			var result = EvalLike(likeFunc, row);
-			if (result == null)
+			var patVal = Evaluate(func.Arguments[i], row);
+			if (patVal == null)
 			{
-				// NULL pattern: for ANY, skip (doesn't contribute); for ALL, causes NULL propagation
-				if (!any) return null;
+				hasNull = true;
 				continue;
 			}
-			if (any && (bool)result) return true;
-			if (!any && !(bool)result) return false;
+			var likeFunc = new FunctionCallExpr("LIKE", new List<SqlExpression> { func.Arguments[0], func.Arguments[i] });
+			var result = (bool)EvalLike(likeFunc, row)!;
+			if (any && result) return true;
+			if (!any && !result) return false;
 		}
+		// If we had NULL patterns without a definitive answer, propagate NULL
+		if (hasNull) return null;
 		return !any; // ALL: all matched → true; ANY: none matched → false
 	}
 
@@ -2139,6 +2145,12 @@ internal class ExpressionEvaluator
 			"MINUTE" => (long)dt.Minute,
 			"SECOND" => (long)dt.Second,
 			"MILLISECOND" => (long)dt.Millisecond,
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#extract
+			//   MICROSECOND: the microseconds component (0-999999)
+			"MICROSECOND" => (long)(dt.Ticks / 10 % 1_000_000),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#extract
+			//   NANOSECOND: the nanoseconds component (0-999999999)
+			"NANOSECOND" => (long)(dt.Ticks % TimeSpan.TicksPerSecond * 100),
 			"DAYOFWEEK" => (long)(dt.DayOfWeek == DayOfWeek.Sunday ? 1 : (int)dt.DayOfWeek + 1),
 			"DAYOFYEAR" => (long)dt.DayOfYear,
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#extract
@@ -2361,13 +2373,21 @@ internal class ExpressionEvaluator
 		// Convert Spanner strftime-like to .NET format
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/format-elements#format_elements_date_time
 		return spannerFmt
-			.Replace("%Y", "yyyy").Replace("%m", "MM").Replace("%d", "dd")
-			.Replace("%H", "HH").Replace("%M", "mm").Replace("%S", "ss")
+			.Replace("%%", "\x00") // Temporarily escape literal %
+			.Replace("%E9S", "ss.fffffffff") // nanoseconds (limited to 7 digits in .NET)
 			.Replace("%E3S", "ss.fff").Replace("%E6S", "ss.ffffff")
+			.Replace("%Y", "yyyy").Replace("%m", "MM").Replace("%d", "dd")
+			.Replace("%H", "HH").Replace("%I", "hh").Replace("%M", "mm").Replace("%S", "ss")
+			.Replace("%F", "yyyy-MM-dd").Replace("%T", "HH:mm:ss").Replace("%R", "HH:mm")
+			.Replace("%p", "tt").Replace("%P", "tt")
 			.Replace("%Z", "K").Replace("%z", "zzz")
 			.Replace("%B", "MMMM").Replace("%A", "dddd")
 			.Replace("%b", "MMM").Replace("%a", "ddd")
-			.Replace("%e", "d");
+			.Replace("%e", "d").Replace("%j", "DDD")
+			.Replace("%u", "d") // ISO weekday (1=Monday) — approximate
+			.Replace("%V", "ww") // ISO week — approximate with .NET
+			.Replace("%n", "\n").Replace("%t", "\t")
+			.Replace("\x00", "%"); // Restore literal %
 	}
 
 	private object? EvalUnixSeconds(FunctionCallExpr func, Dictionary<string, object?> row)

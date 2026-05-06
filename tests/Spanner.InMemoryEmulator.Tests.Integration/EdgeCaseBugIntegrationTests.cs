@@ -232,8 +232,11 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = @"a\b", ["Val"] = 1L });
 		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 2L, ["Name"] = "axb", ["Val"] = 2L });
 
-		// \\ should match literal \ — only row 1 matches
-		var rows = await QueryAsync($@"SELECT Id FROM {t} WHERE Name LIKE 'a\\b' ORDER BY Id");
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#string_and_bytes_literals
+		//   String literal:  '\\\\' → unescape → '\\' (one backslash pair)
+		//   LIKE pattern:    '\\' → matches literal backslash
+		// So 'a\\\\b' matches string "a\b"
+		var rows = await QueryAsync($@"SELECT Id FROM {t} WHERE Name LIKE 'a\\\\b' ORDER BY Id");
 		rows.Should().HaveCount(1);
 		((long)rows[0]["Id"]!).Should().Be(1L);
 	}

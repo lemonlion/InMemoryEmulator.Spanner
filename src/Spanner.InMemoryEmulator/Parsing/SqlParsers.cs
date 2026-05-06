@@ -9,6 +9,42 @@ namespace Spanner.InMemoryEmulator.Parsing;
 /// </summary>
 internal static class SqlParsers
 {
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#string_and_bytes_literals
+	//   Interprets backslash escape sequences in string literals.
+	private static string UnescapeBackslashes(string s)
+	{
+		if (!s.Contains('\\')) return s;
+		var sb = new System.Text.StringBuilder(s.Length);
+		for (int i = 0; i < s.Length; i++)
+		{
+			if (s[i] == '\\' && i + 1 < s.Length)
+			{
+				i++;
+				switch (s[i])
+				{
+					case 'n': sb.Append('\n'); break;
+					case 't': sb.Append('\t'); break;
+					case 'r': sb.Append('\r'); break;
+					case '\\': sb.Append('\\'); break;
+					case '\'': sb.Append('\''); break;
+					case '"': sb.Append('"'); break;
+					case '0': sb.Append('\0'); break;
+					case 'a': sb.Append('\a'); break;
+					case 'b': sb.Append('\b'); break;
+					case 'f': sb.Append('\f'); break;
+					case 'v': sb.Append('\v'); break;
+					// Unknown escapes (including LIKE's \% and \_) — keep backslash
+					default: sb.Append('\\'); sb.Append(s[i]); break;
+				}
+			}
+			else
+			{
+				sb.Append(s[i]);
+			}
+		}
+		return sb.ToString();
+	}
+
 	// ──────────────────────────────────────────
 	// Expression Parsing (shared by SELECT, WHERE, DML)
 	// ──────────────────────────────────────────
@@ -37,6 +73,9 @@ internal static class SqlParsers
 			var text = t.ToStringValue();
 			// Remove surrounding quotes and unescape ''
 			var unquoted = text[1..^1].Replace("''", "'");
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#string_and_bytes_literals
+			//   Backslash escape sequences are interpreted in string literals.
+			unquoted = UnescapeBackslashes(unquoted);
 			return (SqlExpression)new LiteralExpr(unquoted);
 		});
 

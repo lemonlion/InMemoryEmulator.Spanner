@@ -366,4 +366,142 @@ public class TransactionValidationTests
 		var ex = await act.Should().ThrowAsync<RpcException>();
 		ex.Which.StatusCode.Should().Be(StatusCode.InvalidArgument);
 	}
+
+	// ─── Read with committed transaction ID ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ReadRequest
+	//   "transaction: The transaction to use."
+	[Fact]
+	public async Task Read_WithCommittedTransactionId_ReturnsFailedPrecondition()
+	{
+		// Arrange: begin and commit a transaction
+		var txn = await _service.BeginTransaction(
+			new BeginTransactionRequest
+			{
+				Session = _sessionName,
+				Options = new TransactionOptions { ReadWrite = new TransactionOptions.Types.ReadWrite() }
+			},
+			TestServerCallContext.Create());
+
+		await _service.Commit(
+			new CommitRequest
+			{
+				Session = _sessionName,
+				TransactionId = txn.Id
+			},
+			TestServerCallContext.Create());
+
+		// Act: try to read with the committed transaction ID
+		var act = () => _service.Read(
+			new ReadRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { Id = txn.Id },
+				Table = "TestTable",
+				Columns = { "Id", "Name" },
+				KeySet = new KeySet { All = true }
+			},
+			TestServerCallContext.Create());
+
+		// Assert
+		var ex = await act.Should().ThrowAsync<RpcException>();
+		ex.Which.StatusCode.Should().Be(StatusCode.FailedPrecondition);
+	}
+
+	// ─── Commit with non-existent transaction ID ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.CommitRequest
+	//   "transaction_id: Commit a previously-started transaction."
+	//   If the transaction is not found, return NOT_FOUND.
+	[Fact]
+	public async Task Commit_NonExistentTransactionId_ReturnsNotFound()
+	{
+		// Act: commit with a made-up transaction ID
+		var act = () => _service.Commit(
+			new CommitRequest
+			{
+				Session = _sessionName,
+				TransactionId = ByteString.CopyFrom(Guid.NewGuid().ToByteArray())
+			},
+			TestServerCallContext.Create());
+
+		// Assert
+		var ex = await act.Should().ThrowAsync<RpcException>();
+		ex.Which.StatusCode.Should().Be(StatusCode.NotFound);
+	}
+
+	// ─── Update mutation for non-existent row returns NOT_FOUND ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Mutation
+	//   "Update: Updates existing rows in a table. If any of the rows does not already exist,
+	//    the transaction fails with error NOT_FOUND."
+	[Fact]
+	public async Task Commit_UpdateMutation_NonExistentRow_ReturnsNotFound()
+	{
+		// Arrange: begin a transaction
+		var txn = await _service.BeginTransaction(
+			new BeginTransactionRequest
+			{
+				Session = _sessionName,
+				Options = new TransactionOptions { ReadWrite = new TransactionOptions.Types.ReadWrite() }
+			},
+			TestServerCallContext.Create());
+
+		// Act: try to update a row that doesn't exist
+		var act = () => _service.Commit(
+			new CommitRequest
+			{
+				Session = _sessionName,
+				TransactionId = txn.Id,
+				Mutations =
+				{
+					new Mutation
+					{
+						Update = new Mutation.Types.Write
+						{
+							Table = "TestTable",
+							Columns = { "Id", "Name" },
+							Values = { new Google.Protobuf.WellKnownTypes.ListValue
+							{
+								Values = { Value.ForString("999"), Value.ForString("Ghost") }
+							}}
+						}
+					}
+				}
+			},
+			TestServerCallContext.Create());
+
+		// Assert: should return NOT_FOUND
+		var ex = await act.Should().ThrowAsync<RpcException>();
+		ex.Which.StatusCode.Should().Be(StatusCode.NotFound);
+	}
+
+	// ─── Read with Begin selector returns transaction metadata ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ResultSetMetadata
+	//   "If the read or SQL query began a transaction as a side-effect, the information
+	//    about the new transaction is yielded here."
+	[Fact]
+	public async Task Read_WithBeginSelector_ReturnsTransactionMetadata()
+	{
+		// Act: read with a Begin transaction selector
+		var result = await _service.Read(
+			new ReadRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector
+				{
+					Begin = new TransactionOptions { ReadWrite = new TransactionOptions.Types.ReadWrite() }
+				},
+				Table = "TestTable",
+				Columns = { "Id", "Name" },
+				KeySet = new KeySet { All = true }
+			},
+			TestServerCallContext.Create());
+
+		// Assert: metadata should contain the new transaction
+		result.Metadata.Should().NotBeNull();
+		result.Metadata.Transaction.Should().NotBeNull();
+		result.Metadata.Transaction.Id.Should().NotBeEmpty();
+	}
 }

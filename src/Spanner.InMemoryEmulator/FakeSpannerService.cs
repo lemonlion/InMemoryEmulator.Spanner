@@ -286,25 +286,31 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 			if (request.TransactionId != null && !request.TransactionId.IsEmpty)
 			{
-				if (_transactionManager.TryGetByBytes(request.TransactionId, out var txnState) && txnState != null)
+				if (!_transactionManager.TryGetByBytes(request.TransactionId, out var txnState) || txnState == null)
 				{
 					// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.CommitRequest
 					//   "transaction_id: Commit a previously-started transaction."
-					//   A committed or rolled-back transaction is no longer active.
-					if (txnState.IsCommitted)
-					{
-						throw new RpcException(new Status(StatusCode.FailedPrecondition,
-							"Cannot commit a transaction that has already been committed."));
-					}
-					if (txnState.IsRolledBack)
-					{
-						throw new RpcException(new Status(StatusCode.FailedPrecondition,
-							"Cannot commit a transaction that has already been rolled back."));
-					}
-
-					allMutations.AddRange(txnState.BufferedMutations);
-					_transactionManager.MarkCommitted(txnState.Id);
+					//   If the transaction is not found, return NOT_FOUND.
+					throw new RpcException(new Status(StatusCode.NotFound,
+						"Transaction not found."));
 				}
+
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.CommitRequest
+				//   "transaction_id: Commit a previously-started transaction."
+				//   A committed or rolled-back transaction is no longer active.
+				if (txnState.IsCommitted)
+				{
+					throw new RpcException(new Status(StatusCode.FailedPrecondition,
+						"Cannot commit a transaction that has already been committed."));
+				}
+				if (txnState.IsRolledBack)
+				{
+					throw new RpcException(new Status(StatusCode.FailedPrecondition,
+						"Cannot commit a transaction that has already been rolled back."));
+				}
+
+				allMutations.AddRange(txnState.BufferedMutations);
+				_transactionManager.MarkCommitted(txnState.Id);
 			}
 
 			allMutations.AddRange(request.Mutations);
@@ -317,11 +323,14 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 			}
 			catch (InvalidOperationException ex)
 			{
-				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.rpc#google.rpc.Code
-				//   Duplicate primary key → ALREADY_EXISTS (6)
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Mutation
+				//   Insert: "Fails if any of the rows already exist." → ALREADY_EXISTS
+				//   Update: "If any of the rows does not already exist, the transaction fails with error NOT_FOUND."
 				var code = ex.Message.Contains("already exists")
 					? StatusCode.AlreadyExists
-					: StatusCode.FailedPrecondition;
+					: ex.Message.Contains("does not exist")
+						? StatusCode.NotFound
+						: StatusCode.FailedPrecondition;
 				throw new RpcException(new Status(code, ex.Message));
 			}
 
@@ -758,9 +767,20 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 			ValidateSession(request.Session);
 
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ReadRequest
+			//   "transaction: The transaction to use. If none is provided, the default is
+			//    a temporary read-only transaction with strong concurrency."
+			var txnState = ResolveTransactionState(request.Session, request.Transaction);
+
 			try
 			{
 				var resultSet = ExecuteRead(request);
+
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ResultSetMetadata
+				//   "If the read or SQL query began a transaction as a side-effect, the information
+				//    about the new transaction is yielded here."
+				SetTransactionMetadata(request.Transaction, txnState, resultSet);
+
 				NotifyResponseSent(nameof(Read), request, resultSet, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);
 				return Task.FromResult(resultSet);
 			}
@@ -789,9 +809,16 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 			ValidateSession(request.Session);
 
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ReadRequest
+			//   "transaction: The transaction to use."
+			var txnState = ResolveTransactionState(request.Session, request.Transaction);
+
 			try
 			{
 				var resultSet = ExecuteRead(request);
+
+				// Set transaction metadata for Begin/SingleUse selectors
+				SetTransactionMetadata(request.Transaction, txnState, resultSet);
 
 				var partialResultSet = new PartialResultSet
 				{

@@ -188,4 +188,25 @@ public class TransactionStateValidationIntegrationTests : IntegrationTestBase
 		var count = (long?)await readCmd.ExecuteScalarAsync();
 		count.Should().Be(0);
 	}
+
+	// ─── Update mutation on non-existent row should throw ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Mutation
+	//   "Update: If any of the rows does not already exist, the transaction fails with error NOT_FOUND."
+	[Fact]
+	[Trait(TestTraits.Category, "ErrorCondition")]
+	public async Task UpdateMutation_NonExistentRow_ThrowsNotFound()
+	{
+		var table = await CreateTable("UpdNotFound");
+
+		using var connection = Fixture.CreateConnection();
+		await connection.OpenAsync();
+		using var cmd = connection.CreateUpdateCommand(table);
+		cmd.Parameters.Add("Id", SpannerDbType.Int64, 999L);
+		cmd.Parameters.Add("Name", SpannerDbType.String, "Ghost");
+
+		Func<Task> act = async () => await cmd.ExecuteNonQueryAsync();
+		// Ref: Real Spanner returns NOT_FOUND for updating non-existent rows
+		await act.Should().ThrowAsync<SpannerException>();
+	}
 }

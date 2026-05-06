@@ -69,12 +69,33 @@ public class FakeDatabaseAdminService : DatabaseAdmin.DatabaseAdminBase
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.admin.database.v1#google.spanner.admin.database.v1.DatabaseAdmin.UpdateDatabaseDdl
 	//   Updates the schema of a Cloud Spanner database. Returns a long-running operation.
+	//   Statements are applied serially; execution stops at the first failure.
 	public override Task<Operation> UpdateDatabaseDdl(UpdateDatabaseDdlRequest request, ServerCallContext context)
 	{
+		var appliedStatements = new List<string>();
+		Google.Rpc.Status? errorStatus = null;
+
 		foreach (var stmt in request.Statements)
 		{
-			_database.ExecuteDdl(stmt);
-			_ddlStatements.Add(stmt);
+			try
+			{
+				_database.ExecuteDdl(stmt);
+				_ddlStatements.Add(stmt);
+				appliedStatements.Add(stmt);
+			}
+			catch (Exception ex)
+			{
+				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.admin.database.v1#google.spanner.admin.database.v1.UpdateDatabaseDdlMetadata
+				//   "If a statement fails, execution stops and the operation returns with an error status."
+				errorStatus = new Google.Rpc.Status
+				{
+					Code = (int)(ex.Message.Contains("already exists") ? Google.Rpc.Code.AlreadyExists
+						: ex.Message.Contains("not found") || ex.Message.Contains("does not exist") ? Google.Rpc.Code.NotFound
+						: Google.Rpc.Code.InvalidArgument),
+					Message = ex.Message
+				};
+				break;
+			}
 		}
 
 		var now = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow);
@@ -84,15 +105,23 @@ public class FakeDatabaseAdminService : DatabaseAdmin.DatabaseAdminBase
 			Database = request.Database,
 		};
 		metadata.Statements.AddRange(request.Statements);
-		metadata.CommitTimestamps.AddRange(request.Statements.Select(_ => now));
+		metadata.CommitTimestamps.AddRange(appliedStatements.Select(_ => now));
 
 		var operation = new Operation
 		{
 			Name = $"{request.Database}/operations/{request.OperationId ?? "_auto_ddl_" + Guid.NewGuid():N}",
 			Done = true,
 			Metadata = Any.Pack(metadata),
-			Response = Any.Pack(new Empty()),
 		};
+
+		if (errorStatus != null)
+		{
+			operation.Error = errorStatus;
+		}
+		else
+		{
+			operation.Response = Any.Pack(new Empty());
+		}
 
 		return Task.FromResult(operation);
 	}

@@ -77,7 +77,8 @@ internal class InformationSchemaProvider
 
 	private (List<string>, List<Dictionary<string, object?>>) GetTables()
 	{
-		var cols = new List<string> { "TABLE_CATALOG", "TABLE_SCHEMA", "TABLE_NAME", "TABLE_TYPE", "PARENT_TABLE_NAME", "ON_DELETE_ACTION" };
+		// Ref: https://cloud.google.com/spanner/docs/information-schema#tables
+		var cols = new List<string> { "TABLE_CATALOG", "TABLE_SCHEMA", "TABLE_NAME", "TABLE_TYPE", "PARENT_TABLE_NAME", "ON_DELETE_ACTION", "SPANNER_STATE" };
 		var rows = new List<Dictionary<string, object?>>();
 
 		foreach (var name in _schema.GetTableNames())
@@ -90,7 +91,8 @@ internal class InformationSchemaProvider
 				["TABLE_NAME"] = t.Name,
 				["TABLE_TYPE"] = "BASE TABLE",
 				["PARENT_TABLE_NAME"] = t.ParentTable,
-				["ON_DELETE_ACTION"] = t.ParentTable != null ? t.OnDeleteAction.ToString().ToUpperInvariant() : null
+				["ON_DELETE_ACTION"] = t.ParentTable != null ? t.OnDeleteAction.ToString().ToUpperInvariant() : null,
+				["SPANNER_STATE"] = "COMMITTED"
 			});
 		}
 
@@ -137,10 +139,12 @@ internal class InformationSchemaProvider
 
 	private (List<string>, List<Dictionary<string, object?>>) GetIndexes()
 	{
+		// Ref: https://cloud.google.com/spanner/docs/information-schema#indexes
 		var cols = new List<string>
 		{
 			"TABLE_CATALOG", "TABLE_SCHEMA", "TABLE_NAME", "INDEX_NAME",
-			"INDEX_TYPE", "IS_UNIQUE", "IS_NULL_FILTERED", "INDEX_STATE"
+			"INDEX_TYPE", "PARENT_TABLE_NAME", "IS_UNIQUE", "IS_NULL_FILTERED",
+			"INDEX_STATE", "SPANNER_IS_MANAGED"
 		};
 		var rows = new List<Dictionary<string, object?>>();
 
@@ -155,9 +159,11 @@ internal class InformationSchemaProvider
 				["TABLE_NAME"] = t.Name,
 				["INDEX_NAME"] = "PRIMARY_KEY",
 				["INDEX_TYPE"] = "PRIMARY_KEY",
+				["PARENT_TABLE_NAME"] = "",
 				["IS_UNIQUE"] = true,
 				["IS_NULL_FILTERED"] = false,
-				["INDEX_STATE"] = "READ_WRITE"
+				["INDEX_STATE"] = "READ_WRITE",
+				["SPANNER_IS_MANAGED"] = false
 			});
 		}
 
@@ -173,9 +179,11 @@ internal class InformationSchemaProvider
 					["TABLE_NAME"] = idx.TableName,
 					["INDEX_NAME"] = idx.Name,
 					["INDEX_TYPE"] = "INDEX",
+					["PARENT_TABLE_NAME"] = "",
 					["IS_UNIQUE"] = idx.IsUnique,
 					["IS_NULL_FILTERED"] = idx.IsNullFiltered,
-					["INDEX_STATE"] = "READ_WRITE"
+					["INDEX_STATE"] = "READ_WRITE",
+					["SPANNER_IS_MANAGED"] = false
 				});
 			}
 		}
@@ -186,9 +194,10 @@ internal class InformationSchemaProvider
 	private (List<string>, List<Dictionary<string, object?>>) GetIndexColumns()
 	{
 		var cols = new List<string>
+		// Ref: https://cloud.google.com/spanner/docs/information-schema#index_columns
 		{
 			"TABLE_CATALOG", "TABLE_SCHEMA", "TABLE_NAME", "INDEX_NAME",
-			"COLUMN_NAME", "ORDINAL_POSITION", "COLUMN_ORDERING", "IS_NULLABLE"
+			"COLUMN_NAME", "ORDINAL_POSITION", "COLUMN_ORDERING", "IS_NULLABLE", "SPANNER_TYPE"
 		};
 		var rows = new List<Dictionary<string, object?>>();
 
@@ -210,7 +219,8 @@ internal class InformationSchemaProvider
 					["COLUMN_NAME"] = pkCol,
 					["ORDINAL_POSITION"] = (long)(i + 1),
 					["COLUMN_ORDERING"] = "ASC",
-					["IS_NULLABLE"] = colDef?.IsNullable == true ? "YES" : "NO"
+					["IS_NULLABLE"] = colDef?.IsNullable == true ? "YES" : "NO",
+					["SPANNER_TYPE"] = colDef != null ? FormatSpannerType(colDef) : null
 				});
 			}
 		}
@@ -220,9 +230,12 @@ internal class InformationSchemaProvider
 		{
 			foreach (var idx in _schema.GetIndexesForTable(name))
 			{
+				var t = _schema.GetTableDefinition(idx.TableName);
 				for (int i = 0; i < idx.Columns.Count; i++)
 				{
 					var ic = idx.Columns[i];
+					var colDef = t?.Columns.FirstOrDefault(c =>
+						string.Equals(c.Name, ic.Name, StringComparison.OrdinalIgnoreCase));
 					rows.Add(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
 					{
 						["TABLE_CATALOG"] = "",
@@ -232,7 +245,8 @@ internal class InformationSchemaProvider
 						["COLUMN_NAME"] = ic.Name,
 						["ORDINAL_POSITION"] = (long)(i + 1),
 						["COLUMN_ORDERING"] = ic.Order == SortOrder.Desc ? "DESC" : "ASC",
-						["IS_NULLABLE"] = "YES"
+						["IS_NULLABLE"] = "YES",
+						["SPANNER_TYPE"] = colDef != null ? FormatSpannerType(colDef) : null
 					});
 				}
 			}

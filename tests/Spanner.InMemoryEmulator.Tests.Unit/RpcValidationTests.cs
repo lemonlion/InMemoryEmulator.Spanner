@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Google.Cloud.Spanner.Admin.Database.V1;
 using Google.Cloud.Spanner.V1;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
@@ -959,5 +960,182 @@ public class RpcValidationTests
 		// Assert: should be NULL
 		result.Rows.Should().HaveCount(1);
 		result.Rows[0].Values[0].HasNullValue.Should().BeTrue();
+	}
+
+	// ─── INFORMATION_SCHEMA.INDEXES returns PARENT_TABLE_NAME and SPANNER_IS_MANAGED ───
+
+	// Ref: https://cloud.google.com/spanner/docs/information-schema#indexes
+	//   "PARENT_TABLE_NAME: The name of the parent table for this index."
+	//   "SPANNER_IS_MANAGED: Whether or not the index is managed by Cloud Spanner."
+	[Fact]
+	public async Task ExecuteSql_InformationSchemaIndexes_HasParentTableNameAndIsManagedColumns()
+	{
+		// Arrange
+		_database.ExecuteDdl("CREATE INDEX IX_TestTable_Name ON TestTable(Name)");
+
+		// Act
+		var result = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() } },
+				Sql = "SELECT INDEX_NAME, PARENT_TABLE_NAME, SPANNER_IS_MANAGED FROM INFORMATION_SCHEMA.INDEXES WHERE TABLE_NAME = 'TestTable'"
+			},
+			TestServerCallContext.Create());
+
+		// Assert
+		result.Rows.Should().NotBeEmpty();
+		var metadata = result.Metadata;
+		metadata.RowType.Fields.Select(f => f.Name).Should().Contain("PARENT_TABLE_NAME");
+		metadata.RowType.Fields.Select(f => f.Name).Should().Contain("SPANNER_IS_MANAGED");
+
+		// The PARENT_TABLE_NAME should be empty string and SPANNER_IS_MANAGED should be false
+		var parentTableIdx = metadata.RowType.Fields.ToList().FindIndex(f => f.Name == "PARENT_TABLE_NAME");
+		var isManagedIdx = metadata.RowType.Fields.ToList().FindIndex(f => f.Name == "SPANNER_IS_MANAGED");
+		foreach (var row in result.Rows)
+		{
+			row.Values[parentTableIdx].StringValue.Should().Be("");
+			row.Values[isManagedIdx].BoolValue.Should().BeFalse();
+		}
+	}
+
+	// ─── INFORMATION_SCHEMA.INDEX_COLUMNS returns SPANNER_TYPE ───
+
+	// Ref: https://cloud.google.com/spanner/docs/information-schema#index_columns
+	//   "SPANNER_TYPE: The column type."
+	[Fact]
+	public async Task ExecuteSql_InformationSchemaIndexColumns_HasSpannerTypeColumn()
+	{
+		// Arrange
+		_database.ExecuteDdl("CREATE INDEX IX_TestTable_Name ON TestTable(Name)");
+
+		// Act
+		var result = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() } },
+				Sql = "SELECT COLUMN_NAME, SPANNER_TYPE FROM INFORMATION_SCHEMA.INDEX_COLUMNS WHERE TABLE_NAME = 'TestTable' AND INDEX_NAME = 'IX_TestTable_Name'"
+			},
+			TestServerCallContext.Create());
+
+		// Assert
+		result.Rows.Should().NotBeEmpty();
+		var metadata = result.Metadata;
+		metadata.RowType.Fields.Select(f => f.Name).Should().Contain("SPANNER_TYPE");
+
+		var typeIdx = metadata.RowType.Fields.ToList().FindIndex(f => f.Name == "SPANNER_TYPE");
+		foreach (var row in result.Rows)
+		{
+			row.Values[typeIdx].StringValue.Should().NotBeNullOrEmpty();
+		}
+	}
+
+	// ─── INFORMATION_SCHEMA.TABLES returns SPANNER_STATE ───
+
+	// Ref: https://cloud.google.com/spanner/docs/information-schema#tables
+	//   "SPANNER_STATE: Possible values are 'COMMITTED' or 'IN_PROGRESS'."
+	[Fact]
+	public async Task ExecuteSql_InformationSchemaTables_HasSpannerStateColumn()
+	{
+		// Act
+		var result = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() } },
+				Sql = "SELECT TABLE_NAME, SPANNER_STATE FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'TestTable'"
+			},
+			TestServerCallContext.Create());
+
+		// Assert
+		result.Rows.Should().HaveCount(1);
+		var metadata = result.Metadata;
+		metadata.RowType.Fields.Select(f => f.Name).Should().Contain("SPANNER_STATE");
+
+		var stateIdx = metadata.RowType.Fields.ToList().FindIndex(f => f.Name == "SPANNER_STATE");
+		result.Rows[0].Values[stateIdx].StringValue.Should().Be("COMMITTED");
+	}
+
+	// ─── UpdateDatabaseDdl returns error on failure instead of crashing ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.admin.database.v1#google.spanner.admin.database.v1.UpdateDatabaseDdlMetadata
+	//   "If the operation failed, the error status is captured in the Operation's error field."
+	[Fact]
+	public async Task UpdateDatabaseDdl_FailingStatement_ReturnsOperationWithError()
+	{
+		// Arrange
+		var adminService = new FakeDatabaseAdminService(_database, new FakeSpannerServerOptions
+		{
+			ProjectId = "test-project",
+			InstanceId = "test-instance",
+			DatabaseId = "test-db"
+		});
+
+		// Act: try to create a table that already exists
+		var operation = await adminService.UpdateDatabaseDdl(
+			new UpdateDatabaseDdlRequest
+			{
+				Database = "projects/test-project/instances/test-instance/databases/test-db",
+				Statements = { "CREATE TABLE TestTable (X INT64) PRIMARY KEY (X)" }
+			},
+			TestServerCallContext.Create());
+
+		// Assert: should return a done operation with Error set
+		operation.Done.Should().BeTrue();
+		operation.Error.Should().NotBeNull();
+		operation.Error.Code.Should().Be((int)Google.Rpc.Code.AlreadyExists);
+	}
+
+	// Ref: Same as above — only statements before the failure should be recorded
+	[Fact]
+	public async Task UpdateDatabaseDdl_PartialFailure_OnlyAppliesStatementsBeforeError()
+	{
+		// Arrange
+		var adminService = new FakeDatabaseAdminService(_database, new FakeSpannerServerOptions
+		{
+			ProjectId = "test-project",
+			InstanceId = "test-instance",
+			DatabaseId = "test-db"
+		});
+
+		// Act: first statement succeeds, second fails
+		var operation = await adminService.UpdateDatabaseDdl(
+			new UpdateDatabaseDdlRequest
+			{
+				Database = "projects/test-project/instances/test-instance/databases/test-db",
+				Statements =
+				{
+					"CREATE TABLE NewTable1 (Id INT64) PRIMARY KEY (Id)",
+					"CREATE TABLE TestTable (X INT64) PRIMARY KEY (X)", // already exists
+					"CREATE TABLE NewTable2 (Id INT64) PRIMARY KEY (Id)"  // should not be applied
+				}
+			},
+			TestServerCallContext.Create());
+
+		// Assert
+		operation.Error.Should().NotBeNull();
+
+		// NewTable1 should exist (first statement succeeded)
+		var result = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() } },
+				Sql = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'NewTable1'"
+			},
+			TestServerCallContext.Create());
+		result.Rows.Should().HaveCount(1);
+
+		// NewTable2 should NOT exist (third statement not applied)
+		var result2 = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() } },
+				Sql = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'NewTable2'"
+			},
+			TestServerCallContext.Create());
+		result2.Rows.Should().BeEmpty();
 	}
 }

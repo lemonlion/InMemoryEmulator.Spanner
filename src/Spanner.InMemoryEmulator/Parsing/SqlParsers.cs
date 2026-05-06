@@ -144,7 +144,11 @@ internal static class SqlParsers
 		.Or(Token.EqualTo(GoogleSqlToken.Tokenlist).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.Range).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.Nulls).Select(t => t.ToStringValue()))
-		.Or(Token.EqualTo(GoogleSqlToken.Respect).Select(t => t.ToStringValue()));
+		.Or(Token.EqualTo(GoogleSqlToken.Respect).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Excluded).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Conflict).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Do).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Nothing).Select(t => t.ToStringValue()));
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls#def_window_frame
@@ -1143,8 +1147,48 @@ internal static class SqlParsers
 
 	public static TokenListParser<GoogleSqlToken, InsertStatement> InsertStatement { get; } =
 		from baseInsert in InsertStatementBase
+		from onConflict in OnConflictClauseParser!.AsNullable().OptionalOrDefault()
 		from returning in ReturningClause.AsNullable().OptionalOrDefault()
-		select baseInsert with { Returning = returning };
+		select baseInsert with { Returning = returning, OnConflict = onConflict };
+
+	// ON CONFLICT [(columns)] DO NOTHING | DO UPDATE SET ... [WHERE ...]
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#on_conflict_do_nothing
+	private static TokenListParser<GoogleSqlToken, OnConflictClause> OnConflictClauseParser { get; } =
+		from _on in Token.EqualTo(GoogleSqlToken.On)
+		from _conflict in Token.EqualTo(GoogleSqlToken.Conflict)
+		from target in
+			// (column, ...)
+			(from open in Token.EqualTo(GoogleSqlToken.OpenParen)
+			 from cols in AnyIdentifier.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
+			 from close in Token.EqualTo(GoogleSqlToken.CloseParen)
+			 select (Columns: (List<string>?)cols.ToList(), Constraint: (string?)null))
+			// ON UNIQUE CONSTRAINT constraint_name
+			.Or(from _onKw in Token.EqualTo(GoogleSqlToken.On)
+				from _unique in Token.EqualTo(GoogleSqlToken.Unique)
+				from _constraint in Token.EqualTo(GoogleSqlToken.Constraint)
+				from name in AnyIdentifier
+				select (Columns: (List<string>?)null, Constraint: (string?)name))
+			.OptionalOrDefault((Columns: (List<string>?)null, Constraint: (string?)null))
+		from action in
+			(from _do in Token.EqualTo(GoogleSqlToken.Do)
+			 from doAction in
+				// DO NOTHING
+				(from _nothing in Token.EqualTo(GoogleSqlToken.Nothing)
+				 select (Action: OnConflictAction.DoNothing, Sets: (List<SetClause>?)null, Where: (SqlExpression?)null))
+				// DO UPDATE SET col = expr, ... [WHERE ...]
+				.Or(from _update in Token.EqualTo(GoogleSqlToken.Update)
+					from _set in Token.EqualTo(GoogleSqlToken.Set)
+					from sets in (
+						from col in AnyIdentifier
+						from _eq in Token.EqualTo(GoogleSqlToken.Equal)
+						from val in Expression
+						select new SetClause(col, val)
+					).ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
+					from whereExpr in (from _w in Token.EqualTo(GoogleSqlToken.Where) from expr in Expression select expr)
+						.AsNullable().OptionalOrDefault()
+					select (Action: OnConflictAction.DoUpdate, Sets: (List<SetClause>?)sets.ToList(), Where: (SqlExpression?)whereExpr))
+			 select doAction)
+		select new OnConflictClause(target.Columns, target.Constraint, action.Action, action.Sets, action.Where);
 
 	// UPDATE table SET col = expr, ... WHERE ...
 	private static TokenListParser<GoogleSqlToken, UpdateStatement> UpdateStatementBase { get; } =

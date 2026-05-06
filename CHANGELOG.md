@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.36] - 2026-05-18
+
+### Added
+- **INSERT ... ON CONFLICT DO NOTHING**: Silently skip inserts that conflict with existing primary key rows instead of raising an error.
+- **INSERT ... ON CONFLICT DO UPDATE SET ...**: Upsert semantics — update existing rows on primary key conflict using `EXCLUDED.column` to reference the attempted insert values.
+- **ON CONFLICT ... WHERE**: Conditional upsert — only apply the DO UPDATE when an additional WHERE predicate (referencing both existing and EXCLUDED columns) evaluates to true.
+- Integration tests: 5 new ON CONFLICT tests covering DO NOTHING (skip, insert new row, without conflict target), DO UPDATE, and DO UPDATE with WHERE clause.
+
 ## [1.0.35] - 2026-05-18
 
 ### Added

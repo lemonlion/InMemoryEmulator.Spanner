@@ -499,4 +499,18 @@ internal enum GoogleSqlToken
 
 	[Token(Example = "TOKENLIST")]
 	Tokenlist,
+
+	// ── ON CONFLICT support ──
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#on_conflict_do_nothing
+	[Token(Example = "CONFLICT")]
+	Conflict,
+
+	[Token(Example = "DO")]
+	Do,
+
+	[Token(Example = "NOTHING")]
+	Nothing,
+
+	[Token(Example = "EXCLUDED")]
+	Excluded,
 }

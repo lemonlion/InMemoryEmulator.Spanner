@@ -150,6 +150,10 @@ internal static class GoogleSqlTokenizer
 		["HIDDEN"] = GoogleSqlToken.Hidden,
 		["SEARCH"] = GoogleSqlToken.Search,
 		["TOKENLIST"] = GoogleSqlToken.Tokenlist,
+		["CONFLICT"] = GoogleSqlToken.Conflict,
+		["DO"] = GoogleSqlToken.Do,
+		["NOTHING"] = GoogleSqlToken.Nothing,
+		["EXCLUDED"] = GoogleSqlToken.Excluded,
 	};
 
 	// Note: Instance MUST be declared AFTER all parser properties to ensure

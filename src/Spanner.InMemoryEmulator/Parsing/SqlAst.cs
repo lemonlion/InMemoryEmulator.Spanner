@@ -126,9 +126,21 @@ internal record InsertStatement(
 	List<List<SqlExpression>>? ValueRows,
 	InsertMode Mode = InsertMode.Insert,
 	QueryBody? SelectSource = null,
-	ReturningClause? Returning = null);
+	ReturningClause? Returning = null,
+	OnConflictClause? OnConflict = null);
 
 internal enum InsertMode { Insert, InsertOrUpdate, InsertOrIgnore }
+
+// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#on_conflict_do_nothing
+//   ON CONFLICT [conflict_target] conflict_action
+internal record OnConflictClause(
+	List<string>? ConflictColumns,
+	string? UniqueConstraintName,
+	OnConflictAction Action,
+	List<SetClause>? UpdateSets = null,
+	SqlExpression? UpdateWhere = null);
+
+internal enum OnConflictAction { DoNothing, DoUpdate }
 
 internal record UpdateStatement(
 	string Table,

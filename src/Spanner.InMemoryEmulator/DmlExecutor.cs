@@ -134,6 +134,49 @@ internal class DmlExecutor
 					// Silently skip
 					continue;
 				}
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#on_conflict_do_nothing
+				else if (insert.OnConflict != null)
+				{
+					if (insert.OnConflict.Action == OnConflictAction.DoNothing)
+					{
+						// Silently skip
+						continue;
+					}
+					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#on_conflict_do_update
+					else if (insert.OnConflict.Action == OnConflictAction.DoUpdate)
+					{
+						RecordUndo(insert.Table, rowKey, table.Rows[rowKey]);
+						var existing = table.Rows[rowKey].Columns;
+
+						// Build a context row that includes both existing columns and EXCLUDED.col references
+						var contextRow = new Dictionary<string, object?>(existing, StringComparer.OrdinalIgnoreCase);
+						// EXCLUDED references the attempted insert values
+						foreach (var kvp in rowValues)
+							contextRow[$"EXCLUDED.{kvp.Key}"] = kvp.Value;
+
+						// Evaluate WHERE condition if present
+						if (insert.OnConflict.UpdateWhere != null)
+						{
+							var whereResult = evaluator.Evaluate(insert.OnConflict.UpdateWhere, contextRow);
+							if (whereResult is not true)
+							{
+								// WHERE condition not met, skip update
+								continue;
+							}
+						}
+
+						// Apply SET clauses
+						foreach (var set in insert.OnConflict.UpdateSets!)
+						{
+							existing[set.Column] = evaluator.Evaluate(set.Value, contextRow);
+						}
+						_database.Schema.ValidateWriteConstraints(insert.Table, existing, rowKey);
+						table.Rows[rowKey] = new RowData(existing, DateTimeOffset.UtcNow);
+						affectedRows?.Add((new Dictionary<string, object?>(existing, StringComparer.OrdinalIgnoreCase), "UPDATE"));
+						count++;
+						continue;
+					}
+				}
 
 				throw new InvalidOperationException(
 					$"Row with key [{string.Join(", ", pkValues)}] already exists in table '{insert.Table}'.");

@@ -178,4 +178,98 @@ public ConstraintIntegrationTests(EmulatorSession session) : base(session) { }
 		var act = async () => await cmd.ExecuteNonQueryAsync();
 		await act.Should().ThrowAsync<SpannerException>();
 	}
+
+	// ─── ON CONFLICT ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#on_conflict_do_nothing
+	[Fact]
+	public async Task OnConflict_DoNothing_SkipsExistingRow()
+	{
+		await ExecuteDdlAsync(
+			"CREATE TABLE CI_OC1 (Id INT64 NOT NULL, Name STRING(MAX)) PRIMARY KEY (Id)");
+		await ExecuteDmlAsync("INSERT INTO CI_OC1 (Id, Name) VALUES (1, 'Original')");
+
+		// Insert conflicting row with ON CONFLICT DO NOTHING
+		var count = await ExecuteDmlAsync(
+			"INSERT INTO CI_OC1 (Id, Name) VALUES (1, 'New') ON CONFLICT (Id) DO NOTHING");
+		count.Should().Be(0);
+
+		// Verify original row is unchanged
+		var result = await QueryAsync("SELECT Name FROM CI_OC1 WHERE Id = 1");
+		result.Should().HaveCount(1);
+		result[0]["Name"].Should().Be("Original");
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#on_conflict_do_nothing
+	[Fact]
+	public async Task OnConflict_DoNothing_InsertsNewRow()
+	{
+		await ExecuteDdlAsync(
+			"CREATE TABLE CI_OC2 (Id INT64 NOT NULL, Name STRING(MAX)) PRIMARY KEY (Id)");
+
+		// No conflict - should insert
+		var count = await ExecuteDmlAsync(
+			"INSERT INTO CI_OC2 (Id, Name) VALUES (1, 'New') ON CONFLICT (Id) DO NOTHING");
+		count.Should().Be(1);
+
+		var result = await QueryAsync("SELECT Name FROM CI_OC2 WHERE Id = 1");
+		result.Should().HaveCount(1);
+		result[0]["Name"].Should().Be("New");
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#on_conflict_do_update
+	[Fact]
+	public async Task OnConflict_DoUpdate_UpdatesExistingRow()
+	{
+		await ExecuteDdlAsync(
+			"CREATE TABLE CI_OC3 (Id INT64 NOT NULL, Name STRING(MAX), Score INT64) PRIMARY KEY (Id)");
+		await ExecuteDmlAsync("INSERT INTO CI_OC3 (Id, Name, Score) VALUES (1, 'Alice', 100)");
+
+		// Insert conflicting row with ON CONFLICT DO UPDATE
+		var count = await ExecuteDmlAsync(
+			"INSERT INTO CI_OC3 (Id, Name, Score) VALUES (1, 'Bob', 200) ON CONFLICT (Id) DO UPDATE SET Name = EXCLUDED.Name, Score = EXCLUDED.Score");
+		count.Should().Be(1);
+
+		// Verify row was updated with EXCLUDED values
+		var result = await QueryAsync("SELECT Name, Score FROM CI_OC3 WHERE Id = 1");
+		result.Should().HaveCount(1);
+		result[0]["Name"].Should().Be("Bob");
+		result[0]["Score"].Should().Be(200L);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#on_conflict_do_update
+	[Fact]
+	public async Task OnConflict_DoUpdate_WithWhere_SkipsWhenConditionFalse()
+	{
+		await ExecuteDdlAsync(
+			"CREATE TABLE CI_OC4 (Id INT64 NOT NULL, Name STRING(MAX), Score INT64) PRIMARY KEY (Id)");
+		await ExecuteDmlAsync("INSERT INTO CI_OC4 (Id, Name, Score) VALUES (1, 'Alice', 100)");
+
+		// UPDATE WHERE condition is false (existing Score > EXCLUDED.Score)
+		var count = await ExecuteDmlAsync(
+			"INSERT INTO CI_OC4 (Id, Name, Score) VALUES (1, 'Bob', 50) ON CONFLICT (Id) DO UPDATE SET Name = EXCLUDED.Name, Score = EXCLUDED.Score WHERE EXCLUDED.Score > Score");
+		count.Should().Be(0);
+
+		// Verify row unchanged
+		var result = await QueryAsync("SELECT Name, Score FROM CI_OC4 WHERE Id = 1");
+		result[0]["Name"].Should().Be("Alice");
+		result[0]["Score"].Should().Be(100L);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#on_conflict_do_nothing
+	[Fact]
+	public async Task OnConflict_DoNothing_WithoutConflictTarget()
+	{
+		await ExecuteDdlAsync(
+			"CREATE TABLE CI_OC5 (Id INT64 NOT NULL, Name STRING(MAX)) PRIMARY KEY (Id)");
+		await ExecuteDmlAsync("INSERT INTO CI_OC5 (Id, Name) VALUES (1, 'Original')");
+
+		// ON CONFLICT without specifying columns - should still work based on PK
+		var count = await ExecuteDmlAsync(
+			"INSERT INTO CI_OC5 (Id, Name) VALUES (1, 'New') ON CONFLICT DO NOTHING");
+		count.Should().Be(0);
+
+		var result = await QueryAsync("SELECT Name FROM CI_OC5 WHERE Id = 1");
+		result[0]["Name"].Should().Be("Original");
+	}
 }

@@ -336,12 +336,10 @@ public class MathExhaustiveIntegrationTests : IntegrationTestBase
 	[InlineData("1 + 2", 3L)]
 	[InlineData("10 - 3", 7L)]
 	[InlineData("4 * 5", 20L)]
-	[InlineData("10 / 2", 5L)]
-	[InlineData("7 / 2", 3L)]
+	// Division cases removed — INT64 / INT64 returns FLOAT64 per Spanner spec
 	[InlineData("1 + 2 + 3", 6L)]
 	[InlineData("10 - 3 - 2", 5L)]
 	[InlineData("2 * 3 * 4", 24L)]
-	[InlineData("100 / 10 / 2", 5L)]
 	[InlineData("2 + 3 * 4", 14L)]
 	[InlineData("(2 + 3) * 4", 20L)]
 	[InlineData("-5 + 3", -2L)]

@@ -138,11 +138,10 @@ public class SelectExpressionExtendedIntegrationTests : IntegrationTestBase
     [InlineData("4 * 5", 20L)]
     [InlineData("2 + 3 * 4", 14L)]
     [InlineData("(2 + 3) * 4", 20L)]
-    [InlineData("10 / 2", 5L)]
+    // Division cases removed — INT64 / INT64 returns FLOAT64 per Spanner spec
     [InlineData("10 - 2 - 3", 5L)]
     [InlineData("2 * 3 + 4 * 5", 26L)]
     [InlineData("(2 + 3) * (4 + 5)", 45L)]
-    [InlineData("100 / 10 / 2", 5L)]
     [InlineData("1 + 2 + 3 + 4 + 5", 15L)]
     [InlineData("10 * 10 - 1", 99L)]
     [InlineData("10 * (10 - 1)", 90L)]
@@ -649,7 +648,8 @@ public class SelectExpressionExtendedIntegrationTests : IntegrationTestBase
         var rows = await EvalRows("SELECT 1 + 1 AS sum, 3 * 4 AS product, 10 / 2 AS quotient");
         ((long)rows[0]["sum"]!).Should().Be(2L);
         ((long)rows[0]["product"]!).Should().Be(12L);
-        ((long)rows[0]["quotient"]!).Should().Be(5L);
+        // Ref: INT64 / INT64 → FLOAT64 per Spanner spec
+        ((double)rows[0]["quotient"]!).Should().Be(5.0);
     }
 
     [Fact]

@@ -109,6 +109,16 @@ internal class ExpressionEvaluator
 				return _outerRow[key];
 		}
 
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#current_timestamp
+		//   "CURRENT_TIMESTAMP() ... Parentheses are optional."
+		if (string.Equals(col.Column, "CURRENT_TIMESTAMP", StringComparison.OrdinalIgnoreCase))
+			return DateTime.UtcNow;
+
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#current_date
+		//   "CURRENT_DATE ... Parentheses are optional."
+		if (string.Equals(col.Column, "CURRENT_DATE", StringComparison.OrdinalIgnoreCase))
+			return DateTime.UtcNow.Date;
+
 		throw new InvalidOperationException($"Column '{col.Column}' not found.");
 	}
 
@@ -1357,6 +1367,12 @@ internal class ExpressionEvaluator
 		{
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
 			//   INT64 overflow produces an error.
+			//   "INT64 / INT64 → FLOAT64"
+			if (op == '/')
+			{
+				if (lb == 0) throw new InvalidOperationException("Division by zero.");
+				return (double)la / (double)lb;
+			}
 			try
 			{
 				return op switch
@@ -1364,7 +1380,6 @@ internal class ExpressionEvaluator
 					'+' => checked(la + lb),
 					'-' => checked(la - lb),
 					'*' => checked(la * lb),
-					'/' => lb == 0 ? throw new InvalidOperationException("Division by zero.") : la / lb,
 					'%' => lb == 0 ? throw new InvalidOperationException("Division by zero.") : la % lb,
 					_ => throw new NotSupportedException()
 				};
@@ -1710,12 +1725,14 @@ internal class ExpressionEvaluator
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
 	//   LIKE supports % (any chars) and _ (single char).
 	//   Backslash escapes: \% → literal %, \_ → literal _, \\ → literal \.
-	//   Returns TRUE/FALSE; NULL if either operand is NULL.
+	//   "SELECT NULL LIKE 'a%'; -- Produces an error"
+	//   "SELECT 'apple' LIKE NULL; -- Produces an error"
 	private object? EvalLike(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		var val = Evaluate(func.Arguments[0], row);
 		var pat = Evaluate(func.Arguments[1], row);
-		if (val == null || pat == null) return null;
+		if (val == null || pat == null)
+			throw new InvalidOperationException("LIKE operator does not support NULL operands.");
 		var valStr = Convert.ToString(val)!;
 		var patStr = Convert.ToString(pat)!;
 

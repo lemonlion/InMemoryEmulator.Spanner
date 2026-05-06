@@ -921,4 +921,67 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		var result = await Eval("IFNULL(10, 1/0)");
 		result.Should().Be(10L);
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Integer division returns FLOAT64
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
+	//   "INT64 / INT64 → FLOAT64"
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task Division_Int64_ReturnsFloat64()
+	{
+		var result = await Eval("5 / 2");
+		result.Should().Be(2.5);
+	}
+
+	[Fact]
+	public async Task Division_Int64_Exact()
+	{
+		var result = await Eval("10 / 2");
+		result.Should().Be(5.0);
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// LIKE with NULL produces an error
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
+	//   "SELECT NULL LIKE 'a%'; -- Produces an error"
+	//   "SELECT 'apple' LIKE NULL; -- Produces an error"
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task Like_NullValue_ThrowsError()
+	{
+		var act = () => Eval("CAST(NULL AS STRING) LIKE 'a%'");
+		await act.Should().ThrowAsync<Exception>();
+	}
+
+	[Fact]
+	public async Task Like_NullPattern_ThrowsError()
+	{
+		var act = () => Eval("'apple' LIKE CAST(NULL AS STRING)");
+		await act.Should().ThrowAsync<Exception>();
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// CURRENT_TIMESTAMP / CURRENT_DATE without parentheses
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#current_timestamp
+	//   "CURRENT_TIMESTAMP" — no parentheses required
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task CurrentTimestamp_NoParens()
+	{
+		var result = await Eval("CURRENT_TIMESTAMP");
+		result.Should().NotBeNull();
+		result.Should().BeOfType<DateTime>();
+	}
+
+	[Fact]
+	public async Task CurrentDate_NoParens()
+	{
+		var result = await Eval("CURRENT_DATE");
+		result.Should().NotBeNull();
+		result.Should().BeOfType<DateTime>();
+	}
 }

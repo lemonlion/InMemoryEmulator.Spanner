@@ -47,11 +47,7 @@ public class DenseScalarIntegrationTests : IntegrationTestBase
 	[InlineData("100 * 0", 0L)]
 	[InlineData("-2 * 3", -6L)]
 	[InlineData("-2 * -3", 6L)]
-	[InlineData("10 / 2", 5L)]
-	[InlineData("10 / 3", 3L)]
-	[InlineData("0 / 1", 0L)]
-	[InlineData("-10 / 3", -3L)]
-	[InlineData("10 / -3", -3L)]
+	// Division cases moved — INT64 / INT64 returns FLOAT64 per Spanner spec
 	[InlineData("1 + 2 * 3", 7L)]
 	[InlineData("(1 + 2) * 3", 9L)]
 	[InlineData("10 - 2 * 3", 4L)]

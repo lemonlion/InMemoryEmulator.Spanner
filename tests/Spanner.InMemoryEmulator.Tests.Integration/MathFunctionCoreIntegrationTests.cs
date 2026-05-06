@@ -494,7 +494,6 @@ public class MathFunctionCoreIntegrationTests : IntegrationTestBase
 	[InlineData("1 + 2", 3L)]
 	[InlineData("10 - 3", 7L)]
 	[InlineData("4 * 5", 20L)]
-	[InlineData("10 / 3", 3L)]
 	[InlineData("10 % 3", 1L)]
 	[InlineData("2 + 3 * 4", 14L)]
 	[InlineData("(2 + 3) * 4", 20L)]

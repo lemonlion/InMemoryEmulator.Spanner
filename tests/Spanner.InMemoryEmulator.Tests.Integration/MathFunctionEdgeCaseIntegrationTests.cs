@@ -482,12 +482,7 @@ public class MathFunctionEdgeCaseIntegrationTests : IntegrationTestBase
 	[InlineData("1 + 2", 3L)]
 	[InlineData("1 - 2", -1L)]
 	[InlineData("3 * 4", 12L)]
-	[InlineData("10 / 3", 3L)]
-	[InlineData("-10 / 3", -3L)]
-	[InlineData("10 / -3", -3L)]
-	[InlineData("-10 / -3", 3L)]
-	[InlineData("0 / 5", 0L)]
-	[InlineData("5 / 1", 5L)]
+	// Division cases removed — INT64 / INT64 returns FLOAT64 per Spanner spec
 	public async Task BasicArithmetic_IntResults(string expr, long expected)
 	{
 		(await Eval(expr)).Should().Be(expected);

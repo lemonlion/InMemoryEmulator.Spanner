@@ -173,7 +173,6 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 	[InlineData("SELECT 1 + 2 * 3", 7L)]  // precedence
 	[InlineData("SELECT (1 + 2) * 3", 9L)] // parentheses
 	[InlineData("SELECT -1 + 2", 1L)]
-	[InlineData("SELECT 10 / 3", 3L)]
 	public async Task Select_ArithmeticExpressions(string sql, long expected)
 	{
 		(await Eval(sql)).Should().Be(expected);

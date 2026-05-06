@@ -348,9 +348,7 @@ public class MathCombinationIntegrationTests : IntegrationTestBase
 	[InlineData("10 - 3 - 2", 5L)]
 	[InlineData("3 * 4", 12L)]
 	[InlineData("2 * 3 * 4", 24L)]
-	[InlineData("10 / 2", 5L)]
-	[InlineData("10 / 3", 3L)]
-	[InlineData("100 / 10 / 2", 5L)]
+	// Division cases removed — INT64 / INT64 returns FLOAT64 per Spanner spec
 	[InlineData("-5", -5L)]
 	[InlineData("-(3 + 2)", -5L)]
 	[InlineData("1 + 2 * 3", 7L)]
@@ -358,8 +356,7 @@ public class MathCombinationIntegrationTests : IntegrationTestBase
 	[InlineData("2 * (3 + 4)", 14L)]
 	[InlineData("10 - 2 * 3", 4L)]
 	[InlineData("(10 - 2) * 3", 24L)]
-	[InlineData("1 + 2 * 3 - 4 / 2", 5L)]
-	[InlineData("(1 + 2) * (3 - 4) / 1", -3L)]
+	// Mixed expressions with division also return FLOAT64
 	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task IntArithmetic_Combinations(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);

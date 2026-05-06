@@ -1040,13 +1040,31 @@ internal class QueryExecutor
 			or BinaryOp.LessThanOrEqual or BinaryOp.GreaterThanOrEqual or BinaryOp.And or BinaryOp.Or => TypeCode.Bool,
 		BinaryOp.Concat => TypeCode.String,
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
+		//   Division result types: INT64/INT64→FLOAT64, NUMERIC/NUMERIC→NUMERIC,
+		//   NUMERIC/INT64→NUMERIC, INT64/NUMERIC→NUMERIC, anything with FLOAT64→FLOAT64.
+		BinaryOp.Divide => InferDivisionType(bin, table),
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
 		//   If either operand is FLOAT64, the result is FLOAT64.
-		BinaryOp.Add or BinaryOp.Subtract or BinaryOp.Multiply or BinaryOp.Divide or BinaryOp.Modulo =>
+		BinaryOp.Add or BinaryOp.Subtract or BinaryOp.Multiply or BinaryOp.Modulo =>
 			InferType(bin.Left, table) == TypeCode.Float64 || InferType(bin.Right, table) == TypeCode.Float64
 				? TypeCode.Float64
 				: InferType(bin.Left, table),
 		_ => TypeCode.String
 	};
+
+	private static TypeCode InferDivisionType(BinaryExpr bin, TableDefinition? table)
+	{
+		var left = InferType(bin.Left, table);
+		var right = InferType(bin.Right, table);
+		// FLOAT64 dominates everything
+		if (left == TypeCode.Float64 || right == TypeCode.Float64)
+			return TypeCode.Float64;
+		// NUMERIC / NUMERIC, NUMERIC / INT64, INT64 / NUMERIC all produce NUMERIC
+		if (left == TypeCode.Numeric || right == TypeCode.Numeric)
+			return TypeCode.Numeric;
+		// INT64 / INT64 → FLOAT64
+		return TypeCode.Float64;
+	}
 
 	private static TypeCode InferFirstNonNullArgType(FunctionCallExpr func, TableDefinition? table)
 	{

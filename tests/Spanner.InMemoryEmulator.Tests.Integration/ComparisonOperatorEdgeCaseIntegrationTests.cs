@@ -274,9 +274,12 @@ public class ComparisonOperatorEdgeCaseIntegrationTests : IntegrationTestBase
 	[InlineData("NULL LIKE 'abc'")]
 	[InlineData("'abc' LIKE NULL")]
 	[InlineData("NULL LIKE NULL")]
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
+	//   "SELECT NULL LIKE 'a%'; -- Produces an error"
 	public async Task Like_WithNull_ReturnsNull(string expr)
 	{
-		(await Eval(expr)).Should().BeNull();
+		var act = () => Eval(expr);
+		await act.Should().ThrowAsync<Exception>();
 	}
 
 	// ═══════════════════════════════════════════════════════════════

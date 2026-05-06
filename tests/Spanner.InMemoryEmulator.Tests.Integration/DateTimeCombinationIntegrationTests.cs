@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
@@ -212,6 +212,14 @@ public class DateTimeCombinationIntegrationTests : IntegrationTestBase
 	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T12:30:45Z', DAY)", "2024-06-15T07:00:00Z")]    // LA midnight Jun 15 â†’ UTC+7
 	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T12:30:45Z', MONTH)", "2024-06-01T07:00:00Z")]  // LA midnight Jun 1 â†’ UTC+7
 	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T12:30:45Z', YEAR)", "2024-01-01T08:00:00Z")]   // LA midnight Jan 1 â†’ UTC+8
+	// Ref: WEEK truncates to preceding Sunday in LA timezone
+	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T12:30:45Z', WEEK)", "2024-06-09T07:00:00Z")]   // prev Sunday Jun 9 → UTC+7
+	// Ref: ISOWEEK truncates to preceding Monday in LA timezone
+	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T12:30:45Z', ISOWEEK)", "2024-06-10T07:00:00Z")]  // prev Monday Jun 10 → UTC+7
+	// Ref: QUARTER truncates to first day of quarter in LA timezone
+	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T12:30:45Z', QUARTER)", "2024-04-01T07:00:00Z")]  // Q2 starts Apr 1 → UTC+7
+	// Ref: ISOYEAR truncates to start of ISO year (Monday of first week with Thu in year)
+	[InlineData("TIMESTAMP_TRUNC(TIMESTAMP '2024-06-15T12:30:45Z', ISOYEAR)", "2024-01-01T08:00:00Z")]  // ISO 2024 starts Jan 1 (Mon)
 	public async Task TimestampTrunc_Combinations(string expr, string expected)
 	{
 		var result = (DateTime)(await Eval(expr))!;

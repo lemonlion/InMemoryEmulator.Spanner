@@ -2121,8 +2121,20 @@ internal class ExpressionEvaluator
 			"MINUTE" => new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, 0, dt.Kind),
 			"HOUR" => new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, 0, 0, dt.Kind),
 			"DAY" => new DateTime(dt.Year, dt.Month, dt.Day, 0, 0, 0, dt.Kind),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_trunc
+			//   "WEEK: Truncates to the preceding Sunday."
+			"WEEK" => TruncToWeekday(dt, DayOfWeek.Sunday),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_trunc
+			//   "ISOWEEK: Truncates to the preceding Monday (ISO 8601 week start)."
+			"ISOWEEK" => TruncToWeekday(dt, DayOfWeek.Monday),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_trunc
+			//   "QUARTER: Truncates to the first day of the quarter."
+			"QUARTER" => new DateTime(dt.Year, ((dt.Month - 1) / 3) * 3 + 1, 1, 0, 0, 0, dt.Kind),
 			"MONTH" => new DateTime(dt.Year, dt.Month, 1, 0, 0, 0, dt.Kind),
 			"YEAR" => new DateTime(dt.Year, 1, 1, 0, 0, 0, dt.Kind),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_trunc
+			//   "ISOYEAR: Truncates to the first day of the ISO 8601 year."
+			"ISOYEAR" => TruncToIsoYear(dt),
 			_ => throw new InvalidOperationException($"TIMESTAMP_TRUNC: unsupported part '{part}'.")
 		};
 
@@ -2130,6 +2142,28 @@ internal class ExpressionEvaluator
 		if (isUtc) truncated = TimeZoneInfo.ConvertTimeToUtc(truncated, DefaultTimeZone);
 
 		return truncated;
+	}
+
+	private static DateTime TruncToWeekday(DateTime dt, DayOfWeek weekStart)
+	{
+		int diff = ((int)dt.DayOfWeek - (int)weekStart + 7) % 7;
+		return new DateTime(dt.Year, dt.Month, dt.Day, 0, 0, 0, dt.Kind).AddDays(-diff);
+	}
+
+	private static DateTime TruncToIsoYear(DateTime dt)
+	{
+		// ISO year starts on the Monday of the week containing Jan 4
+		var jan4 = new DateTime(dt.Year, 1, 4);
+		int diff = ((int)jan4.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+		var isoYearStart = jan4.AddDays(-diff);
+		if (dt < isoYearStart)
+		{
+			// dt is in previous ISO year
+			jan4 = new DateTime(dt.Year - 1, 1, 4);
+			diff = ((int)jan4.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+			isoYearStart = jan4.AddDays(-diff);
+		}
+		return new DateTime(isoYearStart.Year, isoYearStart.Month, isoYearStart.Day, 0, 0, 0, dt.Kind);
 	}
 
 	private object? EvalDateAdd(FunctionCallExpr func, Dictionary<string, object?> row)

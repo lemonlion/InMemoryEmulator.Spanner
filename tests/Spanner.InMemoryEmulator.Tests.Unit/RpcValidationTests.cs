@@ -962,6 +962,105 @@ public class RpcValidationTests
 		result.Rows[0].Values[0].HasNullValue.Should().BeTrue();
 	}
 
+	// ─── FK ON DELETE enforcement ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#foreign_keys
+	//   "ON DELETE NO ACTION: If referencing rows exist, the referenced row cannot be deleted."
+	[Fact]
+	public async Task Delete_ForeignKey_NoAction_BlocksDeleteWithReferencingRows()
+	{
+		// Arrange: create parent and child tables with FK
+		_database.ExecuteDdl("CREATE TABLE FkParent (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+		_database.ExecuteDdl(@"CREATE TABLE FkChild (
+			ChildId INT64 NOT NULL, ParentId INT64,
+			CONSTRAINT FK_Child_Parent FOREIGN KEY (ParentId) REFERENCES FkParent(Id)
+		) PRIMARY KEY (ChildId)");
+
+		// Insert parent and child rows
+		var txn = await _service.BeginTransaction(
+			new BeginTransactionRequest { Session = _sessionName, Options = new TransactionOptions { ReadWrite = new TransactionOptions.Types.ReadWrite() } },
+			TestServerCallContext.Create());
+		await _service.Commit(new CommitRequest
+		{
+			Session = _sessionName, TransactionId = txn.Id,
+			Mutations =
+			{
+				new Mutation { Insert = new Mutation.Types.Write { Table = "FkParent", Columns = { "Id" }, Values = { new ListValue { Values = { Value.ForString("1") } } } } },
+				new Mutation { Insert = new Mutation.Types.Write { Table = "FkChild", Columns = { "ChildId", "ParentId" }, Values = { new ListValue { Values = { Value.ForString("10"), Value.ForString("1") } } } } }
+			}
+		}, TestServerCallContext.Create());
+
+		// Act: Try to delete the parent row
+		var txn2 = await _service.BeginTransaction(
+			new BeginTransactionRequest { Session = _sessionName, Options = new TransactionOptions { ReadWrite = new TransactionOptions.Types.ReadWrite() } },
+			TestServerCallContext.Create());
+		var ex = await Assert.ThrowsAsync<RpcException>(() => _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { Id = txn2.Id },
+				Sql = "DELETE FROM FkParent WHERE Id = 1"
+			},
+			TestServerCallContext.Create()));
+
+		// Assert: should fail
+		ex.StatusCode.Should().Be(StatusCode.FailedPrecondition);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#foreign_keys
+	//   "ON DELETE CASCADE: Deletes referencing rows when the referenced row is deleted."
+	[Fact]
+	public async Task Delete_ForeignKey_Cascade_DeletesReferencingRows()
+	{
+		// Arrange: create parent and child tables with FK CASCADE
+		_database.ExecuteDdl("CREATE TABLE FkParent2 (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+		_database.ExecuteDdl(@"CREATE TABLE FkChild2 (
+			ChildId INT64 NOT NULL, ParentId INT64,
+			CONSTRAINT FK_Child_Parent2 FOREIGN KEY (ParentId) REFERENCES FkParent2(Id) ON DELETE CASCADE
+		) PRIMARY KEY (ChildId)");
+
+		// Insert parent and child rows
+		var txn = await _service.BeginTransaction(
+			new BeginTransactionRequest { Session = _sessionName, Options = new TransactionOptions { ReadWrite = new TransactionOptions.Types.ReadWrite() } },
+			TestServerCallContext.Create());
+		await _service.Commit(new CommitRequest
+		{
+			Session = _sessionName, TransactionId = txn.Id,
+			Mutations =
+			{
+				new Mutation { Insert = new Mutation.Types.Write { Table = "FkParent2", Columns = { "Id" }, Values = { new ListValue { Values = { Value.ForString("1") } } } } },
+				new Mutation { Insert = new Mutation.Types.Write { Table = "FkChild2", Columns = { "ChildId", "ParentId" }, Values = { new ListValue { Values = { Value.ForString("10"), Value.ForString("1") } } } } },
+				new Mutation { Insert = new Mutation.Types.Write { Table = "FkChild2", Columns = { "ChildId", "ParentId" }, Values = { new ListValue { Values = { Value.ForString("20"), Value.ForString("1") } } } } }
+			}
+		}, TestServerCallContext.Create());
+
+		// Act: Delete the parent row
+		var txn2 = await _service.BeginTransaction(
+			new BeginTransactionRequest { Session = _sessionName, Options = new TransactionOptions { ReadWrite = new TransactionOptions.Types.ReadWrite() } },
+			TestServerCallContext.Create());
+		await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { Id = txn2.Id },
+				Sql = "DELETE FROM FkParent2 WHERE Id = 1"
+			},
+			TestServerCallContext.Create());
+		await _service.Commit(new CommitRequest { Session = _sessionName, TransactionId = txn2.Id },
+			TestServerCallContext.Create());
+
+		// Assert: child rows should be cascade-deleted
+		var result = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() } },
+				Sql = "SELECT ChildId FROM FkChild2"
+			},
+			TestServerCallContext.Create());
+		result.Rows.Should().BeEmpty();
+	}
+
 	// ─── WITH RECURSIVE ───
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#recursive_keyword

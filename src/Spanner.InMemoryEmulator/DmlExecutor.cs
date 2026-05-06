@@ -256,6 +256,7 @@ internal class DmlExecutor
 		foreach (var (key, row) in keysToDelete)
 		{
 			_database.Schema.HandleInterleavedDelete(delete.Table, key);
+			_database.Schema.HandleForeignKeyDeletes(delete.Table, row);
 			if (table.Rows.TryRemove(key, out var removedRow))
 			{
 				RecordUndo(delete.Table, key, removedRow); // DELETE → undo = restore

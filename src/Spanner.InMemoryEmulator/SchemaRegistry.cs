@@ -358,12 +358,13 @@ internal class SchemaRegistry
 	}
 
 	/// <summary>
-	/// Handles FK ON DELETE CASCADE for all tables that reference the given table.
+	/// Handles FK ON DELETE CASCADE/NO ACTION for all tables that reference the given table.
 	/// </summary>
-	public void HandleForeignKeyDeletes(string tableName, RowKey deletedKey)
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#foreign_keys
+	//   "ON DELETE CASCADE: Deletes referencing rows when the referenced row is deleted."
+	//   "ON DELETE NO ACTION: If referencing rows exist, the delete is rejected."
+	public void HandleForeignKeyDeletes(string tableName, Dictionary<string, object?> deletedRowValues)
 	{
-		if (!TryGetTable(tableName, out var refTable) || refTable == null) return;
-
 		// Find all tables with FKs referencing this table
 		foreach (var (_, table) in _tables)
 		{
@@ -373,11 +374,72 @@ internal class SchemaRegistry
 					continue;
 				if (!fk.IsEnforced) continue;
 
-				// Get the referenced column values from the deleted row
-				// We need the actual row data, but it may already be deleted
-				// So we skip this for now — FK cascade on delete not yet fully wired
+				// Build the referenced key values from the deleted row
+				var referencedValues = new object?[fk.ReferencedColumns.Count];
+				bool anyNull = false;
+				for (int i = 0; i < fk.ReferencedColumns.Count; i++)
+				{
+					if (deletedRowValues.TryGetValue(fk.ReferencedColumns[i], out var val))
+						referencedValues[i] = val;
+					else
+						referencedValues[i] = null;
+					if (referencedValues[i] == null) anyNull = true;
+				}
+
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#foreign_keys
+				//   "NULL values in FK columns are not checked."
+				if (anyNull) continue;
+
+				// Find referencing rows in the child table
+				var referencingKeys = table.Rows
+					.Where(kvp =>
+					{
+						for (int i = 0; i < fk.Columns.Count; i++)
+						{
+							var colName = fk.Columns[i];
+							if (!kvp.Value.Columns.TryGetValue(colName, out var childVal))
+								return false;
+							if (childVal == null) return false;
+							if (!ValuesEqual(childVal, referencedValues[i])) return false;
+						}
+						return true;
+					})
+					.Select(kvp => kvp.Key)
+					.ToList();
+
+				if (referencingKeys.Count == 0) continue;
+
+				if (fk.OnDelete == ForeignKeyDeleteAction.Cascade)
+				{
+					// Delete referencing rows (recursively handles their FKs and interleaved children)
+					foreach (var key in referencingKeys)
+					{
+						// Get the row values before deletion for cascading further
+						if (table.Rows.TryGetValue(key, out var childRow))
+						{
+							var childValues = new Dictionary<string, object?>(childRow.Columns, StringComparer.OrdinalIgnoreCase);
+							HandleInterleavedDelete(table.Name, key);
+							HandleForeignKeyDeletes(table.Name, childValues);
+							table.Rows.TryRemove(key, out _);
+						}
+					}
+				}
+				else // NoAction
+				{
+					throw new InvalidOperationException(
+						$"Foreign key constraint '{fk.Name ?? "(unnamed)"}' violation: cannot delete row from '{tableName}' because referencing rows exist in '{table.Name}'.");
+				}
 			}
 		}
+	}
+
+	private static bool ValuesEqual(object? a, object? b)
+	{
+		if (a == null && b == null) return true;
+		if (a == null || b == null) return false;
+		if (a is long la && b is long lb) return la == lb;
+		if (a is double da && b is double db) return Math.Abs(da - db) < double.Epsilon;
+		return string.Equals(a.ToString(), b.ToString(), StringComparison.Ordinal);
 	}
 
 	public void ClearAllData()

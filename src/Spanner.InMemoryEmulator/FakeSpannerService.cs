@@ -526,8 +526,11 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 			{
 				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.rpc#google.rpc.Code
 				//   Duplicate primary key → ALREADY_EXISTS (6)
+				//   Foreign key violation → FAILED_PRECONDITION (9)
 				var code = ex.Message.Contains("already exists")
 					? StatusCode.AlreadyExists
+					: ex.Message.Contains("Foreign key constraint")
+					? StatusCode.FailedPrecondition
 					: StatusCode.InvalidArgument;
 				throw new RpcException(new Status(code, ex.Message));
 			}
@@ -618,8 +621,11 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 			{
 				// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.rpc#google.rpc.Code
 				//   Duplicate primary key → ALREADY_EXISTS (6)
+				//   Foreign key violation → FAILED_PRECONDITION (9)
 				var code = ex.Message.Contains("already exists")
 					? StatusCode.AlreadyExists
+					: ex.Message.Contains("Foreign key constraint")
+					? StatusCode.FailedPrecondition
 					: StatusCode.InvalidArgument;
 				throw new RpcException(new Status(code, ex.Message));
 			}

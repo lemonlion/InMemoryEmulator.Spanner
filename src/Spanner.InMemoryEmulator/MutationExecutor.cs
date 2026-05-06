@@ -240,7 +240,16 @@ internal class MutationExecutor
 			//   "For convenience all can be set to true to indicate all rows of a table."
 			foreach (var key in table.Rows.Keys.ToList())
 			{
-				_database.Schema.HandleInterleavedDelete(tableName, key);
+				if (table.Rows.TryGetValue(key, out var rowData))
+				{
+					var rowValues = new Dictionary<string, object?>(rowData.Columns, StringComparer.OrdinalIgnoreCase);
+					_database.Schema.HandleInterleavedDelete(tableName, key);
+					_database.Schema.HandleForeignKeyDeletes(tableName, rowValues);
+				}
+				else
+				{
+					_database.Schema.HandleInterleavedDelete(tableName, key);
+				}
 			}
 			table.Rows.Clear();
 			return;
@@ -258,7 +267,16 @@ internal class MutationExecutor
 				pkValues[i] = TypeConverter.FromProtobufValue(keyList.Values[i], colDef.SpannerType);
 			}
 			var deleteKey = new RowKey(pkValues);
-			_database.Schema.HandleInterleavedDelete(tableName, deleteKey);
+			if (table.Rows.TryGetValue(deleteKey, out var rowData))
+			{
+				var rowValues = new Dictionary<string, object?>(rowData.Columns, StringComparer.OrdinalIgnoreCase);
+				_database.Schema.HandleInterleavedDelete(tableName, deleteKey);
+				_database.Schema.HandleForeignKeyDeletes(tableName, rowValues);
+			}
+			else
+			{
+				_database.Schema.HandleInterleavedDelete(tableName, deleteKey);
+			}
 			table.Rows.TryRemove(deleteKey, out _);
 		}
 

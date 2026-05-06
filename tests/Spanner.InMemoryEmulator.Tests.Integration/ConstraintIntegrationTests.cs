@@ -111,6 +111,55 @@ public ConstraintIntegrationTests(EmulatorSession session) : base(session) { }
 		await act.Should().ThrowAsync<SpannerException>();
 	}
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#foreign_key
+	//   "ON DELETE CASCADE: When parent row is deleted, child rows referencing it are also deleted."
+	[Fact]
+	public async Task ForeignKey_OnDeleteCascade_DeletesChildRows()
+	{
+		await ExecuteDdlAsync(
+			"CREATE TABLE CI_FKCParent (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+		await ExecuteDdlAsync(
+			"CREATE TABLE CI_FKCChild (ChildId INT64 NOT NULL, ParentId INT64, CONSTRAINT FK_CI_Cascade FOREIGN KEY (ParentId) REFERENCES CI_FKCParent (Id) ON DELETE CASCADE) PRIMARY KEY (ChildId)");
+
+		await InsertAsync("CI_FKCParent", new Dictionary<string, object?> { ["Id"] = 1L });
+		await InsertAsync("CI_FKCChild", new Dictionary<string, object?> { ["ChildId"] = 10L, ["ParentId"] = 1L });
+		await InsertAsync("CI_FKCChild", new Dictionary<string, object?> { ["ChildId"] = 20L, ["ParentId"] = 1L });
+
+		using var conn = Fixture.CreateConnection();
+		await conn.OpenAsync();
+
+		var deleteCmd = conn.CreateDeleteCommand("CI_FKCParent");
+		deleteCmd.Parameters.Add("Id", SpannerDbType.Int64, 1L);
+		await deleteCmd.ExecuteNonQueryAsync();
+
+		var cmd = conn.CreateSelectCommand("SELECT COUNT(*) FROM CI_FKCChild");
+		var count = (long)(await cmd.ExecuteScalarAsync())!;
+		count.Should().Be(0);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#foreign_key
+	//   "ON DELETE NO ACTION (default): Delete of a referenced row fails if referencing rows exist."
+	[Fact]
+	public async Task ForeignKey_OnDeleteNoAction_BlocksDelete()
+	{
+		await ExecuteDdlAsync(
+			"CREATE TABLE CI_FKNParent (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+		await ExecuteDdlAsync(
+			"CREATE TABLE CI_FKNChild (ChildId INT64 NOT NULL, ParentId INT64, CONSTRAINT FK_CI_NoAction FOREIGN KEY (ParentId) REFERENCES CI_FKNParent (Id)) PRIMARY KEY (ChildId)");
+
+		await InsertAsync("CI_FKNParent", new Dictionary<string, object?> { ["Id"] = 1L });
+		await InsertAsync("CI_FKNChild", new Dictionary<string, object?> { ["ChildId"] = 10L, ["ParentId"] = 1L });
+
+		using var conn = Fixture.CreateConnection();
+		await conn.OpenAsync();
+
+		var deleteCmd = conn.CreateDeleteCommand("CI_FKNParent");
+		deleteCmd.Parameters.Add("Id", SpannerDbType.Int64, 1L);
+
+		var act = async () => await deleteCmd.ExecuteNonQueryAsync();
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
 	// ─── STRING LENGTH ───
 
 	[Fact]

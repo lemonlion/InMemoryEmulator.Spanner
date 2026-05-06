@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.23] - 2026-05-11
+## [1.0.35] - 2026-05-18
+
+### Added
+- **FK ON DELETE CASCADE**: Deleting a parent row now cascades deletes to child rows in tables with `FOREIGN KEY ... ON DELETE CASCADE` constraints (both DML DELETE and mutations).
+- **FK ON DELETE NO ACTION enforcement**: Deleting a parent row with existing referencing child rows now returns gRPC `FAILED_PRECONDITION` when the FK uses `ON DELETE NO ACTION` (the default).
+- **TIMESTAMP_TRUNC WEEK/ISOWEEK/QUARTER/ISOYEAR**: Added support for truncating timestamps to week (Sunday start), ISO week (Monday start), quarter, and ISO year boundaries.
+- Integration tests: 6 new (FK cascade deletion, FK NO ACTION blocking, TIMESTAMP_TRUNC WEEK/ISOWEEK/QUARTER/ISOYEAR)
+
+## [1.0.34] - 2026-05-18
 
 ### Fixed
 - **SUBSTR position 0 / very negative**: `SUBSTR('apple', 0, 3)` now correctly returns `"app"` instead of `"ap"`. Position 0 and positions less than `-LENGTH(value)` are clamped to 1 per Spanner docs.

@@ -329,7 +329,10 @@ public class TransactionValidationTests
 
 		// Assert
 		response.CommitStats.Should().NotBeNull();
-		response.CommitStats.MutationCount.Should().Be(1);
+		// 1 row × 2 columns = 2 mutations
+		// Ref: https://cloud.google.com/spanner/quotas
+		//   "A mutation is counted for each column value written."
+		response.CommitStats.MutationCount.Should().Be(2);
 	}
 
 	// ─── Commit with neither transaction_id nor single_use_transaction ───

@@ -271,4 +271,201 @@ public class RpcValidationTests
 		var ex = await act.Should().ThrowAsync<RpcException>();
 		ex.Which.StatusCode.Should().Be(StatusCode.InvalidArgument);
 	}
+
+	// ─── BatchCreateSessions with count=0 creates at least one session ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.BatchCreateSessionsRequest
+	//   "At least one session is created."
+	[Fact]
+	public async Task BatchCreateSessions_CountZero_CreatesAtLeastOne()
+	{
+		// Act
+		var response = await _service.BatchCreateSessions(
+			new BatchCreateSessionsRequest
+			{
+				Database = "projects/test-project/instances/test-instance/databases/test-db",
+				SessionCount = 0
+			},
+			TestServerCallContext.Create());
+
+		// Assert
+		response.Session.Should().HaveCountGreaterOrEqualTo(1);
+	}
+
+	// ─── DML with PROFILE QueryMode preserves RowCountExact ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ResultSet
+	//   "DML statements always produce stats containing the number of rows modified,
+	//    unless executed using the ExecuteSqlRequest.QueryMode.PLAN."
+	[Fact]
+	public async Task ExecuteSql_DmlWithProfileMode_PreservesRowCountExact()
+	{
+		// Arrange: begin a transaction and insert a row
+		var txn = await _service.BeginTransaction(
+			new BeginTransactionRequest
+			{
+				Session = _sessionName,
+				Options = new TransactionOptions { ReadWrite = new TransactionOptions.Types.ReadWrite() }
+			},
+			TestServerCallContext.Create());
+
+		// Act: DML with PROFILE mode
+		var result = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { Id = txn.Id },
+				Sql = "INSERT INTO TestTable (Id, Name) VALUES (1, 'Alice')",
+				QueryMode = ExecuteSqlRequest.Types.QueryMode.Profile
+			},
+			TestServerCallContext.Create());
+
+		// Assert: Stats should contain both QueryStats AND RowCountExact
+		result.Stats.Should().NotBeNull();
+		result.Stats.QueryStats.Should().NotBeNull();
+		result.Stats.RowCountExact.Should().Be(1);
+	}
+
+	// ─── Replace mutation cascades to interleaved children ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Mutation
+	//   "In an interleaved table, if you create the child table with the ON DELETE CASCADE
+	//    annotation, then replacing a parent row also deletes the child rows."
+	[Fact]
+	public async Task Replace_WithInterleavedChild_CascadesDelete()
+	{
+		// Arrange: create parent + child tables with ON DELETE CASCADE
+		_database.ExecuteDdl("CREATE TABLE ParentT (PId INT64 NOT NULL) PRIMARY KEY (PId)");
+		_database.ExecuteDdl("CREATE TABLE ChildT (PId INT64 NOT NULL, CId INT64 NOT NULL) PRIMARY KEY (PId, CId), INTERLEAVE IN PARENT ParentT ON DELETE CASCADE");
+
+		// Insert parent + child
+		var txn = await _service.BeginTransaction(
+			new BeginTransactionRequest
+			{
+				Session = _sessionName,
+				Options = new TransactionOptions { ReadWrite = new TransactionOptions.Types.ReadWrite() }
+			},
+			TestServerCallContext.Create());
+
+		await _service.Commit(
+			new CommitRequest
+			{
+				Session = _sessionName,
+				TransactionId = txn.Id,
+				Mutations =
+				{
+					new Mutation
+					{
+						Insert = new Mutation.Types.Write
+						{
+							Table = "ParentT",
+							Columns = { "PId" },
+							Values = { new ListValue { Values = { Value.ForString("1") } } }
+						}
+					},
+					new Mutation
+					{
+						Insert = new Mutation.Types.Write
+						{
+							Table = "ChildT",
+							Columns = { "PId", "CId" },
+							Values = { new ListValue { Values = { Value.ForString("1"), Value.ForString("10") } } }
+						}
+					}
+				}
+			},
+			TestServerCallContext.Create());
+
+		// Act: Replace the parent row
+		var txn2 = await _service.BeginTransaction(
+			new BeginTransactionRequest
+			{
+				Session = _sessionName,
+				Options = new TransactionOptions { ReadWrite = new TransactionOptions.Types.ReadWrite() }
+			},
+			TestServerCallContext.Create());
+
+		await _service.Commit(
+			new CommitRequest
+			{
+				Session = _sessionName,
+				TransactionId = txn2.Id,
+				Mutations =
+				{
+					new Mutation
+					{
+						Replace = new Mutation.Types.Write
+						{
+							Table = "ParentT",
+							Columns = { "PId" },
+							Values = { new ListValue { Values = { Value.ForString("1") } } }
+						}
+					}
+				}
+			},
+			TestServerCallContext.Create());
+
+		// Assert: Child row should have been cascade-deleted
+		var txn3 = await _service.BeginTransaction(
+			new BeginTransactionRequest
+			{
+				Session = _sessionName,
+				Options = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() }
+			},
+			TestServerCallContext.Create());
+
+		var childResult = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { Id = txn3.Id },
+				Sql = "SELECT CId FROM ChildT WHERE PId = 1"
+			},
+			TestServerCallContext.Create());
+
+		childResult.Rows.Should().BeEmpty();
+	}
+
+	// ─── CommitStats mutation_count counts columns not rows ───
+
+	// Ref: https://cloud.google.com/spanner/quotas
+	//   "A mutation is counted for each column value written."
+	[Fact]
+	public async Task CommitStats_MutationCount_CountsColumnsNotRows()
+	{
+		// Arrange: begin a transaction
+		var txn = await _service.BeginTransaction(
+			new BeginTransactionRequest
+			{
+				Session = _sessionName,
+				Options = new TransactionOptions { ReadWrite = new TransactionOptions.Types.ReadWrite() }
+			},
+			TestServerCallContext.Create());
+
+		// Act: Commit with a single row insert (2 columns: Id and Name)
+		var response = await _service.Commit(
+			new CommitRequest
+			{
+				Session = _sessionName,
+				TransactionId = txn.Id,
+				ReturnCommitStats = true,
+				Mutations =
+				{
+					new Mutation
+					{
+						Insert = new Mutation.Types.Write
+						{
+							Table = "TestTable",
+							Columns = { "Id", "Name" },
+							Values = { new ListValue { Values = { Value.ForString("99"), Value.ForString("Test") } } }
+						}
+					}
+				}
+			},
+			TestServerCallContext.Create());
+
+		// Assert: 1 row × 2 columns = 2 mutations
+		response.CommitStats.Should().NotBeNull();
+		response.CommitStats.MutationCount.Should().Be(2);
+	}
 }

@@ -150,7 +150,10 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 		{
 			CheckFault(nameof(BatchCreateSessions), request);
 			var multiplexed = request.SessionTemplate?.Multiplexed ?? false;
-			var sessions = _sessionManager.BatchCreateSessions(request.Database, request.SessionCount, multiplexed);
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.BatchCreateSessionsRequest
+			//   "Required. The number of sessions to be created in this batch call. At least one session is created."
+			var count = Math.Max(1, request.SessionCount);
+			var sessions = _sessionManager.BatchCreateSessions(request.Database, count, multiplexed);
 			var response = new BatchCreateSessionsResponse();
 			response.Session.AddRange(sessions);
 			NotifyResponseSent(nameof(BatchCreateSessions), request, response, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);
@@ -372,16 +375,20 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 	/// <summary>
 	/// Counts the number of mutation operations in a single Mutation message.
+	/// A mutation counts as (number of rows) × (number of columns) for writes,
+	/// and (number of keys) for deletes.
 	/// </summary>
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.CommitResponse.CommitStats
 	//   "mutation_count: The total number of mutations for the transaction."
+	// Ref: https://cloud.google.com/spanner/quotas
+	//   "A mutation is counted for each column value written... each row deleted counts as one mutation."
 	private static int CountMutationOperations(Mutation m) => m.OperationCase switch
 	{
-		Mutation.OperationOneofCase.Insert => m.Insert.Values.Count,
-		Mutation.OperationOneofCase.InsertOrUpdate => m.InsertOrUpdate.Values.Count,
-		Mutation.OperationOneofCase.Replace => m.Replace.Values.Count,
-		Mutation.OperationOneofCase.Update => m.Update.Values.Count,
-		Mutation.OperationOneofCase.Delete => m.Delete.KeySet.Keys.Count + (m.Delete.KeySet.All ? 1 : 0),
+		Mutation.OperationOneofCase.Insert => m.Insert.Values.Count * m.Insert.Columns.Count,
+		Mutation.OperationOneofCase.InsertOrUpdate => m.InsertOrUpdate.Values.Count * m.InsertOrUpdate.Columns.Count,
+		Mutation.OperationOneofCase.Replace => m.Replace.Values.Count * m.Replace.Columns.Count,
+		Mutation.OperationOneofCase.Update => m.Update.Values.Count * m.Update.Columns.Count,
+		Mutation.OperationOneofCase.Delete => m.Delete.KeySet.Keys.Count + (m.Delete.KeySet.All ? 1 : 0) + m.Delete.KeySet.Ranges.Count,
 		_ => 0
 	};
 
@@ -670,6 +677,13 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 	/// </summary>
 	private static void ApplyQueryMode(ExecuteSqlRequest.Types.QueryMode queryMode, ResultSet resultSet)
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ResultSet
+		//   "DML statements always produce stats containing the number of rows modified,
+		//    unless executed using the ExecuteSqlRequest.QueryMode.PLAN ExecuteSqlRequest.query_mode."
+		// Preserve the RowCountExact/RowCountLowerBound from DML execution when adding query statistics.
+		var existingRowCountExact = resultSet.Stats?.RowCountExact ?? 0;
+		var existingRowCountCase = resultSet.Stats?.RowCountCase ?? ResultSetStats.RowCountOneofCase.None;
+
 		switch (queryMode)
 		{
 			// Ref: "NORMAL: The default mode. Only the statement results are returned."
@@ -696,6 +710,8 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 				resultSet.Stats.QueryStats.Fields.Add("rows_returned", Value.ForString(resultSet.Rows.Count.ToString()));
 				resultSet.Stats.QueryStats.Fields.Add("elapsed_time", Value.ForString("0 msecs"));
 				resultSet.Stats.QueryStats.Fields.Add("cpu_time", Value.ForString("0 msecs"));
+				if (existingRowCountCase == ResultSetStats.RowCountOneofCase.RowCountExact)
+					resultSet.Stats.RowCountExact = existingRowCountExact;
 				break;
 
 			// Ref: "WITH_STATS: This mode returns the overall execution statistics along with the results."
@@ -707,6 +723,8 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 				resultSet.Stats.QueryStats.Fields.Add("rows_returned", Value.ForString(resultSet.Rows.Count.ToString()));
 				resultSet.Stats.QueryStats.Fields.Add("elapsed_time", Value.ForString("0 msecs"));
 				resultSet.Stats.QueryStats.Fields.Add("cpu_time", Value.ForString("0 msecs"));
+				if (existingRowCountCase == ResultSetStats.RowCountOneofCase.RowCountExact)
+					resultSet.Stats.RowCountExact = existingRowCountExact;
 				break;
 
 			// Ref: "WITH_PLAN_AND_STATS: This mode returns the query plan, overall execution statistics along with the results."
@@ -719,6 +737,8 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 				resultSet.Stats.QueryStats.Fields.Add("rows_returned", Value.ForString(resultSet.Rows.Count.ToString()));
 				resultSet.Stats.QueryStats.Fields.Add("elapsed_time", Value.ForString("0 msecs"));
 				resultSet.Stats.QueryStats.Fields.Add("cpu_time", Value.ForString("0 msecs"));
+				if (existingRowCountCase == ResultSetStats.RowCountOneofCase.RowCountExact)
+					resultSet.Stats.RowCountExact = existingRowCountExact;
 				break;
 		}
 	}

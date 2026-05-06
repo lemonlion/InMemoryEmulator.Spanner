@@ -209,7 +209,13 @@ internal class MutationExecutor
 					// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Mutation
 					//   "Replace: Like insert, except that if the row already exists, it is deleted,
 					//    and the column values provided are inserted instead."
-					table.Rows.TryRemove(rowKey, out _);
+					//   "In an interleaved table, if you create the child table with the ON DELETE CASCADE
+					//    annotation, then replacing a parent row also deletes the child rows."
+					if (table.Rows.ContainsKey(rowKey))
+					{
+						_database.Schema.HandleInterleavedDelete(tableName, rowKey);
+						table.Rows.TryRemove(rowKey, out _);
+					}
 					ValidateNotNull(table, rowValues);
 					_database.Schema.ValidateWriteConstraints(tableName, rowValues);
 					table.Rows[rowKey] = new RowData(rowValues, commitTimestamp);

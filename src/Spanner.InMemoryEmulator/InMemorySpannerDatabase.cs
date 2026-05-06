@@ -74,7 +74,16 @@ public class InMemorySpannerDatabase : IDisposable
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		var tableDef = _schema.GetTableDefinition(table);
 		var rowKey = new RowKey(primaryKeyValues);
-		_schema.HandleInterleavedDelete(table, rowKey);
+		if (tableDef.Rows.TryGetValue(rowKey, out var rowData))
+		{
+			var rowValues = new Dictionary<string, object?>(rowData.Columns, StringComparer.OrdinalIgnoreCase);
+			_schema.HandleInterleavedDelete(table, rowKey);
+			_schema.HandleForeignKeyDeletes(table, rowValues);
+		}
+		else
+		{
+			_schema.HandleInterleavedDelete(table, rowKey);
+		}
 		tableDef.Rows.TryRemove(rowKey, out _);
 	}
 
@@ -98,7 +107,16 @@ public class InMemorySpannerDatabase : IDisposable
 			.ToList();
 		foreach (var key in keysToRemove)
 		{
-			_schema.HandleInterleavedDelete(table, key);
+			if (tableDef.Rows.TryGetValue(key, out var rowData))
+			{
+				var rowValues = new Dictionary<string, object?>(rowData.Columns, StringComparer.OrdinalIgnoreCase);
+				_schema.HandleInterleavedDelete(table, key);
+				_schema.HandleForeignKeyDeletes(table, rowValues);
+			}
+			else
+			{
+				_schema.HandleInterleavedDelete(table, key);
+			}
 			tableDef.Rows.TryRemove(key, out _);
 		}
 	}

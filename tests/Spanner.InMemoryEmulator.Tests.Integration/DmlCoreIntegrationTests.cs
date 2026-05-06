@@ -414,4 +414,64 @@ public class DmlCoreIntegrationTests : IntegrationTestBase
 		rows[0]["Name"].Should().Be("Alice");
 		rows[0]["Score"].Should().BeNull();
 	}
+
+	// ─── UPDATE Primary Key Rejection ───
+
+	[Fact]
+	[Trait(TestTraits.Category, "DML")]
+	public async Task Update_PrimaryKeyColumn_ThrowsError()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#update_statement
+		//   "You cannot update primary key columns."
+		var table = "DcUpdPk1";
+		await ExecuteDdlAsync($"CREATE TABLE {table} (Id INT64 NOT NULL, Name STRING(MAX)) PRIMARY KEY (Id)");
+		await ExecuteDmlAsync($"INSERT INTO {table} (Id, Name) VALUES (1, 'Alice')");
+
+		var act = async () => await ExecuteDmlAsync($"UPDATE {table} SET Id = 2 WHERE Id = 1");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	// ─── INSERT ... SELECT Column Count Validation ───
+
+	[Fact]
+	[Trait(TestTraits.Category, "DML")]
+	public async Task InsertSelect_ColumnCountMismatch_ThrowsError()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#insert_statement
+		//   "The number of columns must match the number of values."
+		var src = "DcInsSel1Src";
+		var dst = "DcInsSel1Dst";
+		await ExecuteDdlAsync($"CREATE TABLE {src} (Id INT64 NOT NULL, Name STRING(MAX)) PRIMARY KEY (Id)");
+		await ExecuteDdlAsync($"CREATE TABLE {dst} (Id INT64 NOT NULL, Name STRING(MAX), Score INT64) PRIMARY KEY (Id)");
+		await ExecuteDmlAsync($"INSERT INTO {src} (Id, Name) VALUES (1, 'Alice')");
+
+		// SELECT provides 2 columns but INSERT expects 3 — should fail
+		var act = async () => await ExecuteDmlAsync($"INSERT INTO {dst} (Id, Name, Score) SELECT Id, Name FROM {src}");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	// ─── INSERT OR UPDATE Generated Columns ───
+
+	[Fact]
+	[Trait(TestTraits.Category, "DML")]
+	public async Task InsertOrUpdate_Update_RecomputesGeneratedColumn()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#insert_or_update
+		//   Generated columns should be recomputed when row is updated.
+		var table = "DcInsOrUpdGen1";
+		await ExecuteDdlAsync($@"CREATE TABLE {table} (
+			Id INT64 NOT NULL,
+			Price INT64,
+			Tax INT64 AS (Price * 2) STORED
+		) PRIMARY KEY (Id)");
+
+		await ExecuteDmlAsync($"INSERT INTO {table} (Id, Price) VALUES (1, 100)");
+		var rows = await QueryAsync($"SELECT Tax FROM {table} WHERE Id = 1");
+		rows[0]["Tax"].Should().Be(200L);
+
+		// Now update via INSERT OR UPDATE — generated column should recompute
+		await ExecuteDmlAsync($"INSERT OR UPDATE INTO {table} (Id, Price) VALUES (1, 50)");
+		rows = await QueryAsync($"SELECT Tax FROM {table} WHERE Id = 1");
+		rows[0]["Tax"].Should().Be(100L); // 50 * 2 = 100
+	}
 }

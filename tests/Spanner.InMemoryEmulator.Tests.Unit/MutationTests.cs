@@ -255,4 +255,53 @@ public class MutationTests
 
 		db.GetTableNames().Should().BeEmpty();
 	}
+
+	// ─── DELETE KEY RANGE FK CASCADE ───
+
+	[Fact]
+	public void DeleteRange_WithForeignKeyCascade_DeletesChildRows()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#foreign_key
+		//   "ON DELETE CASCADE: When parent row is deleted, child rows referencing it are also deleted."
+		using var db = new InMemorySpannerDatabase();
+		db.ExecuteDdl("CREATE TABLE Parents (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+		db.ExecuteDdl("CREATE TABLE Children (ChildId INT64 NOT NULL, ParentId INT64, CONSTRAINT FK_Parent FOREIGN KEY (ParentId) REFERENCES Parents (Id) ON DELETE CASCADE) PRIMARY KEY (ChildId)");
+
+		db.Insert("Parents", new Dictionary<string, object?> { ["Id"] = 1L });
+		db.Insert("Parents", new Dictionary<string, object?> { ["Id"] = 2L });
+		db.Insert("Parents", new Dictionary<string, object?> { ["Id"] = 3L });
+		db.Insert("Children", new Dictionary<string, object?> { ["ChildId"] = 10L, ["ParentId"] = 1L });
+		db.Insert("Children", new Dictionary<string, object?> { ["ChildId"] = 20L, ["ParentId"] = 2L });
+		db.Insert("Children", new Dictionary<string, object?> { ["ChildId"] = 30L, ["ParentId"] = 3L });
+
+		// Delete parents with Id 1..2 via key range (inclusive-inclusive)
+		db.DeleteRange("Parents", [1L], [2L], startInclusive: true, endInclusive: true);
+
+		// Parents 1 and 2 should be deleted
+		var parents = db.ExecuteQuery("SELECT Id FROM Parents");
+		parents.Should().HaveCount(1);
+		parents[0]["Id"].Should().Be(3L);
+
+		// Children whose ParentId was 1 or 2 should be cascade-deleted
+		var children = db.ExecuteQuery("SELECT ChildId FROM Children ORDER BY ChildId");
+		children.Should().HaveCount(1);
+		children[0]["ChildId"].Should().Be(30L);
+	}
+
+	[Fact]
+	public void Delete_SingleKey_WithForeignKeyCascade_DeletesChildRows()
+	{
+		using var db = new InMemorySpannerDatabase();
+		db.ExecuteDdl("CREATE TABLE Parents (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+		db.ExecuteDdl("CREATE TABLE Children (ChildId INT64 NOT NULL, ParentId INT64, CONSTRAINT FK_Parent FOREIGN KEY (ParentId) REFERENCES Parents (Id) ON DELETE CASCADE) PRIMARY KEY (ChildId)");
+
+		db.Insert("Parents", new Dictionary<string, object?> { ["Id"] = 1L });
+		db.Insert("Children", new Dictionary<string, object?> { ["ChildId"] = 10L, ["ParentId"] = 1L });
+		db.Insert("Children", new Dictionary<string, object?> { ["ChildId"] = 20L, ["ParentId"] = 1L });
+
+		db.Delete("Parents", 1L);
+
+		var children = db.ExecuteQuery("SELECT COUNT(*) as C FROM Children");
+		children[0]["C"].Should().Be(0L);
+	}
 }

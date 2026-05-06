@@ -66,7 +66,12 @@ internal class DmlExecutor
 				// From SELECT source
 				var selectRow = selectRows[rowIdx];
 				var selectValues = selectRow.Values.ToList();
-				for (int i = 0; i < insert.Columns.Count && i < selectValues.Count; i++)
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#insert_statement
+				//   "The number of columns must match the number of values."
+				if (selectValues.Count != insert.Columns.Count)
+					throw new InvalidOperationException(
+						$"Column count ({insert.Columns.Count}) does not match value count ({selectValues.Count}).");
+				for (int i = 0; i < insert.Columns.Count; i++)
 				{
 					rowValues[insert.Columns[i]] = selectValues[i];
 				}
@@ -125,6 +130,8 @@ internal class DmlExecutor
 						if (rowValues.TryGetValue(col, out var val))
 							existing[col] = val;
 					}
+					// Recompute generated columns after applying new values
+					MutationExecutor.ApplyDefaultsAndGenerated(table, existing, explicitCols);
 					_database.Schema.ValidateWriteConstraints(insert.Table, existing, rowKey);
 					table.Rows[rowKey] = new RowData(existing, DateTimeOffset.UtcNow);
 					affectedRows?.Add((new Dictionary<string, object?>(existing, StringComparer.OrdinalIgnoreCase), "UPDATE"));
@@ -173,6 +180,10 @@ internal class DmlExecutor
 						{
 							existing[set.Column] = evaluator.Evaluate(set.Value, contextRow);
 						}
+						// Recompute generated columns after applying SET values
+						var updateCols = new HashSet<string>(
+							insert.OnConflict.UpdateSets.Select(s => s.Column), StringComparer.OrdinalIgnoreCase);
+						MutationExecutor.ApplyDefaultsAndGenerated(table, existing, updateCols);
 						_database.Schema.ValidateWriteConstraints(insert.Table, existing, rowKey);
 						table.Rows[rowKey] = new RowData(existing, DateTimeOffset.UtcNow);
 						affectedRows?.Add((new Dictionary<string, object?>(existing, StringComparer.OrdinalIgnoreCase), "UPDATE"));
@@ -211,6 +222,16 @@ internal class DmlExecutor
 	{
 		if (!_database.Schema.TryGetTable(update.Table, out var table) || table == null)
 			throw new InvalidOperationException($"Table '{update.Table}' not found.");
+
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#update_statement
+		//   "You cannot update primary key columns."
+		foreach (var set in update.Sets)
+		{
+			if (table.PrimaryKeyColumns.Any(pk =>
+				string.Equals(pk, set.Column, StringComparison.OrdinalIgnoreCase)))
+				throw new InvalidOperationException(
+					$"Cannot UPDATE primary key column '{set.Column}' in table '{update.Table}'.");
+		}
 
 		var evaluator = new ExpressionEvaluator(parameters, new QueryExecutor(_database));
 		int count = 0;

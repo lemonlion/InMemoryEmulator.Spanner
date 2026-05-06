@@ -308,7 +308,16 @@ internal class MutationExecutor
 
 		foreach (var key in keysToRemove)
 		{
-			_database.Schema.HandleInterleavedDelete(table.Name, key);
+			if (table.Rows.TryGetValue(key, out var rowData))
+			{
+				var rowValues = new Dictionary<string, object?>(rowData.Columns, StringComparer.OrdinalIgnoreCase);
+				_database.Schema.HandleInterleavedDelete(table.Name, key);
+				_database.Schema.HandleForeignKeyDeletes(table.Name, rowValues);
+			}
+			else
+			{
+				_database.Schema.HandleInterleavedDelete(table.Name, key);
+			}
 			table.Rows.TryRemove(key, out _);
 		}
 	}

@@ -208,6 +208,11 @@ internal class ExpressionEvaluator
 		{
 			if (lval is null || rval is null)
 				return null;
+
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#comparison_operators
+			//   "All comparisons with NaN return FALSE, except for != and <>, which return TRUE."
+			if (IsNaN(lval) || IsNaN(rval))
+				return bin.Op == BinaryOp.NotEqual;
 		}
 
 		return bin.Op switch
@@ -287,9 +292,18 @@ internal class ExpressionEvaluator
 		var low = Evaluate(between.Low, row);
 		var high = Evaluate(between.High, row);
 
-		if (value is null || low is null || high is null) return null;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#comparison_operators
+		//   "X BETWEEN Y AND Z is equivalent to Y <= X AND X <= Z"
+		//   Three-valued AND: FALSE AND NULL = FALSE, NULL AND FALSE = FALSE
+		bool? lowCmp = (value is null || low is null) ? null : CompareValues(value, low) >= 0;
+		bool? highCmp = (value is null || high is null) ? null : CompareValues(value, high) <= 0;
 
-		var inRange = CompareValues(value, low) >= 0 && CompareValues(value, high) <= 0;
+		bool? inRange;
+		if (lowCmp == false || highCmp == false) inRange = false;
+		else if (lowCmp == true && highCmp == true) inRange = true;
+		else inRange = null;
+
+		if (inRange == null) return null;
 		return between.IsNegated ? !inRange : inRange;
 	}
 
@@ -1322,6 +1336,9 @@ internal class ExpressionEvaluator
 	private static bool IsNumeric(object? v) =>
 		v is long or double or float or decimal or int or short or byte;
 
+	private static bool IsNaN(object? v) =>
+		(v is double d && double.IsNaN(d)) || (v is float f && float.IsNaN(f));
+
 	private static double ToDouble(object v) => Convert.ToDouble(v);
 
 	private static int CompareBytes(byte[] a, byte[] b)
@@ -1561,6 +1578,9 @@ internal class ExpressionEvaluator
 				char conv = fmt[i++];
 				if (argIdx >= args.Length) break;
 				var arg = args[argIdx++];
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#format_string
+				//   "NULL values are formatted as the string 'NULL'"
+				if (arg == null) { sb.Append("NULL"); continue; }
 				var width = widthStr.Length > 0 ? int.Parse(widthStr) : 0;
 				switch (conv)
 				{

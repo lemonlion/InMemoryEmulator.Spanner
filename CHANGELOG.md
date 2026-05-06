@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.54] - 2026-07-10
+
+### Fixed
+- **NaN comparison semantics**: All comparisons with NaN now return FALSE except `!=`/`<>` which return TRUE, per Spanner docs. Previously `NaN = NaN` returned TRUE and `NaN < x` returned TRUE.
+- **BETWEEN three-valued logic**: `X BETWEEN NULL AND high` now correctly returns FALSE when `X > high` (previously returned NULL). Implements proper three-valued AND: `FALSE AND NULL = FALSE`.
+- **FORMAT with NULL arguments**: `FORMAT('%d', NULL)` now produces `"NULL"` instead of `"0"`. All format specifiers now output the literal string "NULL" for NULL arguments.
+- **MOD function FLOAT64 zero divisor**: `MOD(5.0, 0.0)` now throws an error instead of silently returning NaN.
+
+### Added
+- 10 new integration tests: NaN comparison (5), BETWEEN NULL three-valued logic (3), FORMAT NULL args (2).
+
 ## [1.0.53] - 2026-07-10
 
 ### Fixed

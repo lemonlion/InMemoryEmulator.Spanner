@@ -424,4 +424,106 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 		var rows = await QueryAsync("SELECT CAST(NULL AS INT64) BETWEEN 1 AND 10 AS R");
 		rows[0]["R"].Should().BeNull();
 	}
+
+	// ════════════════════════════════════════════════════════════════
+	// 6. NaN comparison semantics
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#comparison_operators
+	//   "All comparisons with NaN return FALSE, except for != and <>, which return TRUE."
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task NaN_EqualToNaN_ReturnsFalse()
+	{
+		var rows = await QueryAsync("SELECT IEEE_DIVIDE(0.0, 0.0) = IEEE_DIVIDE(0.0, 0.0) AS R");
+		rows[0]["R"].Should().Be(false);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task NaN_NotEqualToNaN_ReturnsTrue()
+	{
+		var rows = await QueryAsync("SELECT IEEE_DIVIDE(0.0, 0.0) != IEEE_DIVIDE(0.0, 0.0) AS R");
+		rows[0]["R"].Should().Be(true);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task NaN_LessThanValue_ReturnsFalse()
+	{
+		var rows = await QueryAsync("SELECT IEEE_DIVIDE(0.0, 0.0) < 5.0 AS R");
+		rows[0]["R"].Should().Be(false);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task NaN_GreaterThanValue_ReturnsFalse()
+	{
+		var rows = await QueryAsync("SELECT IEEE_DIVIDE(0.0, 0.0) > 5.0 AS R");
+		rows[0]["R"].Should().Be(false);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task NaN_EqualToValue_ReturnsFalse()
+	{
+		var rows = await QueryAsync("SELECT IEEE_DIVIDE(0.0, 0.0) = 5.0 AS R");
+		rows[0]["R"].Should().Be(false);
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// 7. BETWEEN three-valued logic
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#comparison_operators
+	//   "X [NOT] BETWEEN Y AND Z is equivalent to Y <= X AND X <= Z"
+	//   Three-valued AND: FALSE AND NULL = FALSE
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Between_NullLow_ValueAboveHigh_ReturnsFalse()
+	{
+		// 100 BETWEEN NULL AND 10 → (NULL <= 100) AND (100 <= 10) → NULL AND FALSE → FALSE
+		var rows = await QueryAsync("SELECT 100 BETWEEN CAST(NULL AS INT64) AND 10 AS R");
+		rows[0]["R"].Should().Be(false);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Between_NullHigh_ValueBelowLow_ReturnsFalse()
+	{
+		// 1 BETWEEN 10 AND NULL → (10 <= 1) AND (1 <= NULL) → FALSE AND NULL → FALSE
+		var rows = await QueryAsync("SELECT 1 BETWEEN 10 AND CAST(NULL AS INT64) AS R");
+		rows[0]["R"].Should().Be(false);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Between_NullLow_ValueInRange_ReturnsNull()
+	{
+		// 5 BETWEEN NULL AND 10 → (NULL <= 5) AND (5 <= 10) → NULL AND TRUE → NULL
+		var rows = await QueryAsync("SELECT 5 BETWEEN CAST(NULL AS INT64) AND 10 AS R");
+		rows[0]["R"].Should().BeNull();
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// 8. FORMAT with NULL arguments
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#format_string
+	//   "NULL values are formatted as the string 'NULL'"
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Format_NullIntArg_ProducesNullString()
+	{
+		var rows = await QueryAsync("SELECT FORMAT('%d', CAST(NULL AS INT64)) AS R");
+		rows[0]["R"].Should().Be("NULL");
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Format_NullFloatArg_ProducesNullString()
+	{
+		var rows = await QueryAsync("SELECT FORMAT('%f', CAST(NULL AS FLOAT64)) AS R");
+		rows[0]["R"].Should().Be("NULL");
+	}
 }

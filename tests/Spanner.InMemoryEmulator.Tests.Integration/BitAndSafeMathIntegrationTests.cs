@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Google.Cloud.Spanner.Data;
 using Google.Cloud.Spanner.V1;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
@@ -561,5 +562,51 @@ public class BitAndSafeMathIntegrationTests : IntegrationTestBase
 		var result = await Eval("SAFE_MULTIPLY(NUMERIC '2.5', NUMERIC '4.0')");
 		result.Should().BeOfType<SpannerNumeric>();
 		((SpannerNumeric)result!).ToDecimal(LossOfPrecisionHandling.Truncate).Should().Be(10.0m);
+	}
+
+	// ─── Division by zero — all numeric types ───
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
+	//   "Divide by zero operations return an error."
+
+	[Fact]
+	public async Task Float64_DivideByZero_ThrowsError()
+	{
+		var act = async () => await Eval("1.0 / 0.0");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	public async Task Float64_ModuloByZero_ThrowsError()
+	{
+		var act = async () => await Eval("1.0 % 0.0");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	public async Task Int64_DivideByZero_ThrowsError()
+	{
+		var act = async () => await Eval("1 / 0");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	public async Task Int64_ModuloByZero_ThrowsError()
+	{
+		var act = async () => await Eval("1 % 0");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	public async Task Numeric_DivideByZero_ThrowsError()
+	{
+		var act = async () => await Eval("CAST(1 AS NUMERIC) / CAST(0 AS NUMERIC)");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	public async Task Numeric_ModuloByZero_ThrowsError()
+	{
+		var act = async () => await Eval("CAST(1 AS NUMERIC) % CAST(0 AS NUMERIC)");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 }

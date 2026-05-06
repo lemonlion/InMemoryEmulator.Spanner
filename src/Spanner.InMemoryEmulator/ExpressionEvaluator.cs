@@ -935,14 +935,18 @@ internal class ExpressionEvaluator
 		var b = Evaluate(func.Arguments[1], row);
 		if (a is null || b is null) return null;
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#mod
-		//   INT64 MOD 0 → error; FLOAT64 MOD 0 → NaN (IEEE 754)
+		//   "An error is generated if Y is 0."
 		return a switch
 		{
 			long la when b is long lb => lb == 0
 				? throw new InvalidOperationException("Division by zero in MOD.")
 				: la % lb,
-			double da when b is double db => da % db,
-			_ => Convert.ToDouble(a) % Convert.ToDouble(b)
+			double da when b is double db => db == 0.0
+				? throw new InvalidOperationException("Division by zero in MOD.")
+				: da % db,
+			_ => Convert.ToDouble(b) == 0.0
+				? throw new InvalidOperationException("Division by zero in MOD.")
+				: Convert.ToDouble(a) % Convert.ToDouble(b)
 		};
 	}
 
@@ -1422,14 +1426,15 @@ internal class ExpressionEvaluator
 		var dda = Convert.ToDouble(a);
 		var ddb = Convert.ToDouble(b);
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
-		//   FLOAT64 division by zero follows IEEE 754: returns +/-Inf or NaN.
+		//   "Divide by zero operations return an error. To return a different result,
+		//    consider the IEEE_DIVIDE or SAFE_DIVIDE functions."
 		return op switch
 		{
 			'+' => dda + ddb,
 			'-' => dda - ddb,
 			'*' => dda * ddb,
-			'/' => dda / ddb,
-			'%' => dda % ddb,
+			'/' => ddb == 0.0 ? throw new InvalidOperationException("Division by zero.") : dda / ddb,
+			'%' => ddb == 0.0 ? throw new InvalidOperationException("Division by zero.") : dda % ddb,
 			_ => throw new NotSupportedException()
 		};
 	}

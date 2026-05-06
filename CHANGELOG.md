@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.53] - 2026-07-10
+
+### Fixed
+- **FLOAT64 division-by-zero now throws an error** instead of returning Infinity/NaN. Real Spanner errors on divide-by-zero; `IEEE_DIVIDE` is the function that returns Inf/NaN per IEEE 754 semantics.
+- **MOD function with FLOAT64 zero divisor now throws an error** instead of returning NaN, matching the documented behavior ("An error is generated if Y is 0").
+- Corrected 4 pre-existing tests that incorrectly expected Infinity/NaN for FLOAT64 division by zero.
+
+### Added
+- 6 new integration tests: division-by-zero error coverage for FLOAT64, INT64, and NUMERIC (both `/` and `%` operators).
+
 ## [1.0.52] - 2026-07-10
 
 ### Fixed

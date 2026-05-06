@@ -132,45 +132,42 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 	}
 
 	// ════════════════════════════════════════════════════════════════
-	// 3. FLOAT64 division by zero should return Inf/NaN, not error
+	// 3. FLOAT64 division by zero should return an error
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
-	//   "Division by zero returns ... +/-inf or NaN"
+	//   "Divide by zero operations return an error. To return a different result,
+	//    consider the IEEE_DIVIDE or SAFE_DIVIDE functions."
 	// ════════════════════════════════════════════════════════════════
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	public async Task Float64_DivisionByZero_ReturnsInfinity()
+	public async Task Float64_DivisionByZero_ReturnsError()
 	{
-		var rows = await QueryAsync("SELECT CAST(1.0 AS FLOAT64) / CAST(0.0 AS FLOAT64) AS R");
-		var r = (double)rows[0]["R"]!;
-		double.IsPositiveInfinity(r).Should().BeTrue("FLOAT64 / 0 should return +Inf");
+		var act = async () => await QueryAsync("SELECT CAST(1.0 AS FLOAT64) / CAST(0.0 AS FLOAT64) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	public async Task Float64_NegDivisionByZero_ReturnsNegInfinity()
+	public async Task Float64_NegDivisionByZero_ReturnsError()
 	{
-		var rows = await QueryAsync("SELECT CAST(-1.0 AS FLOAT64) / CAST(0.0 AS FLOAT64) AS R");
-		var r = (double)rows[0]["R"]!;
-		double.IsNegativeInfinity(r).Should().BeTrue("FLOAT64 -1.0 / 0 should return -Inf");
+		var act = async () => await QueryAsync("SELECT CAST(-1.0 AS FLOAT64) / CAST(0.0 AS FLOAT64) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	public async Task Float64_ZeroDivZero_ReturnsNaN()
+	public async Task Float64_ZeroDivZero_ReturnsError()
 	{
-		var rows = await QueryAsync("SELECT CAST(0.0 AS FLOAT64) / CAST(0.0 AS FLOAT64) AS R");
-		var r = (double)rows[0]["R"]!;
-		double.IsNaN(r).Should().BeTrue("FLOAT64 0.0 / 0.0 should return NaN");
+		var act = async () => await QueryAsync("SELECT CAST(0.0 AS FLOAT64) / CAST(0.0 AS FLOAT64) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	public async Task Float64_ModByZero_ReturnsNaN()
+	public async Task Float64_ModByZero_ReturnsError()
 	{
-		var rows = await QueryAsync("SELECT MOD(CAST(5.0 AS FLOAT64), CAST(0.0 AS FLOAT64)) AS R");
-		var r = (double)rows[0]["R"]!;
-		double.IsNaN(r).Should().BeTrue("FLOAT64 MOD 0 should return NaN");
+		var act = async () => await QueryAsync("SELECT MOD(CAST(5.0 AS FLOAT64), CAST(0.0 AS FLOAT64)) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	[Fact]

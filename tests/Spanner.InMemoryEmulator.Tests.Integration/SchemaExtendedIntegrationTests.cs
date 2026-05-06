@@ -505,4 +505,115 @@ public class SchemaExtendedIntegrationTests : IntegrationTestBase
 		rows.Should().ContainSingle();
 		rows[0]["Id"].Should().Be(1L);
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// ALTER TABLE ALTER COLUMN SET NOT NULL — validation of existing data
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_column
+	//   "Cannot change a column to NOT NULL if existing rows contain NULL values for that column."
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task AlterColumn_SetNotNull_WithExistingNulls_Fails()
+	{
+		await ExecuteDdlAsync(
+			"CREATE TABLE SchAlterNotNull1 (Id INT64 NOT NULL, Val STRING(MAX)) PRIMARY KEY (Id)");
+		await InsertAsync("SchAlterNotNull1", new Dictionary<string, object?> { ["Id"] = 1L, ["Val"] = "hello" });
+		await InsertAsync("SchAlterNotNull1", new Dictionary<string, object?> { ["Id"] = 2L, ["Val"] = null });
+
+		// Attempting to make the column NOT NULL should fail because row 2 has a NULL value
+		var act = () => ExecuteDdlAsync(
+			"ALTER TABLE SchAlterNotNull1 ALTER COLUMN Val STRING(MAX) NOT NULL");
+		await act.Should().ThrowAsync<Exception>();
+	}
+
+	[Fact]
+	public async Task AlterColumn_SetNotNull_WithNoNulls_Succeeds()
+	{
+		await ExecuteDdlAsync(
+			"CREATE TABLE SchAlterNotNull2 (Id INT64 NOT NULL, Val STRING(MAX)) PRIMARY KEY (Id)");
+		await InsertAsync("SchAlterNotNull2", new Dictionary<string, object?> { ["Id"] = 1L, ["Val"] = "hello" });
+		await InsertAsync("SchAlterNotNull2", new Dictionary<string, object?> { ["Id"] = 2L, ["Val"] = "world" });
+
+		// Should succeed because no NULL values exist
+		await ExecuteDdlAsync(
+			"ALTER TABLE SchAlterNotNull2 ALTER COLUMN Val STRING(MAX) NOT NULL");
+
+		// Verify the column is now NOT NULL via INFORMATION_SCHEMA
+		var rows = await QueryAsync(
+			"SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SchAlterNotNull2' AND COLUMN_NAME = 'Val'");
+		rows.Should().ContainSingle();
+		rows[0]["IS_NULLABLE"].Should().Be("NO");
+	}
+
+	[Fact]
+	public async Task AlterColumn_SetNotNull_EmptyTable_Succeeds()
+	{
+		await ExecuteDdlAsync(
+			"CREATE TABLE SchAlterNotNull3 (Id INT64 NOT NULL, Val INT64) PRIMARY KEY (Id)");
+
+		// No data in table — should succeed
+		await ExecuteDdlAsync(
+			"ALTER TABLE SchAlterNotNull3 ALTER COLUMN Val INT64 NOT NULL");
+
+		var rows = await QueryAsync(
+			"SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SchAlterNotNull3' AND COLUMN_NAME = 'Val'");
+		rows.Should().ContainSingle();
+		rows[0]["IS_NULLABLE"].Should().Be("NO");
+	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// CREATE UNIQUE INDEX — validation of existing duplicate data
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#create-index
+	//   "Creating a UNIQUE index on a table with existing duplicate values fails."
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task CreateUniqueIndex_WithDuplicateData_Fails()
+	{
+		await ExecuteDdlAsync(
+			"CREATE TABLE SchUniqueIdx1 (Id INT64 NOT NULL, Email STRING(MAX)) PRIMARY KEY (Id)");
+		await InsertAsync("SchUniqueIdx1", new Dictionary<string, object?> { ["Id"] = 1L, ["Email"] = "a@b.com" });
+		await InsertAsync("SchUniqueIdx1", new Dictionary<string, object?> { ["Id"] = 2L, ["Email"] = "a@b.com" });
+
+		// Attempting to create a unique index should fail because duplicates exist
+		var act = () => ExecuteDdlAsync(
+			"CREATE UNIQUE INDEX Idx_SchUniqueIdx1_Email ON SchUniqueIdx1(Email)");
+		await act.Should().ThrowAsync<Exception>();
+	}
+
+	[Fact]
+	public async Task CreateUniqueIndex_WithNoDuplicates_Succeeds()
+	{
+		await ExecuteDdlAsync(
+			"CREATE TABLE SchUniqueIdx2 (Id INT64 NOT NULL, Email STRING(MAX)) PRIMARY KEY (Id)");
+		await InsertAsync("SchUniqueIdx2", new Dictionary<string, object?> { ["Id"] = 1L, ["Email"] = "a@b.com" });
+		await InsertAsync("SchUniqueIdx2", new Dictionary<string, object?> { ["Id"] = 2L, ["Email"] = "b@b.com" });
+
+		// Should succeed because no duplicates exist
+		await ExecuteDdlAsync(
+			"CREATE UNIQUE INDEX Idx_SchUniqueIdx2_Email ON SchUniqueIdx2(Email)");
+
+		// Verify index exists
+		var rows = await QueryAsync(
+			"SELECT INDEX_NAME FROM INFORMATION_SCHEMA.INDEXES WHERE TABLE_NAME = 'SchUniqueIdx2' AND INDEX_NAME = 'Idx_SchUniqueIdx2_Email'");
+		rows.Should().ContainSingle();
+	}
+
+	[Fact]
+	public async Task CreateUniqueIndex_NullFiltered_WithDuplicateNulls_Succeeds()
+	{
+		await ExecuteDdlAsync(
+			"CREATE TABLE SchUniqueIdx3 (Id INT64 NOT NULL, Email STRING(MAX)) PRIMARY KEY (Id)");
+		await InsertAsync("SchUniqueIdx3", new Dictionary<string, object?> { ["Id"] = 1L, ["Email"] = null });
+		await InsertAsync("SchUniqueIdx3", new Dictionary<string, object?> { ["Id"] = 2L, ["Email"] = null });
+
+		// NULL_FILTERED unique index should succeed even with duplicate NULLs
+		// Ref: https://cloud.google.com/spanner/docs/secondary-indexes#null-filtered_unique_index
+		await ExecuteDdlAsync(
+			"CREATE UNIQUE NULL_FILTERED INDEX Idx_SchUniqueIdx3_Email ON SchUniqueIdx3(Email)");
+
+		var rows = await QueryAsync(
+			"SELECT INDEX_NAME FROM INFORMATION_SCHEMA.INDEXES WHERE TABLE_NAME = 'SchUniqueIdx3' AND INDEX_NAME = 'Idx_SchUniqueIdx3_Email'");
+		rows.Should().ContainSingle();
+	}
 }

@@ -322,6 +322,25 @@ internal static class DdlParser
 				if (existingCol == null)
 					throw new InvalidOperationException($"Column '{alter.ColumnName}' does not exist in table '{stmt.Name}'.");
 
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_column
+				//   "Cannot change a column to NOT NULL if existing rows contain NULL values for that column."
+				if (!alter.NewDefinition.IsNullable && existingCol.IsNullable)
+				{
+					foreach (var kvp in table.Rows)
+					{
+						if (kvp.Value.Columns.TryGetValue(existingCol.Name, out var val) && val == null)
+						{
+							throw new InvalidOperationException(
+								$"Cannot change column '{existingCol.Name}' to NOT NULL because it contains NULL values in table '{stmt.Name}'.");
+						}
+						if (!kvp.Value.Columns.ContainsKey(existingCol.Name))
+						{
+							throw new InvalidOperationException(
+								$"Cannot change column '{existingCol.Name}' to NOT NULL because it contains NULL values in table '{stmt.Name}'.");
+						}
+					}
+				}
+
 				var newCol = new ColumnDef(
 					existingCol.Name,
 					alter.NewDefinition.SpannerType,
@@ -457,6 +476,41 @@ internal static class DdlParser
 			stmt.StoringColumns?.AsReadOnly(),
 			stmt.IsUnique,
 			stmt.IsNullFiltered);
+
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#create-index
+		//   "Creating a UNIQUE index on a table with existing duplicate values fails."
+		if (stmt.IsUnique && table.Rows.Count > 0)
+		{
+			var seen = new HashSet<string>();
+			foreach (var kvp in table.Rows)
+			{
+				var row = kvp.Value;
+				// For NULL_FILTERED indexes, skip rows where any indexed column is null
+				if (stmt.IsNullFiltered)
+				{
+					var hasNull = indexColumns.Any(ic =>
+					{
+						var colName = table.Columns.First(c =>
+							string.Equals(c.Name, ic.Name, StringComparison.OrdinalIgnoreCase)).Name;
+						return !row.Columns.TryGetValue(colName, out var v) || v == null;
+					});
+					if (hasNull) continue;
+				}
+
+				var keyParts = indexColumns.Select(ic =>
+				{
+					var colName = table.Columns.First(c =>
+						string.Equals(c.Name, ic.Name, StringComparison.OrdinalIgnoreCase)).Name;
+					return row.Columns.TryGetValue(colName, out var v) ? (v?.ToString() ?? "\0NULL\0") : "\0NULL\0";
+				});
+				var compositeKey = string.Join("|", keyParts);
+				if (!seen.Add(compositeKey))
+				{
+					throw new InvalidOperationException(
+						$"Cannot create UNIQUE index '{stmt.Name}' on table '{stmt.TableName}' because duplicate values exist.");
+				}
+			}
+		}
 
 		schema.AddIndex(index);
 	}

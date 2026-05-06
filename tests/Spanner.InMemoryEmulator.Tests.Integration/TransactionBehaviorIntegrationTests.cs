@@ -1104,4 +1104,41 @@ public class TransactionBehaviorIntegrationTests : IntegrationTestBase
 		var rows = await QueryAsync($"SELECT Name FROM {t} WHERE Id = 1");
 		rows[0]["Name"].Should().Be("Hello World");
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Commit with failing mutations — transaction not marked committed
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.Commit
+	//   "If the mutations fail (e.g., duplicate key), the commit returns an error."
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "TransactionBehavior")]
+	public async Task Commit_WithDuplicateInsert_FailsAndDoesNotCorruptState()
+	{
+		var t = await FreshSimpleTable("CORDER");
+		// Insert a row first
+		await ExecuteDmlAsync($"INSERT INTO {t} (Id, Name, Val) VALUES (1, 'Original', 100)");
+
+		// Try to insert-or-update in a transaction that also tries to insert a duplicate via mutation
+		// Use raw SpannerCommand with mutations for the conflict
+		using var connection = Fixture.CreateConnection();
+		await connection.OpenAsync();
+
+		// Attempt INSERT (not InsertOrUpdate) of duplicate key should fail
+		var act = async () =>
+		{
+			using var cmd = connection.CreateInsertCommand(t);
+			cmd.Parameters.Add("Id", SpannerDbType.Int64, 1L);
+			cmd.Parameters.Add("Name", SpannerDbType.String, "Duplicate");
+			cmd.Parameters.Add("Val", SpannerDbType.Int64, 999L);
+			await cmd.ExecuteNonQueryAsync();
+		};
+		await act.Should().ThrowAsync<Exception>();
+
+		// Verify original data is unchanged
+		var rows = await QueryAsync($"SELECT Name, Val FROM {t} WHERE Id = 1");
+		rows.Should().ContainSingle();
+		rows[0]["Name"].Should().Be("Original");
+		rows[0]["Val"].Should().Be(100L);
+	}
 }

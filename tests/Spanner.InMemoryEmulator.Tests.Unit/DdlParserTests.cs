@@ -294,4 +294,29 @@ public class DdlParserTests
 
 		act.Should().Throw<InvalidOperationException>().WithMessage("*not defined*");
 	}
+
+	[Fact]
+	public void AlterColumn_SetNotNull_WithNullValues_ThrowsException()
+	{
+		using var db = new InMemorySpannerDatabase();
+		db.ExecuteDdl("CREATE TABLE T (Id INT64 NOT NULL, Val STRING(MAX)) PRIMARY KEY (Id)");
+		db.Insert("T", new Dictionary<string, object?> { ["Id"] = 1L, ["Val"] = null });
+
+		var act = () => db.ExecuteDdl("ALTER TABLE T ALTER COLUMN Val STRING(MAX) NOT NULL");
+
+		act.Should().Throw<InvalidOperationException>().WithMessage("*NOT NULL*");
+	}
+
+	[Fact]
+	public void CreateUniqueIndex_WithDuplicates_ThrowsException()
+	{
+		using var db = new InMemorySpannerDatabase();
+		db.ExecuteDdl("CREATE TABLE T (Id INT64 NOT NULL, Email STRING(MAX)) PRIMARY KEY (Id)");
+		db.Insert("T", new Dictionary<string, object?> { ["Id"] = 1L, ["Email"] = "a@b.com" });
+		db.Insert("T", new Dictionary<string, object?> { ["Id"] = 2L, ["Email"] = "a@b.com" });
+
+		var act = () => db.ExecuteDdl("CREATE UNIQUE INDEX Idx_T_Email ON T(Email)");
+
+		act.Should().Throw<InvalidOperationException>().WithMessage("*duplicate*");
+	}
 }

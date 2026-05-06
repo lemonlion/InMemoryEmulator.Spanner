@@ -297,10 +297,11 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 
 			// Collect mutations from both the request and any buffered transaction mutations
 			var allMutations = new List<Mutation>();
+			TransactionState? txnState = null;
 
 			if (request.TransactionId != null && !request.TransactionId.IsEmpty)
 			{
-				if (!_transactionManager.TryGetByBytes(request.TransactionId, out var txnState) || txnState == null)
+				if (!_transactionManager.TryGetByBytes(request.TransactionId, out txnState) || txnState == null)
 				{
 					// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.CommitRequest
 					//   "transaction_id: Commit a previously-started transaction."
@@ -340,7 +341,6 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 				}
 
 				allMutations.AddRange(txnState.BufferedMutations);
-				_transactionManager.MarkCommitted(txnState.Id);
 			}
 
 			allMutations.AddRange(request.Mutations);
@@ -362,6 +362,12 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 						? StatusCode.NotFound
 						: StatusCode.FailedPrecondition;
 				throw new RpcException(new Status(code, ex.Message));
+			}
+
+			// Mark committed only after mutations succeed — prevents corrupted state on failure
+			if (txnState != null)
+			{
+				_transactionManager.MarkCommitted(txnState.Id);
 			}
 
 			var response = new CommitResponse

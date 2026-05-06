@@ -398,4 +398,47 @@ public class JsonFunctionCoreIntegrationTests : IntegrationTestBase
 		rows.Should().HaveCount(1);
 		rows[0]["Id"].Should().Be(1L);
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Legacy JSON extraction functions (deprecated but still supported)
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_extract
+	//   "JSON_EXTRACT is equivalent to JSON_QUERY"
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_extract_scalar
+	//   "JSON_EXTRACT_SCALAR is equivalent to JSON_VALUE"
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task JsonExtract_EquivalentToJsonQuery()
+	{
+		var result = await Eval("JSON_EXTRACT(PARSE_JSON('{\"a\":{\"b\":1}}'), '$.a')");
+		result.Should().Be("{\"b\":1}");
+	}
+
+	[Fact]
+	public async Task JsonExtractScalar_EquivalentToJsonValue()
+	{
+		var result = await Eval("JSON_EXTRACT_SCALAR(PARSE_JSON('{\"name\":\"Alice\"}'), '$.name')");
+		result.Should().Be("Alice");
+	}
+
+	[Fact]
+	public async Task JsonExtractScalar_ReturnsNumber()
+	{
+		var result = await Eval("JSON_EXTRACT_SCALAR(PARSE_JSON('{\"age\":30}'), '$.age')");
+		result.Should().Be("30");
+	}
+
+	[Fact]
+	public async Task JsonExtractArray_EquivalentToJsonQueryArray()
+	{
+		var result = await Eval("ARRAY_LENGTH(JSON_EXTRACT_ARRAY(PARSE_JSON('[1,2,3]'), '$'))");
+		result.Should().Be(3L);
+	}
+
+	[Fact]
+	public async Task JsonExtract_NullInput_ReturnsNull()
+	{
+		var result = await Eval("JSON_EXTRACT(CAST(NULL AS JSON), '$.a')");
+		result.Should().BeNull();
+	}
 }

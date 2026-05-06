@@ -484,6 +484,15 @@ internal class ExpressionEvaluator
 			"JSON_QUERY" => EvalJsonQuery(func, row),
 			"JSON_QUERY_ARRAY" => EvalJsonQueryArray(func, row),
 			"JSON_TYPE" => EvalJsonType(func, row),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_extract
+			//   "JSON_EXTRACT is equivalent to the JSON_QUERY function"
+			"JSON_EXTRACT" => EvalJsonQuery(func, row),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_extract_scalar
+			//   "JSON_EXTRACT_SCALAR is equivalent to the JSON_VALUE function"
+			"JSON_EXTRACT_SCALAR" => EvalJsonValue(func, row),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_extract_array
+			//   "JSON_EXTRACT_ARRAY is equivalent to the JSON_QUERY_ARRAY function"
+			"JSON_EXTRACT_ARRAY" => EvalJsonQueryArray(func, row),
 
 			// Hash functions
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/hash_functions
@@ -706,38 +715,38 @@ internal class ExpressionEvaluator
 		return a;
 	}
 
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_rules#supertypes
-	//   "INT64 and FLOAT64 have a common supertype of FLOAT64."
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conditional_expressions#coalesce
+	//   "Returns the value of the first non-NULL expression, if any, otherwise NULL.
+	//    The remaining expressions aren't evaluated."
 	private object? EvalCoalesce(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
-		var values = func.Arguments.Select(a => Evaluate(a, row)).ToList();
-		var result = values.FirstOrDefault(v => v != null);
-		if (result is long l && values.Any(v => v is double))
-			return (double)l;
-		return result;
+		object? result = null;
+		foreach (var arg in func.Arguments)
+		{
+			result = Evaluate(arg, row);
+			if (result != null) return result;
+		}
+		return null;
 	}
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conditional_expressions#ifnull
+	//   "If expr doesn't evaluate to NULL, null_result isn't evaluated."
 	private object? EvalIfNull(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		var a = Evaluate(func.Arguments[0], row);
-		var b = Evaluate(func.Arguments[1], row);
-		var result = a ?? b;
-		if (result is long l && (a is double || b is double))
-			return (double)l;
-		return result;
+		if (a != null) return a;
+		return Evaluate(func.Arguments[1], row);
 	}
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conditional_expressions#if
+	//   "else_result isn't evaluated if expr evaluates to TRUE.
+	//    true_result isn't evaluated if expr evaluates to FALSE or NULL."
 	private object? EvalIf(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		var condition = Evaluate(func.Arguments[0], row);
-		var thenVal = Evaluate(func.Arguments[1], row);
-		var elseVal = Evaluate(func.Arguments[2], row);
-		var result = condition is true ? thenVal : elseVal;
-		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_rules#supertypes
-		//   "INT64 and FLOAT64 have a common supertype of FLOAT64."
-		if (result is long l && (thenVal is double || elseVal is double))
-			return (double)l;
-		return result;
+		return condition is true
+			? Evaluate(func.Arguments[1], row)
+			: Evaluate(func.Arguments[2], row);
 	}
 
 	private object? EvalStringFunc1(FunctionCallExpr func, Dictionary<string, object?> row, Func<string, object> fn)

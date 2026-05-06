@@ -873,4 +873,52 @@ public class OperatorIntegrationTests : IntegrationTestBase
 	{
 		(await Eval(expr)).Should().Be(expected);
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// Short-circuit evaluation for conditional expressions
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conditional_expressions
+	//   "Conditional expressions impose constraints on the evaluation order of their inputs.
+	//    In essence, they are evaluated left to right, with short-circuiting."
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task If_ShortCircuits_TrueBranch()
+	{
+		// When condition is TRUE, else_result should NOT be evaluated
+		// 1/0 would normally cause a division by zero error
+		var result = await Eval("IF(TRUE, 42, 1/0)");
+		result.Should().Be(42L);
+	}
+
+	[Fact]
+	public async Task If_ShortCircuits_FalseBranch()
+	{
+		// When condition is FALSE, true_result should NOT be evaluated
+		var result = await Eval("IF(FALSE, 1/0, 99)");
+		result.Should().Be(99L);
+	}
+
+	[Fact]
+	public async Task If_ShortCircuits_NullCondition()
+	{
+		// When condition is NULL, true_result should NOT be evaluated
+		var result = await Eval("IF(CAST(NULL AS BOOL), 1/0, 77)");
+		result.Should().Be(77L);
+	}
+
+	[Fact]
+	public async Task Coalesce_ShortCircuits()
+	{
+		// Once a non-NULL value is found, remaining expressions should NOT be evaluated
+		var result = await Eval("COALESCE(5, 1/0)");
+		result.Should().Be(5L);
+	}
+
+	[Fact]
+	public async Task Ifnull_ShortCircuits()
+	{
+		// When first arg is non-NULL, second arg should NOT be evaluated
+		var result = await Eval("IFNULL(10, 1/0)");
+		result.Should().Be(10L);
+	}
 }

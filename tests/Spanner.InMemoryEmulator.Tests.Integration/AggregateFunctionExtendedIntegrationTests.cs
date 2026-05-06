@@ -1855,4 +1855,19 @@ public class AggregateFunctionExtendedIntegrationTests : IntegrationTestBase
 		var rows = await QueryAsync($"SELECT Category, COUNT(*) AS C, SUM(Val) AS S, AVG(FVal) AS A FROM {T} GROUP BY Category HAVING COUNT(*) = 2 AND SUM(Val) IS NOT NULL ORDER BY Category");
 		rows.Count.Should().BeGreaterOrEqualTo(2);
 	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "AggregateFunctionExtended")]
+	public async Task ArrayAgg_DefaultNullHandling_OrderBy_IncludesNulls()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
+		//   "If a RESPECT NULLS clause is used, or if neither a RESPECT NULLS nor an IGNORE NULLS
+		//    clause is present, NULL values are included in the result."
+		await EnsureTable();
+		var rows = await QueryAsync($"SELECT ARRAY_AGG(Name ORDER BY Id) AS A FROM {T} WHERE Category = 'C'");
+		var arr = (IList)rows[0]["A"]!;
+		arr.Count.Should().Be(2); // "Eve" and NULL (Id=6)
+		arr[0].Should().Be("Eve");
+		arr[1].Should().BeNull();
+	}
 }

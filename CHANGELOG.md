@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.51] - 2026-07-10
+
+### Fixed
+- **GROUP BY ordinal resolution**: `GROUP BY 1` now correctly resolves integer ordinals to SELECT column positions, matching real Spanner behavior.
+- **GROUP BY alias resolution**: `GROUP BY alias_name` now correctly resolves SELECT list aliases to the underlying expression.
+- **RIGHT/FULL JOIN with empty left table**: When the left table has zero rows, unmatched right rows now correctly produce NULL values for left-side columns instead of missing columns.
+- **ARRAY_AGG ORDER BY null handling**: `ARRAY_AGG(col ORDER BY col)` without explicit IGNORE/RESPECT NULLS now correctly includes NULL values (RESPECT NULLS is the default for ARRAY_AGG).
+- **SAFE functions NUMERIC handling**: `SAFE_DIVIDE`, `SAFE_NEGATE`, `SAFE_ADD`, `SAFE_SUBTRACT`, and `SAFE_MULTIPLY` now correctly preserve NUMERIC (decimal) precision instead of converting to FLOAT64.
+- **SAFE_DIVIDE type inference**: `SAFE_DIVIDE(NUMERIC, NUMERIC)` now correctly returns NUMERIC type instead of always returning FLOAT64.
+- **SAFE_DIVIDE infinity detection**: Division producing infinity now returns NULL instead of the infinity value.
+
+### Added
+- Integration tests: 11 new tests (2 GROUP BY, 2 RIGHT/FULL JOIN, 1 ARRAY_AGG, 6 SAFE NUMERIC).
+
 ## [1.0.40] - 2026-05-19
 
 ### Fixed

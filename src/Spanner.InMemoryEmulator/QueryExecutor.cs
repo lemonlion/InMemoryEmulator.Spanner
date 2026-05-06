@@ -339,9 +339,13 @@ internal class QueryExecutor
 			// 1b. JOINs — combine rows from multiple tables
 			if (select.From.Joins != null)
 			{
+				var leftAlias2 = select.From.Alias ?? select.From.Table;
 				foreach (var join in select.From.Joins)
 				{
-					rows = ExecuteJoin(rows, join, evaluator, cteMap);
+					rows = ExecuteJoin(rows, join, evaluator, cteMap, sourceTable, leftAlias2);
+					// After first join the "left" is the combined result; clear sourceTable fallback
+					sourceTable = null;
+					leftAlias2 = null;
 				}
 			}
 		}
@@ -887,6 +891,17 @@ internal class QueryExecutor
 			return InferType(func.Arguments[0], table);
 		}
 
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#safe_divide
+		//   "Returns NUMERIC if both arguments are NUMERIC, otherwise FLOAT64."
+		if (name is "SAFE_DIVIDE" && func.Arguments.Count > 1)
+		{
+			var t0 = InferType(func.Arguments[0], table);
+			var t1 = InferType(func.Arguments[1], table);
+			if (t0 == TypeCode.Numeric && t1 == TypeCode.Numeric)
+				return TypeCode.Numeric;
+			return TypeCode.Float64;
+		}
+
 		// GREATEST/LEAST/COALESCE — infer supertype of all arguments
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_rules#supertypes
 		if (name is "GREATEST" or "LEAST" or "COALESCE" && func.Arguments.Count > 0)
@@ -932,7 +947,7 @@ internal class QueryExecutor
 		return name switch
 		{
 			"COUNT" or "COUNTIF" or "APPROX_COUNT_DISTINCT" => TypeCode.Int64,
-			"AVG" or "IEEE_DIVIDE" or "SAFE_DIVIDE" => TypeCode.Float64,
+			"AVG" or "IEEE_DIVIDE" => TypeCode.Float64,
 			"LOGICAL_AND" or "LOGICAL_OR" => TypeCode.Bool,
 			"STRING_AGG" => TypeCode.String,
 			"ARRAY_AGG" => TypeCode.Array,
@@ -1615,10 +1630,36 @@ internal class QueryExecutor
 		List<Dictionary<string, object?>> rows,
 		ExpressionEvaluator evaluator)
 	{
+		// Resolve ordinals and aliases in GROUP BY expressions.
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#group_by_clause
+		//   "An integer literal ... is interpreted as a column number"
+		//   "Column aliases from the SELECT list are allowed"
+		var resolvedGroupBy = select.GroupBy!.Select(groupExpr =>
+		{
+			// Resolve integer ordinals (1-based) to SELECT column positions.
+			if (groupExpr is LiteralExpr { Value: var v } && v is long or int or double)
+			{
+				var ordinal = Convert.ToInt32(v);
+				if (ordinal >= 1 && ordinal <= select.Columns.Count)
+				{
+					return select.Columns[ordinal - 1].Expr;
+				}
+			}
+			// Resolve SELECT aliases to the underlying expression.
+			if (groupExpr is ColumnRefExpr colRef && colRef.TableAlias == null)
+			{
+				var aliasedCol = select.Columns.FirstOrDefault(c =>
+					string.Equals(c.Alias, colRef.Column, StringComparison.OrdinalIgnoreCase));
+				if (aliasedCol != null)
+					return aliasedCol.Expr;
+			}
+			return groupExpr;
+		}).ToList();
+
 		var groups = rows.GroupBy(r =>
 		{
 			var key = new List<object?>();
-			foreach (var groupExpr in select.GroupBy!)
+			foreach (var groupExpr in resolvedGroupBy)
 			{
 				key.Add(evaluator.Evaluate(groupExpr, r));
 			}
@@ -1632,9 +1673,9 @@ internal class QueryExecutor
 			var outputRow = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
 
 			// Set group key columns
-			for (int i = 0; i < select.GroupBy!.Count; i++)
+			for (int i = 0; i < resolvedGroupBy.Count; i++)
 			{
-				var name = InferColumnName(select.GroupBy[i]);
+				var name = InferColumnName(resolvedGroupBy[i]);
 				outputRow[name] = group.Key.Values[i];
 			}
 
@@ -1975,7 +2016,11 @@ internal class QueryExecutor
 		if (values.Count == 0 && func.NullHandling != true) return null;
 		if (func.AggregateOrderBy != null && func.AggregateOrderBy.Count > 0)
 		{
-			var respectNulls = func.NullHandling == true;
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
+			//   "If a RESPECT NULLS clause is used, or if neither a RESPECT NULLS nor an IGNORE NULLS
+			//    clause is present, NULL values are included in the result."
+			var respectNulls = func.NullHandling == true
+				|| func.NullHandling != false; // ARRAY_AGG defaults to RESPECT NULLS
 			var sortedRows = OrderRows(func.AggregateOrderBy, rows, evaluator);
 			var sortedValues = sortedRows
 				.Select(r => evaluator.Evaluate(func.Arguments[0], r))
@@ -2253,7 +2298,9 @@ internal class QueryExecutor
 		List<Dictionary<string, object?>> leftRows,
 		JoinClause join,
 		ExpressionEvaluator evaluator,
-		Dictionary<string, QueryBody>? cteMap = null)
+		Dictionary<string, QueryBody>? cteMap = null,
+		TableDefinition? leftTable = null,
+		string? leftAlias = null)
 	{
 		List<Dictionary<string, object?>> rightRows;
 		TableDefinition? rightTable = null;
@@ -2339,8 +2386,8 @@ internal class QueryExecutor
 		{
 			JoinType.Inner => InnerJoin(leftRows, rightRows, onExpr, evaluator),
 			JoinType.Left => LeftJoin(leftRows, rightRows, onExpr, evaluator, rightTable, rightAlias),
-			JoinType.Right => RightJoin(leftRows, rightRows, onExpr, evaluator),
-			JoinType.Full => FullJoin(leftRows, rightRows, onExpr, evaluator, rightTable, rightAlias),
+			JoinType.Right => RightJoin(leftRows, rightRows, onExpr, evaluator, leftTable, leftAlias),
+			JoinType.Full => FullJoin(leftRows, rightRows, onExpr, evaluator, rightTable, rightAlias, leftTable, leftAlias),
 			JoinType.Cross => CrossJoin(leftRows, rightRows),
 			_ => throw new NotSupportedException($"Join type '{join.Type}' is not supported.")
 		};
@@ -2437,7 +2484,9 @@ internal class QueryExecutor
 		List<Dictionary<string, object?>> leftRows,
 		List<Dictionary<string, object?>> rightRows,
 		SqlExpression? on,
-		ExpressionEvaluator evaluator)
+		ExpressionEvaluator evaluator,
+		TableDefinition? leftTable = null,
+		string? leftAlias = null)
 	{
 		// Right join = swap left/right of a left join, then unswap column order
 		var result = new List<Dictionary<string, object?>>();
@@ -2456,12 +2505,10 @@ internal class QueryExecutor
 			if (!matched)
 			{
 				// Left side is null - we need to create null entries for left columns
-				var nullLeft = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-				if (leftRows.Count > 0)
-				{
-					foreach (var key in leftRows[0].Keys)
-						nullLeft[key] = null;
-				}
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#right_join
+				//   "For each row in the right from_item that does not join to any row in the left
+				//    from_item, NULL values are returned for all columns in the left from_item."
+				var nullLeft = NullRow(leftTable, leftAlias ?? string.Empty, leftRows);
 				result.Add(CombineRows(nullLeft, right));
 			}
 		}
@@ -2474,7 +2521,9 @@ internal class QueryExecutor
 		SqlExpression? on,
 		ExpressionEvaluator evaluator,
 		TableDefinition? rightTable,
-		string rightAlias)
+		string rightAlias,
+		TableDefinition? leftTable = null,
+		string? leftAlias = null)
 	{
 		var result = new List<Dictionary<string, object?>>();
 		var matchedRight = new HashSet<int>();
@@ -2504,12 +2553,10 @@ internal class QueryExecutor
 		{
 			if (!matchedRight.Contains(i))
 			{
-				var nullLeft = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-				if (leftRows.Count > 0)
-				{
-					foreach (var key in leftRows[0].Keys)
-						nullLeft[key] = null;
-				}
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#full_join
+				//   "For each row in one from_item that does not join to any row in the other from_item,
+				//    NULL values are returned for all columns in the other from_item."
+				var nullLeft = NullRow(leftTable, leftAlias ?? string.Empty, leftRows);
 				result.Add(CombineRows(nullLeft, rightRows[i]));
 			}
 		}

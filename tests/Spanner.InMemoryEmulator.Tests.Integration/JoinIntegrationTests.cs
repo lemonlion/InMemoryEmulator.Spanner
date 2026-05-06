@@ -180,4 +180,76 @@ public JoinIntegrationTests(EmulatorSession session) : base(session) { }
 		rows.Should().HaveCount(1);
 		rows[0].Should().Be(("Bob", "Alice"));
 	}
+
+	// ─── RIGHT/FULL JOIN with empty left table ───
+
+	[Fact]
+	[Trait(TestTraits.Category, "Join")]
+	public async Task RightJoin_EmptyLeftTable_ReturnsRightRowsWithNullLeftColumns()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#right_join
+		//   "For each row in the right from_item that does not join to any row in the left
+		//    from_item, NULL values are returned for all columns in the left from_item."
+		var prefix = "J_RJEmpty";
+		await ExecuteDdlAsync(
+			$"CREATE TABLE {prefix}_Left (Id INT64 NOT NULL, Val STRING(MAX)) PRIMARY KEY (Id)",
+			$"CREATE TABLE {prefix}_Right (RId INT64 NOT NULL, RVal STRING(MAX)) PRIMARY KEY (RId)");
+
+		// Only insert into Right — Left is empty
+		await InsertAsync($"{prefix}_Right", new Dictionary<string, object?> { ["RId"] = 1L, ["RVal"] = "R1" });
+		await InsertAsync($"{prefix}_Right", new Dictionary<string, object?> { ["RId"] = 2L, ["RVal"] = "R2" });
+
+		using var connection = Fixture.CreateConnection();
+		using var cmd = connection.CreateSelectCommand(
+			$"SELECT l.Id, l.Val, r.RId, r.RVal FROM {prefix}_Left l RIGHT JOIN {prefix}_Right r ON l.Id = r.RId ORDER BY r.RId");
+		using var reader = await cmd.ExecuteReaderAsync();
+
+		var rows = new List<(long? LId, string? LVal, long RId, string RVal)>();
+		while (await reader.ReadAsync())
+		{
+			rows.Add((
+				reader.IsDBNull(0) ? null : reader.GetInt64(0),
+				reader.IsDBNull(1) ? null : reader.GetString(1),
+				reader.GetInt64(2),
+				reader.GetString(3)));
+		}
+
+		rows.Should().HaveCount(2);
+		rows[0].Should().Be((null, null, 1L, "R1"));
+		rows[1].Should().Be((null, null, 2L, "R2"));
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "Join")]
+	public async Task FullJoin_EmptyLeftTable_ReturnsRightRowsWithNullLeftColumns()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#full_join
+		//   "For each row in one from_item that does not join to any row in the other from_item,
+		//    NULL values are returned for all columns in the other from_item."
+		var prefix = "J_FJEmpty";
+		await ExecuteDdlAsync(
+			$"CREATE TABLE {prefix}_Left (Id INT64 NOT NULL, Val STRING(MAX)) PRIMARY KEY (Id)",
+			$"CREATE TABLE {prefix}_Right (RId INT64 NOT NULL, RVal STRING(MAX)) PRIMARY KEY (RId)");
+
+		// Only insert into Right — Left is empty
+		await InsertAsync($"{prefix}_Right", new Dictionary<string, object?> { ["RId"] = 1L, ["RVal"] = "R1" });
+
+		using var connection = Fixture.CreateConnection();
+		using var cmd = connection.CreateSelectCommand(
+			$"SELECT l.Id, l.Val, r.RId, r.RVal FROM {prefix}_Left l FULL JOIN {prefix}_Right r ON l.Id = r.RId ORDER BY r.RId");
+		using var reader = await cmd.ExecuteReaderAsync();
+
+		var rows = new List<(long? LId, string? LVal, long RId, string RVal)>();
+		while (await reader.ReadAsync())
+		{
+			rows.Add((
+				reader.IsDBNull(0) ? null : reader.GetInt64(0),
+				reader.IsDBNull(1) ? null : reader.GetString(1),
+				reader.GetInt64(2),
+				reader.GetString(3)));
+		}
+
+		rows.Should().HaveCount(1);
+		rows[0].Should().Be((null, null, 1L, "R1"));
+	}
 }

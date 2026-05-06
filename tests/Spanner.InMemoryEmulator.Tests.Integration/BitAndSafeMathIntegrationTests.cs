@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Google.Cloud.Spanner.V1;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
@@ -506,5 +507,59 @@ public class BitAndSafeMathIntegrationTests : IntegrationTestBase
 	{
 		var result = await Eval("FARM_FINGERPRINT(CAST(NULL AS STRING))");
 		result.Should().BeNull();
+	}
+
+	// ─── SAFE functions with NUMERIC (decimal) ───
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#safe_divide
+	//   "If the result overflows, returns NULL."
+
+	[Fact]
+	public async Task SafeDivide_Numeric_PreservesPrecision()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#safe_divide
+		//   "SAFE_DIVIDE returns NUMERIC when both arguments are NUMERIC."
+		var result = await Eval("SAFE_DIVIDE(NUMERIC '1.0', NUMERIC '3.0')");
+		result.Should().BeOfType<SpannerNumeric>();
+		((SpannerNumeric)result!).ToDecimal(LossOfPrecisionHandling.Truncate)
+			.Should().BeApproximately(0.333333333m, 0.000001m);
+	}
+
+	[Fact]
+	public async Task SafeDivide_Numeric_ZeroDivisor_ReturnsNull()
+	{
+		var result = await Eval("SAFE_DIVIDE(NUMERIC '10.5', NUMERIC '0')");
+		result.Should().BeNull();
+	}
+
+	[Fact]
+	public async Task SafeNegate_Numeric_Works()
+	{
+		var result = await Eval("SAFE_NEGATE(NUMERIC '42.5')");
+		result.Should().BeOfType<SpannerNumeric>();
+		((SpannerNumeric)result!).ToDecimal(LossOfPrecisionHandling.Truncate).Should().Be(-42.5m);
+	}
+
+	[Fact]
+	public async Task SafeAdd_Numeric_PreservesPrecision()
+	{
+		var result = await Eval("SAFE_ADD(NUMERIC '1.1', NUMERIC '2.2')");
+		result.Should().BeOfType<SpannerNumeric>();
+		((SpannerNumeric)result!).ToDecimal(LossOfPrecisionHandling.Truncate).Should().Be(3.3m);
+	}
+
+	[Fact]
+	public async Task SafeSubtract_Numeric_PreservesPrecision()
+	{
+		var result = await Eval("SAFE_SUBTRACT(NUMERIC '5.5', NUMERIC '2.2')");
+		result.Should().BeOfType<SpannerNumeric>();
+		((SpannerNumeric)result!).ToDecimal(LossOfPrecisionHandling.Truncate).Should().Be(3.3m);
+	}
+
+	[Fact]
+	public async Task SafeMultiply_Numeric_PreservesPrecision()
+	{
+		var result = await Eval("SAFE_MULTIPLY(NUMERIC '2.5', NUMERIC '4.0')");
+		result.Should().BeOfType<SpannerNumeric>();
+		((SpannerNumeric)result!).ToDecimal(LossOfPrecisionHandling.Truncate).Should().Be(10.0m);
 	}
 }

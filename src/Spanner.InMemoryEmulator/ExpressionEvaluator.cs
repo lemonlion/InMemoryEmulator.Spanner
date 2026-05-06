@@ -2000,9 +2000,19 @@ internal class ExpressionEvaluator
 		var a = Evaluate(func.Arguments[0], row);
 		var b = Evaluate(func.Arguments[1], row);
 		if (a == null || b == null) return null;
-		var db = Convert.ToDouble(b);
-		if (db == 0) return null;
-		return Convert.ToDouble(a) / db;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#safe_divide
+		//   "Returns NUMERIC when both arguments are NUMERIC."
+		if (a is decimal da && b is decimal db)
+		{
+			if (db == 0m) return null;
+			try { return da / db; }
+			catch (OverflowException) { return null; }
+		}
+		var dblB = Convert.ToDouble(b);
+		if (dblB == 0) return null;
+		var result = Convert.ToDouble(a) / dblB;
+		if (double.IsInfinity(result) || double.IsNaN(result)) return null;
+		return result;
 	}
 
 	private object? EvalSafeNegate(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -2012,6 +2022,7 @@ internal class ExpressionEvaluator
 		try
 		{
 			if (v is long l) return checked(-l);
+			if (v is decimal d) return -d;
 			return -Convert.ToDouble(v);
 		}
 		catch (OverflowException) { return null; }
@@ -2031,14 +2042,29 @@ internal class ExpressionEvaluator
 				"MUL" => checked(la * lb),
 				_ => throw new NotSupportedException()
 			};
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#safe_add
+			//   "Returns NUMERIC when at least one argument is NUMERIC."
+			if (a is decimal || b is decimal)
+			{
+				var da2 = Convert.ToDecimal(a); var db2 = Convert.ToDecimal(b);
+				return op switch
+				{
+					"ADD" => checked(da2 + db2),
+					"SUB" => checked(da2 - db2),
+					"MUL" => checked(da2 * db2),
+					_ => throw new NotSupportedException()
+				};
+			}
 			var da = Convert.ToDouble(a); var db = Convert.ToDouble(b);
-			return op switch
+			var result = op switch
 			{
 				"ADD" => da + db,
 				"SUB" => da - db,
 				"MUL" => da * db,
 				_ => throw new NotSupportedException()
 			};
+			if (double.IsInfinity(result) || double.IsNaN(result)) return null;
+			return result;
 		}
 		catch (OverflowException) { return null; }
 	}

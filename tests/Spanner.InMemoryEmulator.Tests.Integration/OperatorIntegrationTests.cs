@@ -1125,4 +1125,37 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		var act = async () => await Eval("RPAD('hello', 10, '')");
 		await act.Should().ThrowAsync<Exception>();
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// GROUP BY alias and ordinal
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#group_by_clause
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task GroupBy_Ordinal_Works()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#group_by_clause
+		//   "An integer literal is interpreted as a column number"
+		var rows = await QueryAsync(
+			"SELECT val, COUNT(*) AS cnt FROM UNNEST([1,1,2,3,3,3]) AS val GROUP BY 1 ORDER BY 1");
+		rows.Should().HaveCount(3);
+		rows[0]["val"].Should().Be(1L);
+		rows[0]["cnt"].Should().Be(2L);
+		rows[2]["val"].Should().Be(3L);
+		rows[2]["cnt"].Should().Be(3L);
+	}
+
+	[Fact]
+	public async Task GroupBy_SelectAlias_Works()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#group_by_clause
+		//   "GROUP BY expressions can include column aliases from the SELECT list"
+		var rows = await QueryAsync(
+			"SELECT val * 2 AS doubled, COUNT(*) AS cnt FROM UNNEST([1,1,2,3]) AS val GROUP BY doubled ORDER BY doubled");
+		rows.Should().HaveCount(3);
+		rows[0]["doubled"].Should().Be(2L); // 1*2
+		rows[0]["cnt"].Should().Be(2L);
+		rows[1]["doubled"].Should().Be(4L); // 2*2
+		rows[2]["doubled"].Should().Be(6L); // 3*2
+	}
 }

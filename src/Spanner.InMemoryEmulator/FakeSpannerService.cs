@@ -196,6 +196,7 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 		try
 		{
 			CheckFault(nameof(DeleteSession), request);
+			ValidateSession(request.Name);
 			_sessionManager.DeleteSession(request.Name);
 			var result = new Empty();
 			NotifyResponseSent(nameof(DeleteSession), request, result, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);
@@ -240,6 +241,16 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 		{
 			CheckFault(nameof(BeginTransaction), request);
 			ValidateSession(request.Session);
+
+			// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.BeginTransactionRequest
+			//   "options: Required. Options for the new transaction."
+			//   "mode: Required. The type of transaction."
+			if (request.Options == null || request.Options.ModeCase == TransactionOptions.ModeOneofCase.None)
+			{
+				throw new RpcException(new Status(StatusCode.InvalidArgument,
+					"Transaction options with a valid mode (read_write, read_only, or partitioned_dml) are required."));
+			}
+
 			var transaction = _transactionManager.BeginTransaction(request.Session, request.Options);
 
 			// Store proto on state so PartitionQuery/PartitionRead can echo it back
@@ -715,6 +726,7 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 					"DML statements cannot be executed in a read-only transaction."));
 
 			var engine = new SqlEngine(_database, txnState?.DmlUndoLog);
+			var isFirst = true;
 
 			foreach (var statement in request.Statements)
 			{
@@ -723,6 +735,15 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 				{
 					var parameters = SqlEngine.ExtractParameters(statement.Sql, statement.Params, statement.ParamTypes);
 					var resultSet = engine.ExecuteSql(statement.Sql, parameters);
+
+					// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.ExecuteBatchDmlResponse
+					//   "Only the first ResultSet in the response contains valid ResultSetMetadata."
+					if (isFirst)
+					{
+						SetTransactionMetadata(request.Transaction, txnState, resultSet);
+						isFirst = false;
+					}
+
 					response.ResultSets.Add(resultSet);
 				}
 				catch (Exception ex)

@@ -1104,4 +1104,25 @@ public class OperatorIntegrationTests : IntegrationTestBase
 		var result = await Eval("(SELECT 1 FROM UNNEST([1,2,3]) HAVING COUNT(*) > 0)");
 		result.Should().Be(1L);
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// LPAD/RPAD with empty pattern
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#lpad
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task Lpad_EmptyPattern_ThrowsError()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#lpad
+		//   "This function returns an error if: pattern is empty"
+		var act = async () => await Eval("LPAD('hello', 10, '')");
+		await act.Should().ThrowAsync<Exception>();
+	}
+
+	[Fact]
+	public async Task Rpad_EmptyPattern_ThrowsError()
+	{
+		var act = async () => await Eval("RPAD('hello', 10, '')");
+		await act.Should().ThrowAsync<Exception>();
+	}
 }

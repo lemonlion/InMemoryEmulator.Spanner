@@ -1487,7 +1487,9 @@ internal class ExpressionEvaluator
 		//   "If original_value, return_length, or pattern is NULL, this function returns NULL."
 		if (padVal == null) return null;
 		var pad = Convert.ToString(padVal) ?? " ";
-		if (pad.Length == 0) return str;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#lpad
+		//   "This function returns an error if: pattern is empty"
+		if (pad.Length == 0) throw new InvalidOperationException($"{(padLeft ? "LPAD" : "RPAD")}: pattern must not be empty.");
 		var sb = new System.Text.StringBuilder(len);
 		if (!padLeft) sb.Append(str);
 		var needed = len - str.Length;
@@ -2238,7 +2240,7 @@ internal class ExpressionEvaluator
 			"MINUTE" => (long)diff.TotalMinutes,
 			"HOUR" => (long)diff.TotalHours,
 			"DAY" => (long)diff.TotalDays,
-			"MONTH" => (dt1.Year - dt2.Year) * 12 + dt1.Month - dt2.Month,
+			"MONTH" => (long)((dt1.Year - dt2.Year) * 12 + dt1.Month - dt2.Month),
 			"YEAR" => (long)(dt1.Year - dt2.Year),
 			_ => throw new InvalidOperationException($"TIMESTAMP_DIFF: unsupported part '{part}'.")
 		};

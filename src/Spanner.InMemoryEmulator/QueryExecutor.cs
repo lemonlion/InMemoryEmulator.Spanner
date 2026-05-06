@@ -2043,7 +2043,7 @@ internal class QueryExecutor
 			// - Values containing the delimiter character
 			var key = string.Join("\x1F", columns.Select(c =>
 				row.TryGetValue(c.Name, out var v) && v != null
-					? $"{v.GetType().Name}\x1E{v}"
+					? FormatDistinctKey(v)
 					: "\x00"));
 			if (seen.Add(key))
 			{
@@ -2052,6 +2052,20 @@ internal class QueryExecutor
 		}
 
 		return result;
+	}
+
+	/// <summary>
+	/// Produces a deterministic string key for a value, including deep content for arrays and structs.
+	/// </summary>
+	private static string FormatDistinctKey(object value)
+	{
+		return value switch
+		{
+			IList<object?> list => $"ARRAY[{string.Join(",", list.Select(item => item == null ? "NULL" : FormatDistinctKey(item)))}]",
+			Dictionary<string, object?> dict => $"STRUCT{{{string.Join(",", dict.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase).Select(kv => $"{kv.Key}:{(kv.Value == null ? "NULL" : FormatDistinctKey(kv.Value))}"))}}}",
+			byte[] bytes => $"BYTES\x1E{Convert.ToBase64String(bytes)}",
+			_ => $"{value.GetType().Name}\x1E{value}"
+		};
 	}
 
 	private static List<Dictionary<string, object?>> OrderRows(

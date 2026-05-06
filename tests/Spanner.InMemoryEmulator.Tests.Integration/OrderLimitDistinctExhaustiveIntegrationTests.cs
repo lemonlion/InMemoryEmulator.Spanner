@@ -299,4 +299,26 @@ public class OrderLimitDistinctExhaustiveIntegrationTests : IntegrationTestBase
 			"SELECT 1 AS V UNION DISTINCT SELECT 1 UNION DISTINCT SELECT 2 ORDER BY V");
 		rows.Should().HaveCount(2);
 	}
+
+	// ─── DISTINCT on ARRAY values ───
+
+	[Fact]
+	[Trait(TestTraits.Category, "OrderLimitDistinctExhaustive")]
+	public async Task Distinct_ArrayColumn_DeduplicatesIdenticalArrays()
+	{
+		// Same array content should be deduplicated
+		var rows = await QueryAsync(
+			"SELECT DISTINCT arr FROM (SELECT [1,2,3] AS arr UNION ALL SELECT [1,2,3] AS arr)");
+		rows.Should().HaveCount(1);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "OrderLimitDistinctExhaustive")]
+	public async Task Distinct_ArrayColumn_KeepsDifferentArrays()
+	{
+		// Different array content should not be deduplicated
+		var rows = await QueryAsync(
+			"SELECT DISTINCT arr FROM (SELECT [1,2,3] AS arr UNION ALL SELECT [4,5,6] AS arr)");
+		rows.Should().HaveCount(2);
+	}
 }

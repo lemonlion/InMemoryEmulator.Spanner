@@ -1158,13 +1158,31 @@ internal class ExpressionEvaluator
 	private object? EvalInSubquery(InSubqueryExpr inSub, Dictionary<string, object?> row)
 	{
 		var value = Evaluate(inSub.Value, row);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#in_operators
+		//   "x IN (a, b, NULL) is equivalent to (x=a) OR (x=b) OR (x=NULL)."
+		//   NULL IN (...) → NULL (three-valued logic).
+		if (value == null) return null;
+
 		var subRows = RunSubquery(inSub.Subquery, row);
-		var found = subRows.Any(r =>
+		bool hasNull = false;
+		bool found = false;
+		foreach (var r in subRows)
 		{
 			var subVal = r.Values.FirstOrDefault();
-			return value != null && subVal != null && CompareValues(value, subVal) == 0;
-		});
-		return inSub.IsNegated ? !found : found;
+			if (subVal == null)
+			{
+				hasNull = true;
+				continue;
+			}
+			if (CompareValues(value, subVal) == 0)
+			{
+				found = true;
+				break;
+			}
+		}
+		if (found) return !inSub.IsNegated;
+		if (hasNull) return null; // No match but NULLs present → NULL (three-valued logic)
+		return inSub.IsNegated;
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#in_operators

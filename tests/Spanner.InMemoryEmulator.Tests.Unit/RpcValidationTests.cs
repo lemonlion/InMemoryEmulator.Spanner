@@ -938,4 +938,26 @@ public class RpcValidationTests
 		result.Rows[0].Values[0].StringValue.Should().Be("20"); // A = original B
 		result.Rows[0].Values[1].StringValue.Should().Be("10"); // B = original A
 	}
+
+	// ─── IN subquery with NULL returns NULL (three-valued logic) ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#in_operators
+	//   "x IN (a, b, NULL): If x doesn't match any non-null value but NULL is present, result is NULL."
+	[Fact]
+	public async Task ExecuteSql_InSubquery_NullValueReturnsNull()
+	{
+		// Act: NULL IN (SELECT 1) should return NULL
+		var result = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() } },
+				Sql = "SELECT CAST(NULL AS INT64) IN (SELECT 1) AS result"
+			},
+			TestServerCallContext.Create());
+
+		// Assert: should be NULL
+		result.Rows.Should().HaveCount(1);
+		result.Rows[0].Values[0].HasNullValue.Should().BeTrue();
+	}
 }

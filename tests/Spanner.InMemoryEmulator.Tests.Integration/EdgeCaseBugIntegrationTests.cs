@@ -526,4 +526,82 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 		var rows = await QueryAsync("SELECT FORMAT('%f', CAST(NULL AS FLOAT64)) AS R");
 		rows[0]["R"].Should().Be("NULL");
 	}
+
+	// ════════════════════════════════════════════════════════════════
+	// 9. NaN equality semantics in BETWEEN, IN, CASE, NULLIF
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#comparison_operators
+	//   "All comparisons with NaN return FALSE, except for != and <>, which return TRUE."
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task NaN_Between_ReturnsFalse()
+	{
+		// 100 BETWEEN NaN AND 200 → (NaN <= 100) AND (100 <= 200) → FALSE AND TRUE → FALSE
+		var rows = await QueryAsync("SELECT 100 BETWEEN IEEE_DIVIDE(0.0, 0.0) AND 200 AS R");
+		rows[0]["R"].Should().Be(false);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task NaN_InList_ReturnsFalse()
+	{
+		var rows = await QueryAsync("SELECT IEEE_DIVIDE(0.0, 0.0) IN (IEEE_DIVIDE(0.0, 0.0), 1.0) AS R");
+		rows[0]["R"].Should().Be(false);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task NaN_SimpleCase_NoMatch()
+	{
+		var rows = await QueryAsync("SELECT CASE IEEE_DIVIDE(0.0, 0.0) WHEN IEEE_DIVIDE(0.0, 0.0) THEN 'match' ELSE 'no' END AS R");
+		rows[0]["R"].Should().Be("no");
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task NaN_Nullif_ReturnsNaN()
+	{
+		var rows = await QueryAsync("SELECT NULLIF(IEEE_DIVIDE(0.0, 0.0), IEEE_DIVIDE(0.0, 0.0)) AS R");
+		var r = rows[0]["R"];
+		r.Should().NotBeNull();
+		r.Should().BeOfType<double>();
+		double.IsNaN((double)r!).Should().BeTrue();
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// 10. PARSE_TIMESTAMP/PARSE_DATE with NULL format
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#parse_timestamp
+	//   NULL input → NULL output
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task ParseTimestamp_NullFormat_ReturnsNull()
+	{
+		var rows = await QueryAsync("SELECT PARSE_TIMESTAMP(CAST(NULL AS STRING), '2023-01-01') AS R");
+		rows[0]["R"].Should().BeNull();
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// 11. GENERATE_ARRAY with NaN arguments
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#generate_array
+	//   "Returns an error if any argument is a NaN."
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task GenerateArray_NaNStep_ThrowsError()
+	{
+		var act = async () => await QueryAsync("SELECT GENERATE_ARRAY(1, 5, CAST('nan' AS FLOAT64)) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task GenerateArray_NaNStart_ThrowsError()
+	{
+		var act = async () => await QueryAsync("SELECT GENERATE_ARRAY(CAST('nan' AS FLOAT64), 5, 1) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
 }

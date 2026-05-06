@@ -278,7 +278,9 @@ internal class ExpressionEvaluator
 		{
 			var itemValue = Evaluate(item, row);
 			if (itemValue is null) { hasNull = true; continue; }
-			if (CompareValues(value, itemValue) == 0) { found = true; break; }
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#comparison_operators
+			//   "All comparisons with NaN return FALSE" — NaN never equals anything
+			if (!IsNaN(value) && !IsNaN(itemValue) && CompareValues(value, itemValue) == 0) { found = true; break; }
 		}
 
 		if (found) return !inExpr.IsNegated;
@@ -295,8 +297,13 @@ internal class ExpressionEvaluator
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#comparison_operators
 		//   "X BETWEEN Y AND Z is equivalent to Y <= X AND X <= Z"
 		//   Three-valued AND: FALSE AND NULL = FALSE, NULL AND FALSE = FALSE
-		bool? lowCmp = (value is null || low is null) ? null : CompareValues(value, low) >= 0;
-		bool? highCmp = (value is null || high is null) ? null : CompareValues(value, high) <= 0;
+		//   "All comparisons with NaN return FALSE"
+		bool? lowCmp = (value is null || low is null) ? null
+			: (IsNaN(value) || IsNaN(low)) ? false
+			: CompareValues(value, low) >= 0;
+		bool? highCmp = (value is null || high is null) ? null
+			: (IsNaN(value) || IsNaN(high)) ? false
+			: CompareValues(value, high) <= 0;
 
 		bool? inRange;
 		if (lowCmp == false || highCmp == false) inRange = false;
@@ -738,7 +745,9 @@ internal class ExpressionEvaluator
 	{
 		var a = Evaluate(func.Arguments[0], row);
 		var b = Evaluate(func.Arguments[1], row);
-		if (a != null && b != null && CompareValues(a, b) == 0) return null;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#comparison_operators
+		//   "All comparisons with NaN return FALSE" — NaN = NaN is FALSE so NULLIF(NaN, NaN) returns NaN
+		if (a != null && b != null && !IsNaN(a) && !IsNaN(b) && CompareValues(a, b) == 0) return null;
 		return a;
 	}
 
@@ -1099,7 +1108,9 @@ internal class ExpressionEvaluator
 			foreach (var when in caseExpr.Whens)
 			{
 				var whenVal = Evaluate(when.Condition, row);
-				if (operand != null && whenVal != null && CompareValues(operand, whenVal) == 0)
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#comparison_operators
+				//   "All comparisons with NaN return FALSE"
+				if (operand != null && whenVal != null && !IsNaN(operand) && !IsNaN(whenVal) && CompareValues(operand, whenVal) == 0)
 				{
 					return Evaluate(when.Result, row);
 				}
@@ -1231,7 +1242,7 @@ internal class ExpressionEvaluator
 				hasNull = true;
 				continue;
 			}
-			if (CompareValues(value, subVal) == 0)
+			if (!IsNaN(value) && !IsNaN(subVal) && CompareValues(value, subVal) == 0)
 			{
 				found = true;
 				break;
@@ -1259,7 +1270,7 @@ internal class ExpressionEvaluator
 			foreach (var item in enumerable)
 			{
 				if (item == null) { hasNull = true; continue; }
-				if (CompareValues(value, item) == 0)
+				if (!IsNaN(value) && !IsNaN(item) && CompareValues(value, item) == 0)
 				{
 					found = true;
 					break;
@@ -2414,10 +2425,12 @@ internal class ExpressionEvaluator
 
 	private object? EvalParseTimestamp(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
-		var fmt = Convert.ToString(Evaluate(func.Arguments[0], row));
-		var str = Convert.ToString(Evaluate(func.Arguments[1], row));
-		if (str == null) return null;
-		return DateTime.ParseExact(str, ConvertSpannerDateFormat(fmt ?? ""), System.Globalization.CultureInfo.InvariantCulture,
+		var fmtVal = Evaluate(func.Arguments[0], row);
+		var strVal = Evaluate(func.Arguments[1], row);
+		if (fmtVal == null || strVal == null) return null;
+		var fmt = Convert.ToString(fmtVal)!;
+		var str = Convert.ToString(strVal)!;
+		return DateTime.ParseExact(str, ConvertSpannerDateFormat(fmt), System.Globalization.CultureInfo.InvariantCulture,
 			System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal);
 	}
 
@@ -2428,10 +2441,12 @@ internal class ExpressionEvaluator
 
 	private object? EvalParseDate(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
-		var fmt = Convert.ToString(Evaluate(func.Arguments[0], row));
-		var str = Convert.ToString(Evaluate(func.Arguments[1], row));
-		if (str == null) return null;
-		return DateTime.ParseExact(str, ConvertSpannerDateFormat(fmt ?? ""), System.Globalization.CultureInfo.InvariantCulture).Date;
+		var fmtVal = Evaluate(func.Arguments[0], row);
+		var strVal = Evaluate(func.Arguments[1], row);
+		if (fmtVal == null || strVal == null) return null;
+		var fmt = Convert.ToString(fmtVal)!;
+		var str = Convert.ToString(strVal)!;
+		return DateTime.ParseExact(str, ConvertSpannerDateFormat(fmt), System.Globalization.CultureInfo.InvariantCulture).Date;
 	}
 
 	private static string ConvertSpannerDateFormat(string spannerFmt)
@@ -2690,6 +2705,10 @@ internal class ExpressionEvaluator
 		if (start == null || end == null) return null;
 		var stepVal = func.Arguments.Count > 2 ? Evaluate(func.Arguments[2], row) : null;
 		if (func.Arguments.Count > 2 && stepVal == null) return null;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#generate_array
+		//   "Returns an error if any argument is a NaN."
+		if (IsNaN(start) || IsNaN(end) || IsNaN(stepVal))
+			throw new InvalidOperationException("GENERATE_ARRAY does not allow NaN arguments.");
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#generate_array
 		//   Supports INT64, NUMERIC, and FLOAT64 types.
 		if (start is double || end is double || stepVal is double)

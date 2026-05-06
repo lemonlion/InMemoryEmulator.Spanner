@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.55] - 2026-07-10
+
+### Fixed
+- **NaN equality in BETWEEN/IN/CASE/NULLIF**: NaN values now correctly fail equality checks in BETWEEN bounds, IN list/subquery/UNNEST, simple CASE WHEN matching, and NULLIF comparison. Previously NaN matched itself in these constructs.
+- **PARSE_TIMESTAMP/PARSE_DATE NULL format**: `PARSE_TIMESTAMP(NULL, '2023-01-01')` now correctly returns NULL instead of throwing a FormatException. Fixed `Convert.ToString(null)` returning empty string instead of null.
+- **GENERATE_ARRAY with NaN arguments**: `GENERATE_ARRAY(NaN, 5, 1)` and similar now throw an error, matching Spanner's documented behavior.
+
+### Added
+- 7 new integration tests: NaN in BETWEEN/IN/CASE/NULLIF (4), PARSE_TIMESTAMP NULL format (1), GENERATE_ARRAY NaN (2).
+
 ## [1.0.54] - 2026-07-10
 
 ### Fixed

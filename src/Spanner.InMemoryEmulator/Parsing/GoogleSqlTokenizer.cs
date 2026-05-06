@@ -154,6 +154,7 @@ internal static class GoogleSqlTokenizer
 		["DO"] = GoogleSqlToken.Do,
 		["NOTHING"] = GoogleSqlToken.Nothing,
 		["EXCLUDED"] = GoogleSqlToken.Excluded,
+		["FOR"] = GoogleSqlToken.For,
 	};
 
 	// Note: Instance MUST be declared AFTER all parser properties to ensure

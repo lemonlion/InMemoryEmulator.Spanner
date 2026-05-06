@@ -228,4 +228,30 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 		reader.GetInt64(0).Should().Be(1L);
 		reader.GetInt64(1).Should().Be(2L);
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// FOR UPDATE
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#for_update_clause
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	public async Task ForUpdate_ParsesAndReturnsResults()
+	{
+		var result = await Eval("SELECT 1 AS x FOR UPDATE");
+		result.Should().Be(1L);
+	}
+
+	[Fact]
+	public async Task ForUpdate_WithWhereClause()
+	{
+		var result = await Eval("SELECT 42 AS x WHERE true FOR UPDATE");
+		result.Should().Be(42L);
+	}
+
+	[Fact]
+	public async Task ForUpdate_WithLimitOffset()
+	{
+		var results = await EvalMultiRow("SELECT x FROM UNNEST([1, 2, 3]) AS x LIMIT 2 OFFSET 1 FOR UPDATE");
+		results.Should().HaveCount(2);
+	}
 }

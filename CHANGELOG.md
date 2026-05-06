@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.37] - 2026-05-19
+
+### Added
+- **APPROX_COUNT_DISTINCT**: Aggregate function that returns the count of distinct non-null values (exact computation in-memory), matching Spanner's approximate semantics.
+- **STRUCT/ARRAY equality comparisons**: STRUCT and ARRAY values can now be compared with `=` and `!=` operators using element-wise comparison.
+- **FOR UPDATE clause**: Queries using `SELECT ... FOR UPDATE` now parse successfully (no-op in emulator — exclusive locks are not applicable in-memory).
+- Integration tests: 12 new tests (3 APPROX_COUNT_DISTINCT, 6 STRUCT/ARRAY comparison, 3 FOR UPDATE).
+
 ## [1.0.36] - 2026-05-18
 
 ### Added

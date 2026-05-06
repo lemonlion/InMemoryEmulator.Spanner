@@ -55,7 +55,7 @@ internal class ExpressionEvaluator
 			ArrayLiteralExpr arrayLit => arrayLit.Elements.Select(e => Evaluate(e, row)).ToList(),
 			ArrayAccessExpr access => EvalArrayAccess(access, row),
 			WindowExpr win => EvalWindowExpr(win, row),
-			StructExpr structExpr => structExpr.Fields.ToDictionary(f => f.Name ?? "", f => Evaluate(f.Value, row)),
+			StructExpr structExpr => EvalStructExpr(structExpr, row),
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#struct_field_access_operator
 			StructFieldAccessExpr sfa => ((Dictionary<string, object?>)Evaluate(sfa.Struct, row)!)[sfa.FieldName],
 			StructExpandExpr => throw new InvalidOperationException("StructExpandExpr must be expanded in ProjectColumns, not evaluated as a scalar."),
@@ -1075,6 +1075,18 @@ internal class ExpressionEvaluator
 		return caseExpr.Else != null ? Evaluate(caseExpr.Else, row) : null;
 	}
 
+	private Dictionary<string, object?> EvalStructExpr(StructExpr structExpr, Dictionary<string, object?> row)
+	{
+		var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+		for (int i = 0; i < structExpr.Fields.Count; i++)
+		{
+			var field = structExpr.Fields[i];
+			var key = field.Name ?? $"${i}";
+			dict[key] = Evaluate(field.Value, row);
+		}
+		return dict;
+	}
+
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#array_subscript_operator
 	private object? EvalArrayAccess(ArrayAccessExpr access, Dictionary<string, object?> row)
 	{
@@ -1262,6 +1274,16 @@ internal class ExpressionEvaluator
 		if (a is byte[] bytesA && b is byte[] bytesB)
 			return CompareBytes(bytesA, bytesB);
 
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#comparison_operators
+		//   "STRUCT comparisons are performed field by field in the ordinal order of the fields."
+		if (a is Dictionary<string, object?> structA && b is Dictionary<string, object?> structB)
+			return CompareStructs(structA, structB);
+
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#comparison_operators
+		//   "ARRAY comparisons are performed element by element."
+		if (a is List<object?> arrA && b is List<object?> arrB)
+			return CompareArrays(arrA, arrB);
+
 		// Fallback: convert to string
 		return string.Compare(a.ToString(), b.ToString(), StringComparison.Ordinal);
 	}
@@ -1279,6 +1301,32 @@ internal class ExpressionEvaluator
 			if (a[i] != b[i]) return a[i].CompareTo(b[i]);
 		}
 		return a.Length.CompareTo(b.Length);
+	}
+
+	private static int CompareStructs(Dictionary<string, object?> a, Dictionary<string, object?> b)
+	{
+		// Compare field by field in ordinal order
+		var keysA = a.Keys.ToList();
+		var keysB = b.Keys.ToList();
+		var len = Math.Min(keysA.Count, keysB.Count);
+		for (int i = 0; i < len; i++)
+		{
+			var cmp = CompareValues(a[keysA[i]], b[keysB[i]]);
+			if (cmp != 0) return cmp;
+		}
+		return keysA.Count.CompareTo(keysB.Count);
+	}
+
+	private static int CompareArrays(List<object?> a, List<object?> b)
+	{
+		// Compare element by element; shorter array is less if all shared elements equal
+		var len = Math.Min(a.Count, b.Count);
+		for (int i = 0; i < len; i++)
+		{
+			var cmp = CompareValues(a[i], b[i]);
+			if (cmp != 0) return cmp;
+		}
+		return a.Count.CompareTo(b.Count);
 	}
 
 	private static object? ConcatValues(object? a, object? b)

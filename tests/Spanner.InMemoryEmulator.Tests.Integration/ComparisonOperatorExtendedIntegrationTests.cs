@@ -1325,4 +1325,57 @@ public class ComparisonOperatorExtendedIntegrationTests : IntegrationTestBase
 		var result = await Eval(expr);
 		result.Should().Be(expected);
 	}
+
+	// ═══════════════════════════════════════════════════════════════
+	// STRUCT comparisons
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#comparison_operators
+	// ═══════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "ComparisonOperatorExtended")]
+	public async Task Struct_Equality_SameValues_ReturnsTrue()
+	{
+		var result = await Eval("STRUCT(1, 'a') = STRUCT(1, 'a')");
+		result.Should().Be(true);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "ComparisonOperatorExtended")]
+	public async Task Struct_Equality_DifferentValues_ReturnsFalse()
+	{
+		var result = await Eval("STRUCT(1, 'a') = STRUCT(1, 'b')");
+		result.Should().Be(false);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "ComparisonOperatorExtended")]
+	public async Task Struct_NotEqual_ReturnsTrue()
+	{
+		var result = await Eval("STRUCT(1, 'a') != STRUCT(2, 'a')");
+		result.Should().Be(true);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "ComparisonOperatorExtended")]
+	public async Task Array_Equality_SameElements_ReturnsTrue()
+	{
+		var result = await Eval("[1, 2, 3] = [1, 2, 3]");
+		result.Should().Be(true);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "ComparisonOperatorExtended")]
+	public async Task Array_Equality_DifferentElements_ReturnsFalse()
+	{
+		var result = await Eval("[1, 2, 3] = [1, 2, 4]");
+		result.Should().Be(false);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "ComparisonOperatorExtended")]
+	public async Task Array_Equality_DifferentLength_ReturnsFalse()
+	{
+		var result = await Eval("[1, 2] = [1, 2, 3]");
+		result.Should().Be(false);
+	}
 }

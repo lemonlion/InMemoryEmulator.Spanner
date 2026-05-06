@@ -1088,6 +1088,10 @@ internal static class SqlParsers
 			select (items.ToList(), recursive)
 		).OptionalOrDefault((null, false))
 		from body in QueryBodyParser
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#for_update_clause
+		//   FOR UPDATE enables exclusive cell-level locks (no-op in emulator)
+		from _forUpdate in (from _f in Token.EqualTo(GoogleSqlToken.For) from _u in Token.EqualTo(GoogleSqlToken.Update) select true)
+			.OptionalOrDefault(false)
 		select new FullQuery(ctes.Item1, body, ctes.recursive);
 
 	// ──────────────────────────────────────────

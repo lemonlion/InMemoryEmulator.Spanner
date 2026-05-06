@@ -513,4 +513,7 @@ internal enum GoogleSqlToken
 
 	[Token(Example = "EXCLUDED")]
 	Excluded,
+
+	[Token(Example = "FOR")]
+	For,
 }

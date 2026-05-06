@@ -1024,6 +1024,18 @@ internal class ExpressionEvaluator
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/uuid_functions
 				//   "CAST(string_expr AS UUID) converts a valid UUID string to UUID type."
 				(TypeCode)17 => value is string s ? s : throw new InvalidOperationException($"Cannot cast {value.GetType().Name} to UUID"),
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
+				//   CAST(expr AS JSON): STRING values are parsed as JSON; other types are wrapped as JSON scalars.
+				TypeCode.Json => value switch
+				{
+					string sv => sv, // String is already treated as JSON text
+					bool bv => bv ? "true" : "false",
+					double dv => dv.ToString(System.Globalization.CultureInfo.InvariantCulture),
+					float fv => fv.ToString(System.Globalization.CultureInfo.InvariantCulture),
+					long lv => lv.ToString(),
+					decimal dv => dv.ToString(System.Globalization.CultureInfo.InvariantCulture),
+					_ => value.ToString()
+				},
 				_ => throw new NotSupportedException($"CAST to {cast.TargetType} not supported.")
 			};
 		}

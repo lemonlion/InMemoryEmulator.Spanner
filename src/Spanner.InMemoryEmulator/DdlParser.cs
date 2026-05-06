@@ -21,6 +21,12 @@ internal static class DdlParser
 		if (string.IsNullOrWhiteSpace(trimmed))
 			throw new InvalidOperationException("Empty DDL statement.");
 
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_database
+		//   "ALTER DATABASE db SET OPTIONS (...)" — accepted as a no-op since database-level
+		//   options (optimizer_version, version_retention_period, etc.) have no effect in-memory.
+		if (trimmed.StartsWith("ALTER DATABASE", StringComparison.OrdinalIgnoreCase))
+			return;
+
 		// Clear proto FQN placeholder mapping from previous DDL calls
 		ProtoFqnPlaceholders.Clear();
 
@@ -183,6 +189,9 @@ internal static class DdlParser
 	{
 		if (!schema.TryGetTable(stmt.Name, out var table) || table == null)
 		{
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_table
+			//   "ALTER TABLE IF EXISTS — no error if the table does not exist."
+			if (stmt.IfExists) return;
 			throw new InvalidOperationException($"Table '{stmt.Name}' does not exist.");
 		}
 
@@ -194,6 +203,9 @@ internal static class DdlParser
 				//   "You cannot add NOT NULL columns to existing tables."
 				if (table.Columns.Any(c => string.Equals(c.Name, add.Column.Name, StringComparison.OrdinalIgnoreCase)))
 				{
+					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_table
+					//   "ADD COLUMN IF NOT EXISTS — no error if the column already exists."
+					if (add.IfNotExists) return;
 					throw new InvalidOperationException($"Column '{add.Column.Name}' already exists in table '{stmt.Name}'.");
 				}
 
@@ -236,6 +248,9 @@ internal static class DdlParser
 			{
 				if (!table.Columns.Any(c => string.Equals(c.Name, drop.ColumnName, StringComparison.OrdinalIgnoreCase)))
 				{
+					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_table
+					//   "DROP COLUMN IF EXISTS — no error if the column does not exist."
+					if (drop.IfExists) return;
 					throw new InvalidOperationException($"Column '{drop.ColumnName}' does not exist in table '{stmt.Name}'.");
 				}
 

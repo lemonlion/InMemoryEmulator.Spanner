@@ -99,10 +99,12 @@ internal class InformationSchemaProvider
 
 	private (List<string>, List<Dictionary<string, object?>>) GetColumns()
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/information-schema#columns
 		var cols = new List<string>
 		{
 			"TABLE_CATALOG", "TABLE_SCHEMA", "TABLE_NAME", "COLUMN_NAME",
-			"ORDINAL_POSITION", "IS_NULLABLE", "SPANNER_TYPE"
+			"ORDINAL_POSITION", "IS_NULLABLE", "SPANNER_TYPE",
+			"COLUMN_DEFAULT", "GENERATION_EXPRESSION", "IS_GENERATED", "IS_STORED", "SPANNER_STATE"
 		};
 		var rows = new List<Dictionary<string, object?>>();
 
@@ -120,7 +122,12 @@ internal class InformationSchemaProvider
 					["COLUMN_NAME"] = c.Name,
 					["ORDINAL_POSITION"] = (long)(i + 1),
 					["IS_NULLABLE"] = c.IsNullable ? "YES" : "NO",
-					["SPANNER_TYPE"] = FormatSpannerType(c)
+					["SPANNER_TYPE"] = FormatSpannerType(c),
+					["COLUMN_DEFAULT"] = null,
+					["GENERATION_EXPRESSION"] = null,
+					["IS_GENERATED"] = "NEVER",
+					["IS_STORED"] = null,
+					["SPANNER_STATE"] = "COMMITTED"
 				});
 			}
 		}
@@ -478,8 +485,26 @@ internal class InformationSchemaProvider
 	{
 		var cols = new List<string> { "TABLE_CATALOG", "TABLE_SCHEMA", "TABLE_NAME", "COLUMN_NAME", "OPTION_NAME", "OPTION_TYPE", "OPTION_VALUE" };
 		var rows = new List<Dictionary<string, object?>>();
-		// Column options (e.g., allow_commit_timestamp) are not currently tracked in schema,
-		// so return an empty result set with correct schema.
+		foreach (var name in _schema.GetTableNames())
+		{
+			var table = _schema.GetTableDefinition(name);
+			if (table == null) continue;
+			foreach (var col in table.Columns)
+			{
+				if (col.AllowCommitTimestamp)
+				{
+					rows.Add(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+					{
+						["TABLE_CATALOG"] = "", ["TABLE_SCHEMA"] = "",
+						["TABLE_NAME"] = table.Name,
+						["COLUMN_NAME"] = col.Name,
+						["OPTION_NAME"] = "allow_commit_timestamp",
+						["OPTION_TYPE"] = "BOOL",
+						["OPTION_VALUE"] = "TRUE"
+					});
+				}
+			}
+		}
 		return (cols, rows);
 	}
 

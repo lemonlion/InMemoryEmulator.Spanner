@@ -402,20 +402,22 @@ internal static class DdlParsers
 	// ──────────────────────────────────────────
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_table
-	//   ALTER TABLE table_name ADD COLUMN column_def
-	//   ALTER TABLE table_name DROP COLUMN column_name
+	//   ALTER TABLE table_name ADD COLUMN [IF NOT EXISTS] column_def
+	//   ALTER TABLE table_name DROP COLUMN [IF EXISTS] column_name
 
 	private static TokenListParser<GoogleSqlToken, AlterAction> AddColumnAction { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.Add)
 		from __ in Token.EqualTo(GoogleSqlToken.Column)
+		from ifNotExists in IfNotExists
 		from col in ColumnDefinition
-		select (AlterAction)new AddColumnAction(col);
+		select (AlterAction)new AddColumnAction(col, ifNotExists);
 
 	private static TokenListParser<GoogleSqlToken, AlterAction> DropColumnAction { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.Drop)
 		from __ in Token.EqualTo(GoogleSqlToken.Column)
+		from ifExists in IfExists
 		from name in IdentifierOrKeywordAsName
-		select (AlterAction)new DropColumnAction(name);
+		select (AlterAction)new DropColumnAction(name, ifExists);
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_column
 	//   ALTER TABLE t ALTER COLUMN c SET OPTIONS (allow_commit_timestamp = true|false)
@@ -497,6 +499,7 @@ internal static class DdlParsers
 	public static TokenListParser<GoogleSqlToken, AlterTableStatement> AlterTable { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.Alter)
 		from __ in Token.EqualTo(GoogleSqlToken.Table)
+		from ifExists in IfExists
 		from name in IdentifierOrKeywordAsName
 		from action in AddRowDeletionPolicyAction.Try()
 			.Or(AddColumnAction.Try())
@@ -508,7 +511,7 @@ internal static class DdlParsers
 			.Or(ReplaceRowDeletionPolicyAction.Try())
 			.Or(AddConstraintAction.Try())
 			.Or(SetOnDeleteActionParser)
-		select new AlterTableStatement(name, action);
+		select new AlterTableStatement(name, action, ifExists);
 
 	// ──────────────────────────────────────────
 	// CREATE INDEX
@@ -532,6 +535,15 @@ internal static class DdlParsers
 		from close in Token.EqualTo(GoogleSqlToken.CloseParen)
 		select columns.ToList();
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#create-index
+	//   ", INTERLEAVE IN table_name" — storage interleaving for index; no-op in memory.
+	private static TokenListParser<GoogleSqlToken, string> IndexInterleaveClause { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.Comma)
+		from __ in Token.EqualTo(GoogleSqlToken.Interleave)
+		from ___ in Token.EqualTo(GoogleSqlToken.In)
+		from table in IdentifierOrKeywordAsName
+		select table;
+
 	public static TokenListParser<GoogleSqlToken, CreateIndexStatement> CreateIndex { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.Create)
 		from isUnique in Token.EqualTo(GoogleSqlToken.Unique).Value(true).OptionalOrDefault(false)
@@ -545,6 +557,7 @@ internal static class DdlParsers
 		from columns in IndexColumnDefinition.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
 		from close in Token.EqualTo(GoogleSqlToken.CloseParen)
 		from storing in StoringClause.Select(x => (List<string>?)x).OptionalOrDefault()
+		from _interleave in IndexInterleaveClause.Try().Select(x => (string?)x).OptionalOrDefault()
 		select new CreateIndexStatement(name, tableName, columns.ToList(), storing, isUnique, isNullFiltered, ifNotExists);
 
 	// ──────────────────────────────────────────

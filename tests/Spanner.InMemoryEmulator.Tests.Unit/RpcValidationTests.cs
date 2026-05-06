@@ -468,4 +468,152 @@ public class RpcValidationTests
 		response.CommitStats.Should().NotBeNull();
 		response.CommitStats.MutationCount.Should().Be(2);
 	}
+
+	// ─── CAST to JSON support ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
+	//   "CAST(expr AS JSON): STRING values are parsed as JSON; other types are wrapped as JSON scalars."
+	[Fact]
+	public async Task ExecuteSql_CastStringToJson_ReturnsJsonValue()
+	{
+		// Act
+		var result = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() } },
+				Sql = "SELECT CAST('{\"key\": \"value\"}' AS JSON) AS j"
+			},
+			TestServerCallContext.Create());
+
+		// Assert
+		result.Rows.Should().HaveCount(1);
+		result.Rows[0].Values[0].StringValue.Should().Be("{\"key\": \"value\"}");
+	}
+
+	[Fact]
+	public async Task ExecuteSql_CastInt64ToJson_ReturnsNumericString()
+	{
+		// Act
+		var result = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() } },
+				Sql = "SELECT CAST(42 AS JSON) AS j"
+			},
+			TestServerCallContext.Create());
+
+		// Assert
+		result.Rows.Should().HaveCount(1);
+		result.Rows[0].Values[0].StringValue.Should().Be("42");
+	}
+
+	// ─── INFORMATION_SCHEMA.COLUMN_OPTIONS returns data for commit timestamp columns ───
+
+	// Ref: https://cloud.google.com/spanner/docs/information-schema#column_options
+	//   "Contains information about the options set on columns."
+	[Fact]
+	public async Task InformationSchema_ColumnOptions_ReturnsAllowCommitTimestamp()
+	{
+		// Arrange: Create a table with a commit timestamp column
+		_database.ExecuteDdl("CREATE TABLE TsTable (Id INT64 NOT NULL, CreatedAt TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true)) PRIMARY KEY (Id)");
+
+		// Act
+		var result = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() } },
+				Sql = "SELECT TABLE_NAME, COLUMN_NAME, OPTION_NAME, OPTION_TYPE, OPTION_VALUE FROM INFORMATION_SCHEMA.COLUMN_OPTIONS WHERE TABLE_NAME = 'TsTable'"
+			},
+			TestServerCallContext.Create());
+
+		// Assert
+		result.Rows.Should().HaveCount(1);
+		result.Rows[0].Values[0].StringValue.Should().Be("TsTable");
+		result.Rows[0].Values[1].StringValue.Should().Be("CreatedAt");
+		result.Rows[0].Values[2].StringValue.Should().Be("allow_commit_timestamp");
+		result.Rows[0].Values[3].StringValue.Should().Be("BOOL");
+		result.Rows[0].Values[4].StringValue.Should().Be("TRUE");
+	}
+
+	// ─── INFORMATION_SCHEMA.COLUMNS includes new metadata columns ───
+
+	// Ref: https://cloud.google.com/spanner/docs/information-schema#columns
+	//   "Contains columns: IS_GENERATED, GENERATION_EXPRESSION, IS_STORED, SPANNER_STATE, COLUMN_DEFAULT"
+	[Fact]
+	public async Task InformationSchema_Columns_IncludesIsGeneratedAndSpannerState()
+	{
+		// Act
+		var result = await _service.ExecuteSql(
+			new ExecuteSqlRequest
+			{
+				Session = _sessionName,
+				Transaction = new TransactionSelector { SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() } },
+				Sql = "SELECT COLUMN_NAME, IS_GENERATED, SPANNER_STATE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'TestTable' AND COLUMN_NAME = 'Id'"
+			},
+			TestServerCallContext.Create());
+
+		// Assert
+		result.Rows.Should().HaveCount(1);
+		result.Rows[0].Values[0].StringValue.Should().Be("Id");
+		result.Rows[0].Values[1].StringValue.Should().Be("NEVER");
+		result.Rows[0].Values[2].StringValue.Should().Be("COMMITTED");
+	}
+
+	// ─── ALTER TABLE IF EXISTS / ADD COLUMN IF NOT EXISTS / DROP COLUMN IF EXISTS ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_table
+	//   "ALTER TABLE IF EXISTS — no error if the table does not exist."
+	[Fact]
+	public void AlterTable_IfExists_NonExistentTable_DoesNotThrow()
+	{
+		// Act & Assert — should not throw
+		_database.ExecuteDdl("ALTER TABLE IF EXISTS NonExistentTable ADD COLUMN Foo INT64");
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_table
+	//   "ADD COLUMN IF NOT EXISTS — no error if the column already exists."
+	[Fact]
+	public void AlterTable_AddColumn_IfNotExists_ExistingColumn_DoesNotThrow()
+	{
+		// Act & Assert — Name column already exists; should not throw
+		_database.ExecuteDdl("ALTER TABLE TestTable ADD COLUMN IF NOT EXISTS Name STRING(MAX)");
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_table
+	//   "DROP COLUMN IF EXISTS — no error if the column does not exist."
+	[Fact]
+	public void AlterTable_DropColumn_IfExists_NonExistentColumn_DoesNotThrow()
+	{
+		// Act & Assert — NonExistent column doesn't exist; should not throw
+		_database.ExecuteDdl("ALTER TABLE TestTable DROP COLUMN IF EXISTS NonExistent");
+	}
+
+	// ─── ALTER DATABASE SET OPTIONS as no-op ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#alter_database
+	//   "ALTER DATABASE db SET OPTIONS (optimizer_version = 5)"
+	[Fact]
+	public void AlterDatabase_SetOptions_DoesNotThrow()
+	{
+		// Act & Assert — should be accepted as no-op
+		_database.ExecuteDdl("ALTER DATABASE mydb SET OPTIONS (optimizer_version = 5, version_retention_period = '7d')");
+	}
+
+	// ─── CREATE INDEX INTERLEAVE IN clause ───
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#create-index
+	//   "CREATE INDEX ... ON ... (...) [STORING (...)] [, INTERLEAVE IN table_name]"
+	[Fact]
+	public void CreateIndex_WithInterleaveIn_DoesNotThrow()
+	{
+		// Arrange: create parent/child tables
+		_database.ExecuteDdl("CREATE TABLE IdxParent (PId INT64 NOT NULL) PRIMARY KEY (PId)");
+		_database.ExecuteDdl("CREATE TABLE IdxChild (PId INT64 NOT NULL, CId INT64 NOT NULL, Val STRING(MAX)) PRIMARY KEY (PId, CId), INTERLEAVE IN PARENT IdxParent ON DELETE CASCADE");
+
+		// Act & Assert — INTERLEAVE IN clause should be accepted
+		_database.ExecuteDdl("CREATE INDEX IdxChildByVal ON IdxChild (Val), INTERLEAVE IN IdxParent");
+	}
 }

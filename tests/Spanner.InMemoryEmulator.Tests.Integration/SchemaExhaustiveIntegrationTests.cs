@@ -310,4 +310,17 @@ public class SchemaExhaustiveIntegrationTests : IntegrationTestBase
 		var rows = await QueryAsync($"SELECT Id FROM {t}");
 		rows.Should().HaveCount(1);
 	}
+
+	// ─── CREATE INDEX STORING validates column existence ───
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#create-index
+	[Fact]
+	[Trait(TestTraits.Category, "SchemaExhaustive")]
+	public async Task CreateIndex_StoringNonExistentColumn_ThrowsError()
+	{
+		var t = UniqName("SchStoreInv");
+		await ExecuteDdlAsync($"CREATE TABLE {t} (Id INT64 NOT NULL, Name STRING(MAX)) PRIMARY KEY (Id)");
+
+		var act = async () => await ExecuteDdlAsync($"CREATE INDEX SIdx_{t} ON {t} (Name) STORING (NonExistent)");
+		await act.Should().ThrowAsync<Exception>();
+	}
 }

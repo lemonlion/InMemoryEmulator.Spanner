@@ -465,6 +465,19 @@ internal static class DdlParser
 			}
 		}
 
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-definition-language#create-index
+		//   "STORING columns must be listed in the STORING clause and must exist in the table."
+		if (stmt.StoringColumns != null)
+		{
+			foreach (var storCol in stmt.StoringColumns)
+			{
+				if (!table.Columns.Any(c => string.Equals(c.Name, storCol, StringComparison.OrdinalIgnoreCase)))
+				{
+					throw new InvalidOperationException($"STORING column '{storCol}' does not exist in table '{stmt.TableName}'.");
+				}
+			}
+		}
+
 		var indexColumns = stmt.Columns
 			.Select(c => new IndexColumn(c.ColumnName, c.Order))
 			.ToList();

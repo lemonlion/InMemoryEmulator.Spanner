@@ -1889,10 +1889,14 @@ internal class ExpressionEvaluator
 	{
 		if (value is string s)
 		{
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
 			if (s.Equals("inf", StringComparison.OrdinalIgnoreCase) ||
-				s.Equals("+inf", StringComparison.OrdinalIgnoreCase))
+				s.Equals("+inf", StringComparison.OrdinalIgnoreCase) ||
+				s.Equals("infinity", StringComparison.OrdinalIgnoreCase) ||
+				s.Equals("+infinity", StringComparison.OrdinalIgnoreCase))
 				return float.PositiveInfinity;
-			if (s.Equals("-inf", StringComparison.OrdinalIgnoreCase))
+			if (s.Equals("-inf", StringComparison.OrdinalIgnoreCase) ||
+				s.Equals("-infinity", StringComparison.OrdinalIgnoreCase))
 				return float.NegativeInfinity;
 			if (s.Equals("nan", StringComparison.OrdinalIgnoreCase))
 				return float.NaN;

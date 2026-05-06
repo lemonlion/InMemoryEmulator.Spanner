@@ -1806,7 +1806,11 @@ internal class QueryExecutor
 			}
 			else if (!outputRow.ContainsKey(name))
 			{
-				outputRow[name] = rows.Count > 0 ? evaluator.Evaluate(col.Expr, outputRow.Count > 0 ? MergeRows(outputRow, rows[0]) : rows[0]) : null;
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conditional_expressions#case
+				//   CASE WHEN with aggregates should evaluate even on empty tables since
+				//   aggregates are precomputed (e.g., COUNT(*) = 0).
+				var evalRow = rows.Count > 0 ? MergeRows(outputRow, rows[0]) : outputRow;
+				outputRow[name] = evaluator.Evaluate(col.Expr, evalRow);
 			}
 		}
 

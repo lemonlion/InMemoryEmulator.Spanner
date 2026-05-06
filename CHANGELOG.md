@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.52] - 2026-07-10
+
+### Fixed
+- **CASE WHEN with aggregates on empty table**: `SELECT CASE WHEN COUNT(*) > 0 THEN 'yes' ELSE 'no' END FROM empty_table` now correctly returns `'no'` instead of NULL. Non-aggregate expressions containing aggregates are now evaluated against the precomputed aggregate values even when the source table has zero rows.
+
+### Added
+- Integration test: 1 new test for CASE WHEN aggregate on empty table.
+
 ## [1.0.51] - 2026-07-10
 
 ### Fixed

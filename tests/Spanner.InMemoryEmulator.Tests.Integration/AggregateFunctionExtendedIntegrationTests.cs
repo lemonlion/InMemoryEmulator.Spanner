@@ -1870,4 +1870,16 @@ public class AggregateFunctionExtendedIntegrationTests : IntegrationTestBase
 		arr[0].Should().Be("Eve");
 		arr[1].Should().BeNull();
 	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "AggregateFunctionExtended")]
+	public async Task CaseWhen_WithAggregate_EmptyTable_ReturnsElseBranch()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conditional_expressions#case
+		//   "CASE WHEN referencing aggregates should still evaluate when the table is empty"
+		await EnsureTable();
+		var rows = await QueryAsync($"SELECT CASE WHEN COUNT(*) > 0 THEN 'has_data' ELSE 'empty' END AS result FROM {T} WHERE Id = 999");
+		rows.Should().HaveCount(1);
+		rows[0]["result"].Should().Be("empty");
+	}
 }

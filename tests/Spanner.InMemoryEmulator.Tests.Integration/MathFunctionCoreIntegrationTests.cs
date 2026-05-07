@@ -498,6 +498,7 @@ public class MathFunctionCoreIntegrationTests : IntegrationTestBase
 	[InlineData("2 + 3 * 4", 14L)]
 	[InlineData("(2 + 3) * 4", 20L)]
 	[Trait(TestTraits.Category, "MathFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArithmeticOperators_Precedence(string expr, long expected)
 	{
 		var result = await Eval(expr);
@@ -538,6 +539,7 @@ public class MathFunctionCoreIntegrationTests : IntegrationTestBase
 	[InlineData("BIT_REVERSE(0, true)", 0L)]
 	[InlineData("BIT_REVERSE(1, true)", -9223372036854775808L)]
 	[Trait(TestTraits.Category, "MathFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task BitReverse_Cases(string expr, long expected)
 	{
 		var result = await Eval(expr);

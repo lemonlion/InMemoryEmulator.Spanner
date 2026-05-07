@@ -202,6 +202,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Like_EscapedPercent_MatchesLiteralPercent()
 	{
 		var t = await FreshTable("LikeEsc");
@@ -216,6 +217,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Like_EscapedUnderscore_MatchesLiteralUnderscore()
 	{
 		var t = await FreshTable("LikeEsc");
@@ -261,6 +263,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task CastTimestamp_ToString_WholeSecondsOmitsFraction()
 	{
 		var rows = await QueryAsync("SELECT CAST(TIMESTAMP '2024-01-15T12:34:56Z' AS STRING) AS R");
@@ -520,6 +523,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Format_NullIntArg_ProducesNullString()
 	{
 		var rows = await QueryAsync("SELECT FORMAT('%d', CAST(NULL AS INT64)) AS R");
@@ -528,6 +532,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Format_NullFloatArg_ProducesNullString()
 	{
 		var rows = await QueryAsync("SELECT FORMAT('%f', CAST(NULL AS FLOAT64)) AS R");
@@ -681,6 +686,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task OrderBy_NullsLast_AscPutsNullsAtEnd()
 	{
 		var t = await FreshTable("nullord");
@@ -693,6 +699,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task OrderBy_NullsFirst_DescPutsNullsAtStart()
 	{
 		var t = await FreshTable("nullord");
@@ -763,6 +770,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task SafeDivide_InfinityDividedByInfinity_ReturnsNull()
 	{
 		// Inf/Inf is indeterminate (would produce NaN) — that's an error
@@ -790,6 +798,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task FirstValue_IgnoreNulls_SkipsNullRows()
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/navigation_functions#first_value
@@ -807,6 +816,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task LastValue_IgnoreNulls_SkipsNullRows()
 	{
 		var t = await FreshTable("lvin");
@@ -886,6 +896,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task SafeAdd_InfinityPlusNegInfinity_ReturnsNull()
 	{
 		// Inf + (-Inf) = NaN (indeterminate form) → SAFE_ returns NULL
@@ -895,6 +906,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task SafeMultiply_InfinityTimesZero_ReturnsNull()
 	{
 		// Inf * 0 = NaN (indeterminate form) → SAFE_ returns NULL
@@ -993,6 +1005,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpReplace_Backreference_WorksCorrectly()
 	{
 		// Swap first and last word using backreferences
@@ -1381,6 +1394,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task LastDay_Month_ReturnsLastDayOfMonth()
 	{
 		var result = await Eval("LAST_DAY(DATE '2025-02-10')");
@@ -1428,6 +1442,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task LastDay_LeapYear_ReturnsLastDayOfMonth()
 	{
 		var result = await Eval("LAST_DAY(DATE '2024-02-10')");
@@ -1437,6 +1452,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task LastDay_Year_ReturnsDecember31()
 	{
 		var result = await Eval("LAST_DAY(DATE '2025-06-15', YEAR)");

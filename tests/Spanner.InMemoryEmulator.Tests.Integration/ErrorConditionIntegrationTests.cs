@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -441,6 +442,7 @@ public class ErrorConditionIntegrationTests : IntegrationTestBase
 	[InlineData("SELECT TO_JSON_STRING(1) AS R", "1")]
 	[InlineData("SELECT TO_JSON_STRING('hello') AS R", "\"hello\"")]
 	[InlineData("SELECT TO_JSON_STRING(TRUE) AS R", "true")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ToJsonString_ScalarTypes_ReturnsJsonString(string sql, string expected)
 	{
 		var rows = await QueryAsync(sql);

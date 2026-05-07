@@ -272,6 +272,7 @@ public class StatisticalAggregateIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArrayAgg_OrderBy()
 	{
 		var table = await SetupStatsTable();

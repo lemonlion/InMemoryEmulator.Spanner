@@ -1,4 +1,5 @@
 using Google.Cloud.Spanner.Data;
+using Google.Cloud.Spanner.V1;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
@@ -191,6 +192,7 @@ public abstract class IntegrationTestBase
 			string => SpannerDbType.String,
 			bool => SpannerDbType.Bool,
 			double or float => SpannerDbType.Float64,
+			SpannerNumeric => SpannerDbType.Numeric,
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/data-types#date_type
 			//   DATE columns store calendar dates. DateTime values with no time component
 			//   (midnight, Unspecified kind) map to Date; all others to Timestamp.

@@ -51,6 +51,7 @@ public class ArrayFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "ArrayFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArrayConcat_TwoArrays()
 	{
 		var rows = await QueryAsync("SELECT v FROM UNNEST(ARRAY_CONCAT([1,2], [3,4])) AS v");
@@ -59,6 +60,7 @@ public class ArrayFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "ArrayFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArrayConcat_ThreeArrays()
 	{
 		var rows = await QueryAsync("SELECT v FROM UNNEST(ARRAY_CONCAT([1], [2], [3])) AS v");
@@ -67,6 +69,7 @@ public class ArrayFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "ArrayFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArrayConcat_WithEmptyArray()
 	{
 		var rows = await QueryAsync("SELECT v FROM UNNEST(ARRAY_CONCAT([1,2], CAST([] AS ARRAY<INT64>), [3])) AS v");
@@ -92,6 +95,7 @@ public class ArrayFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "ArrayFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArrayReverse_ReversesElements()
 	{
 		var rows = await QueryAsync("SELECT v FROM UNNEST(ARRAY_REVERSE([1,2,3])) AS v");
@@ -103,6 +107,7 @@ public class ArrayFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "ArrayFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task GenerateArray_DefaultStep()
 	{
 		var rows = await QueryAsync("SELECT v FROM UNNEST(GENERATE_ARRAY(1, 5)) AS v");
@@ -111,6 +116,7 @@ public class ArrayFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "ArrayFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task GenerateArray_WithStep()
 	{
 		var rows = await QueryAsync("SELECT v FROM UNNEST(GENERATE_ARRAY(0, 10, 3)) AS v");
@@ -119,6 +125,7 @@ public class ArrayFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "ArrayFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task GenerateArray_NegativeStep()
 	{
 		var rows = await QueryAsync("SELECT v FROM UNNEST(GENERATE_ARRAY(5, 1, -1)) AS v");
@@ -199,6 +206,7 @@ public class ArrayFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "ArrayFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArraySum_IntArray()
 	{
 		var result = await Eval("ARRAY_SUM([1,2,3,4,5])");
@@ -207,6 +215,7 @@ public class ArrayFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "ArrayFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArrayAvg_IntArray()
 	{
 		var result = await Eval("ARRAY_AVG([10,20,30])");
@@ -217,6 +226,7 @@ public class ArrayFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "ArrayFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArraySlice_BasicCase()
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#array_slice
@@ -227,6 +237,7 @@ public class ArrayFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "ArrayFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArraySlice_FromMiddle()
 	{
 		var rows = await QueryAsync("SELECT v FROM UNNEST(ARRAY_SLICE([10,20,30,40,50], 2, 4)) AS v");

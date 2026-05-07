@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -71,6 +72,7 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Union_Bare_DefaultsToDistinct()
 	{
 		var count = await RowCount("SELECT 1 AS x UNION SELECT 1 UNION SELECT 2");
@@ -93,6 +95,7 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Intersect_Bare_DefaultsToDistinct()
 	{
 		var results = await EvalMultiRow(
@@ -119,6 +122,7 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Except_Bare_DefaultsToDistinct()
 	{
 		var results = await EvalMultiRow(
@@ -234,6 +238,7 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ForUpdate_ParsesAndReturnsResults()
 	{
 		var result = await Eval("SELECT 1 AS x FOR UPDATE");
@@ -241,6 +246,7 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ForUpdate_WithWhereClause()
 	{
 		var result = await Eval("SELECT 42 AS x WHERE true FOR UPDATE");
@@ -260,6 +266,7 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task LikeAny_MatchesOnePattern()
 	{
 		var result = await Eval("SELECT 'hello' LIKE ANY ('%ello', '%world')");
@@ -267,6 +274,7 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task LikeAny_NoMatch()
 	{
 		var result = await Eval("SELECT 'hello' LIKE ANY ('%xyz', '%abc')");
@@ -274,6 +282,7 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task LikeAll_MatchesAllPatterns()
 	{
 		var result = await Eval("SELECT 'hello' LIKE ALL ('h%', '%o', '_____')");
@@ -281,6 +290,7 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task LikeAll_FailsOnePattern()
 	{
 		var result = await Eval("SELECT 'hello' LIKE ALL ('h%', '%xyz')");
@@ -288,6 +298,7 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task LikeSome_IsSynonymForAny()
 	{
 		var result = await Eval("SELECT 'hello' LIKE SOME ('%ello', '%world')");
@@ -295,6 +306,7 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task NotLikeAny_NegatesResult()
 	{
 		var result = await Eval("SELECT 'hello' NOT LIKE ANY ('%ello', '%world')");

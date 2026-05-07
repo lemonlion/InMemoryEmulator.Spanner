@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -50,6 +51,7 @@ public class AggregateAdvancedIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Count_Star_OnEmptyUnion()
 	{
 		(await EvalCount("SELECT COUNT(*) FROM (SELECT 1 WHERE false)")).Should().Be(0L);
@@ -109,6 +111,7 @@ public class AggregateAdvancedIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Sum_Empty_ReturnsNull()
 	{
 		(await Eval("SELECT SUM(x) FROM (SELECT 1 AS x WHERE false)")).Should().BeNull();
@@ -140,6 +143,7 @@ public class AggregateAdvancedIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Avg_Empty_ReturnsNull()
 	{
 		(await Eval("SELECT AVG(x) FROM (SELECT 1 AS x WHERE false)")).Should().BeNull();
@@ -406,12 +410,14 @@ public class AggregateAdvancedIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Exists_False()
 	{
 		(await Eval("SELECT EXISTS(SELECT 1 WHERE false)")).Should().Be(false);
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task NotExists_True()
 	{
 		(await Eval("SELECT NOT EXISTS(SELECT 1 WHERE false)")).Should().Be(true);

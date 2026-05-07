@@ -183,6 +183,7 @@ public class TrigFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Asin_OutOfDomain_ReturnsNaN()
 	{
 		// Ref: ASIN with |x| > 1 returns NaN
@@ -191,6 +192,7 @@ public class TrigFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Asin_NegOutOfDomain_ReturnsNaN()
 	{
 		var result = (double)(await Eval("ASIN(-1.5)"))!;
@@ -222,6 +224,7 @@ public class TrigFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Acos_OutOfDomain_ReturnsNaN()
 	{
 		var result = (double)(await Eval("ACOS(2.0)"))!;
@@ -463,6 +466,7 @@ public class TrigFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Acosh_LessThanOne_ReturnsNaN()
 	{
 		// Ref: ACOSH(x) where x < 1 is outside the domain
@@ -487,6 +491,7 @@ public class TrigFunctionIntegrationTests : IntegrationTestBase
 		((double)(await Eval(expr))!).Should().BeApproximately(expected, 1e-10);
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Atanh_One_IsInf()
 	{
 		var result = (double)(await Eval("ATANH(1.0)"))!;
@@ -494,6 +499,7 @@ public class TrigFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Atanh_MinusOne_IsNegInf()
 	{
 		var result = (double)(await Eval("ATANH(-1.0)"))!;
@@ -501,6 +507,7 @@ public class TrigFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Atanh_OutOfDomain_ReturnsNaN()
 	{
 		var result = (double)(await Eval("ATANH(2.0)"))!;

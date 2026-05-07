@@ -239,6 +239,7 @@ public ConstraintIntegrationTests(EmulatorSession session) : base(session) { }
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#on_conflict_do_update
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task OnConflict_DoUpdate_WithWhere_SkipsWhenConditionFalse()
 	{
 		await ExecuteDdlAsync(
@@ -258,6 +259,7 @@ public ConstraintIntegrationTests(EmulatorSession session) : base(session) { }
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#on_conflict_do_nothing
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task OnConflict_DoNothing_WithoutConflictTarget()
 	{
 		await ExecuteDdlAsync(

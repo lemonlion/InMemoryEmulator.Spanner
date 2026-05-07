@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -276,12 +277,14 @@ public class ArrayFunctionEdgeCaseIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArrayConcat_NullArray_ReturnsNull()
 	{
 		(await Eval("ARRAY_CONCAT(NULL, [1])")).Should().BeNull();
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArrayConcat_SecondNull_ReturnsNull()
 	{
 		(await Eval("ARRAY_CONCAT([1], NULL)")).Should().BeNull();

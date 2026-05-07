@@ -11,6 +11,7 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 /// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls
 /// </summary>
 [Collection(IntegrationCollection.Name)]
+[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 public class WindowFunctionCoreIntegrationTests : IntegrationTestBase
 {
 	public WindowFunctionCoreIntegrationTests(EmulatorSession session) : base(session) { }

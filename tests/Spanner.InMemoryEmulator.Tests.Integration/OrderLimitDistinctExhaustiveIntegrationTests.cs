@@ -304,6 +304,7 @@ public class OrderLimitDistinctExhaustiveIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "OrderLimitDistinctExhaustive")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Distinct_ArrayColumn_DeduplicatesIdenticalArrays()
 	{
 		// Same array content should be deduplicated
@@ -314,6 +315,7 @@ public class OrderLimitDistinctExhaustiveIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "OrderLimitDistinctExhaustive")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Distinct_ArrayColumn_KeepsDifferentArrays()
 	{
 		// Different array content should not be deduplicated

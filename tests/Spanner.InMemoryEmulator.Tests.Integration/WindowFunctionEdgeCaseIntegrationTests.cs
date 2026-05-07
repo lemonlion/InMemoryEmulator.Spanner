@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -10,6 +11,7 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 /// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions
 /// </summary>
 [Collection(IntegrationCollection.Name)]
+[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 public class WindowFunctionEdgeCaseIntegrationTests : IntegrationTestBase
 {
 	public WindowFunctionEdgeCaseIntegrationTests(EmulatorSession session) : base(session) { }

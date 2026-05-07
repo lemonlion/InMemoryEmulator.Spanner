@@ -37,6 +37,7 @@ public class BitAndSafeMathIntegrationTests : IntegrationTestBase
 	[InlineData("BIT_REVERSE(2, true)", 4611686018427387904L)]
 	[InlineData("BIT_REVERSE(4, true)", 2305843009213693952L)]
 	[InlineData("BIT_REVERSE(8, true)", 1152921504606846976L)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task BitReverse_Signed(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 

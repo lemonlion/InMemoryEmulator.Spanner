@@ -289,6 +289,7 @@ public class AggregateFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "AggregateFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArrayAgg_BasicCase()
 	{
 		var table = "AggArr1";
@@ -516,6 +517,7 @@ public class AggregateFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "AggregateFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ApproxCountDistinct_ReturnsDistinctCount()
 	{
 		var table = "AggApprox1";
@@ -527,6 +529,7 @@ public class AggregateFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "AggregateFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ApproxCountDistinct_AllNull_ReturnsZero()
 	{
 		var table = "AggApprox2";
@@ -540,6 +543,7 @@ public class AggregateFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "AggregateFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ApproxCountDistinct_AllSameValue_ReturnsOne()
 	{
 		var table = "AggApprox3";

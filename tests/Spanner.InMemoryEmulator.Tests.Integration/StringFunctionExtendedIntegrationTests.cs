@@ -203,6 +203,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("REGEXP_EXTRACT('abc 123 def 456', '[0-9]+', 1)", "123")]
 	[InlineData("REGEXP_EXTRACT('abc 123 def 456', '[0-9]+', 8)", "456")]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpExtract_PositionAndOccurrence(string expr, string? expected)
 	{
 		var result = await Eval(expr);
@@ -214,6 +215,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpExtract_NullPosition_ReturnsNull()
 	{
 		var result = await Eval("REGEXP_EXTRACT('abc123', '[0-9]+', CAST(NULL AS INT64))");
@@ -222,6 +224,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpExtract_NullOccurrence_ReturnsNull()
 	{
 		var result = await Eval("REGEXP_EXTRACT('abc123', '[0-9]+', 1, CAST(NULL AS INT64))");
@@ -237,6 +240,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpExtractAll_MultipleMatches()
 	{
 		var rows = await QueryAsync("SELECT val FROM UNNEST(REGEXP_EXTRACT_ALL('abc123def456ghi789', '[0-9]+')) AS val");
@@ -272,6 +276,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpExtractAll_WithCaptureGroup()
 	{
 		var rows = await QueryAsync("SELECT val FROM UNNEST(REGEXP_EXTRACT_ALL('a1b2c3', '([a-z])')) AS val");
@@ -317,6 +322,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("REGEXP_REPLACE('a1b2c3', '[0-9]', '')", "abc")]
 	[InlineData("REGEXP_REPLACE('aabbcc', '(.)\\1', 'X')", "XXX")]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpReplace_Extended(string expr, string expected)
 	{
 		var result = await Eval(expr);
@@ -607,6 +613,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Format_NullStringArg_ReturnsNullText()
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#format_string
@@ -631,6 +638,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("FORMAT('%t', DATE '2024-01-15')", "2024-01-15")]
 	[InlineData("FORMAT('%t', TIMESTAMP '2024-01-15T10:30:00Z')", "2024-01-15T10:30:00Z")]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Format_PercentT_CanonicalRepresentation(string expr, string expected)
 	{
 		var result = await Eval(expr);
@@ -663,6 +671,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("FORMAT('%T', DATE '2024-01-15')", "DATE \"2024-01-15\"")]
 	[InlineData("FORMAT('%T', TIMESTAMP '2024-01-15T10:30:00Z')", "TIMESTAMP \"2024-01-15T10:30:00Z\"")]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Format_PercentUpperT_SqlLiteralRepresentation(string expr, string expected)
 	{
 		var result = await Eval(expr);
@@ -712,6 +721,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Split_EmptyElements()
 	{
 		var rows = await QueryAsync("SELECT val FROM UNNEST(SPLIT('a,,b', ',')) AS val");
@@ -723,6 +733,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Split_LeadingTrailingDelimiters()
 	{
 		var rows = await QueryAsync("SELECT val FROM UNNEST(SPLIT(',a,b,', ',')) AS val");
@@ -735,6 +746,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Split_MultiCharDelimiter()
 	{
 		var rows = await QueryAsync("SELECT val FROM UNNEST(SPLIT('a::b::c', '::')) AS val");
@@ -772,6 +784,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Split_EmptyDelimiter_ReturnsSingleChars()
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#split
@@ -919,6 +932,7 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ToCodePoints_Basic()
 	{
 		var rows = await QueryAsync("SELECT cp FROM UNNEST(TO_CODE_POINTS('ABC')) AS cp");

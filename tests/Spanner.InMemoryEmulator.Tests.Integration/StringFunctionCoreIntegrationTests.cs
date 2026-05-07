@@ -55,6 +55,7 @@ public class StringFunctionCoreIntegrationTests : IntegrationTestBase
 	[InlineData("LENGTH('日本語')", 3L)]
 	[InlineData("LENGTH('🎉')", 2L)]  // Surrogate pair counts as 2 in UTF-16
 	[Trait(TestTraits.Category, "StringFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Length_Unicode_ReturnsCharCount(string expr, object expected)
 	{
 		var result = await Eval(expr);
@@ -100,6 +101,7 @@ public class StringFunctionCoreIntegrationTests : IntegrationTestBase
 	[InlineData("LCASE('HELLO')", "hello")]
 	[InlineData("UCASE('hello')", "HELLO")]
 	[Trait(TestTraits.Category, "StringFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task LowerUpper_ReturnsCorrectValues(string expr, string expected)
 	{
 		var result = await Eval(expr);
@@ -306,6 +308,7 @@ public class StringFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "StringFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Split_CommaDelimiter()
 	{
 		var rows = await Q("SELECT val FROM UNNEST(SPLIT('a,b,c', ',')) AS val");
@@ -330,6 +333,7 @@ public class StringFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "StringFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Split_DefaultDelimiter()
 	{
 		var rows = await Q("SELECT val FROM UNNEST(SPLIT('a,b,c')) AS val");
@@ -433,6 +437,7 @@ public class StringFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "StringFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpExtractAll_ExtractsAllMatches()
 	{
 		var rows = await Q("SELECT val FROM UNNEST(REGEXP_EXTRACT_ALL('ab12cd34ef', '[0-9]+')) AS val");
@@ -470,6 +475,7 @@ public class StringFunctionCoreIntegrationTests : IntegrationTestBase
 	[InlineData("UNICODE('0')", 48L)]
 	[InlineData("UNICODE(' ')", 32L)]
 	[Trait(TestTraits.Category, "StringFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Unicode_ReturnsCodePoint(string expr, long expected)
 	{
 		var result = await Eval(expr);
@@ -486,6 +492,7 @@ public class StringFunctionCoreIntegrationTests : IntegrationTestBase
 	[InlineData("CONTAINS_SUBSTR('hello', 'hello')", true)]
 	[InlineData("CONTAINS_SUBSTR('hello', '')", true)]
 	[Trait(TestTraits.Category, "StringFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ContainsSubstr_CaseInsensitive(string expr, bool expected)
 	{
 		var result = await Eval(expr);
@@ -523,6 +530,7 @@ public class StringFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "StringFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ToCodePoints_AsciiString()
 	{
 		var rows = await Q("SELECT cp FROM UNNEST(TO_CODE_POINTS('ABC')) AS cp");
@@ -555,6 +563,7 @@ public class StringFunctionCoreIntegrationTests : IntegrationTestBase
 	[InlineData("REGEXP_INSTR('hello123world', '[0-9]+')", 6L)]
 	[InlineData("REGEXP_INSTR('hello', '[0-9]+')", 0L)]
 	[Trait(TestTraits.Category, "StringFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpInstr_ReturnsPosition(string expr, long expected)
 	{
 		var result = await Eval(expr);
@@ -703,6 +712,7 @@ public class StringFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "StringFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task SplitSubstr_BasicCase()
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#split_substr

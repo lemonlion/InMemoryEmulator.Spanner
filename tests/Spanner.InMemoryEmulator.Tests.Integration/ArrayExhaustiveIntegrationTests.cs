@@ -88,6 +88,7 @@ public class ArrayExhaustiveIntegrationTests : IntegrationTestBase
 	// ─── ARRAY_REVERSE ───
 	[Fact]
 	[Trait(TestTraits.Category, "ArrayExhaustive")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArrayReverse_Int()
 	{
 		var rows = await QueryAsync("SELECT val FROM UNNEST(ARRAY_REVERSE([1,2,3])) AS val");
@@ -168,6 +169,7 @@ public class ArrayExhaustiveIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "ArrayExhaustive")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task GenerateArray_Descending()
 	{
 		var rows = await QueryAsync("SELECT val FROM UNNEST(GENERATE_ARRAY(5, 1, -1)) AS val");
@@ -297,6 +299,7 @@ public class ArrayExhaustiveIntegrationTests : IntegrationTestBase
 	// ─── ARRAY from SELECT with ORDER BY ───
 	[Fact]
 	[Trait(TestTraits.Category, "ArrayExhaustive")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Array_SubqueryWithOrderBy()
 	{
 		var t = $"ArrOrd_{Guid.NewGuid().ToString("N").Substring(0, 8)}";

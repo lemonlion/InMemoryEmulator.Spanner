@@ -329,6 +329,7 @@ public class DateTimeCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "DateTime")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task FormatTimestamp_BasicCase()
 	{
 		var result = await Eval("FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', TIMESTAMP('2024-06-15T10:30:45Z'))");
@@ -337,6 +338,7 @@ public class DateTimeCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "DateTime")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ParseTimestamp_BasicCase()
 	{
 		var result = await Eval("PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', '2024-06-15 10:30:45')");
@@ -462,6 +464,7 @@ public class DateTimeCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "DateTime")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task GenerateDateArray_DayStep()
 	{
 		var rows = await QueryAsync("SELECT d FROM UNNEST(GENERATE_DATE_ARRAY(DATE('2024-01-01'), DATE('2024-01-05'), INTERVAL 1 DAY)) AS d");
@@ -483,6 +486,7 @@ public class DateTimeCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "DateTime")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task GenerateTimestampArray_HourStep()
 	{
 		var rows = await QueryAsync("SELECT t FROM UNNEST(GENERATE_TIMESTAMP_ARRAY(TIMESTAMP('2024-01-01T00:00:00Z'), TIMESTAMP('2024-01-01T04:00:00Z'), INTERVAL 1 HOUR)) AS t");
@@ -589,6 +593,7 @@ public class DateTimeCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "DateTime")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task AddDate_Alias()
 	{
 		var result = await Eval("ADDDATE(DATE('2024-01-15'), INTERVAL 5 DAY)");
@@ -597,6 +602,7 @@ public class DateTimeCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "DateTime")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task SubDate_Alias()
 	{
 		var result = await Eval("SUBDATE(DATE('2024-01-15'), INTERVAL 5 DAY)");

@@ -261,6 +261,7 @@ public class StringExhaustiveIntegrationTests : IntegrationTestBase
 	[InlineData("REGEXP_EXTRACT('hello', '[0-9]+')", null)]
 	[InlineData("REGEXP_EXTRACT('test@example.com', '@(.+)', 1)", "example.com")]
 	[Trait(TestTraits.Category, "StringExhaustive")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpExtract(string expr, string? expected)
 	{
 		var result = await Eval(expr);
@@ -323,6 +324,7 @@ public class StringExhaustiveIntegrationTests : IntegrationTestBase
 	[InlineData("SOUNDEX('A')", "A000")]
 	[InlineData("SOUNDEX('')", "")]
 	[Trait(TestTraits.Category, "StringExhaustive")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Soundex(string expr, string expected)
 	{
 		var result = await Eval(expr);

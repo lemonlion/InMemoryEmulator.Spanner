@@ -10,6 +10,7 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 /// SUM/AVG/COUNT/MIN/MAX OVER, FIRST_VALUE, LAST_VALUE, NTH_VALUE, NTILE, frames.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
+[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 public class WindowFunctionExhaustiveIntegrationTests : IntegrationTestBase
 {
 	public WindowFunctionExhaustiveIntegrationTests(EmulatorSession session) : base(session) { }

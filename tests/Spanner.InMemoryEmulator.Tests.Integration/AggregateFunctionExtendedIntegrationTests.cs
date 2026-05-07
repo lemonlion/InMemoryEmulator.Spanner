@@ -1840,6 +1840,7 @@ public class AggregateFunctionExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "AggregateFunctionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Combined_Aggregate_Arithmetic()
 	{
 		await EnsureTable();

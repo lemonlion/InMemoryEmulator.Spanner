@@ -175,6 +175,7 @@ public class SelectExpressionExtendedIntegrationTests : IntegrationTestBase
     [InlineData("100 % 7", 2L)]
     [InlineData("-7 % 3", -1L)]
     [Trait(TestTraits.Category, "SelectExpressionExtended")]
+    [Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
     public async Task Arithmetic_Modulo(string expr, long expected)
     {
         // Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
@@ -508,6 +509,7 @@ public class SelectExpressionExtendedIntegrationTests : IntegrationTestBase
     [InlineData("NOT EXISTS(SELECT 1)", false)]
     [InlineData("EXISTS(SELECT 1 WHERE TRUE)", true)]
     [Trait(TestTraits.Category, "SelectExpressionExtended")]
+    [Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
     public async Task Exists_Subquery(string expr, bool expected)
     {
         ((bool)(await Eval(expr))!).Should().Be(expected);
@@ -695,6 +697,7 @@ public class SelectExpressionExtendedIntegrationTests : IntegrationTestBase
     [InlineData("''''''", "''")]
     [InlineData("'a''b''c'", "a'b'c")]
     [Trait(TestTraits.Category, "SelectExpressionExtended")]
+    [Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
     public async Task StringEscape_SingleQuotes(string expr, string expected)
     {
         (await Eval(expr))!.ToString().Should().Be(expected);

@@ -1,4 +1,4 @@
-﻿using FluentAssertions;
+using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
@@ -950,6 +950,7 @@ public class OperatorIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Like_NullValue_ThrowsError()
 	{
 		var act = () => Eval("CAST(NULL AS STRING) LIKE 'a%'");
@@ -957,6 +958,7 @@ public class OperatorIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Like_NullPattern_ThrowsError()
 	{
 		var act = () => Eval("'apple' LIKE CAST(NULL AS STRING)");
@@ -991,6 +993,7 @@ public class OperatorIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task LikeAny_WithNullPattern_MatchesOtherPattern()
 	{
 		// 'hello' matches '%' even though NULL is in pattern list
@@ -999,6 +1002,7 @@ public class OperatorIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task LikeAny_OnlyNullPatterns_ReturnsNull()
 	{
 		var result = await Eval("'hello' LIKE ANY (CAST(NULL AS STRING))");
@@ -1006,6 +1010,7 @@ public class OperatorIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task LikeAll_WithNullPattern_ReturnsNull()
 	{
 		// Even though 'hello' matches '%', NULL pattern makes ALL return NULL
@@ -1014,6 +1019,7 @@ public class OperatorIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task LikeAll_NonMatchBeforeNull_ReturnsFalse()
 	{
 		// 'hello' doesn't match 'xyz', so ALL short-circuits to FALSE regardless of NULL
@@ -1098,6 +1104,7 @@ public class OperatorIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Having_WithoutGroupBy_ImplicitAggregation()
 	{
 		// SELECT 1 with HAVING should work (implicit whole-table aggregation)

@@ -156,6 +156,7 @@ public class EncodingFunctionIntegrationTests : IntegrationTestBase
 	[InlineData("SOUNDEX('smith')", "S530")]
 	[InlineData("SOUNDEX('smythe')", "S530")]
 	[InlineData("SOUNDEX('')", "")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Soundex_Values(string expr, string expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
@@ -262,10 +263,12 @@ public class EncodingFunctionIntegrationTests : IntegrationTestBase
 	[InlineData("CONTAINS_SUBSTR('', '')", true)]
 	[InlineData("CONTAINS_SUBSTR('', 'a')", false)]
 	[InlineData("CONTAINS_SUBSTR('abc', 'ABC')", true)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ContainsSubstr_Values(string expr, bool expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ContainsSubstr_Null_IsNull()
 	{
 		var result = await Eval("CONTAINS_SUBSTR(CAST(NULL AS STRING), 'test')");
@@ -319,6 +322,7 @@ public class EncodingFunctionIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task SplitSubstr_Basic()
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#split_substr
@@ -328,6 +332,7 @@ public class EncodingFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task SplitSubstr_Second()
 	{
 		var result = (string)(await Eval("SPLIT_SUBSTR('hello-world-foo', '-', 2, 1)"))!;
@@ -335,6 +340,7 @@ public class EncodingFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task SplitSubstr_Last()
 	{
 		var result = (string)(await Eval("SPLIT_SUBSTR('hello-world-foo', '-', 3, 1)"))!;
@@ -342,6 +348,7 @@ public class EncodingFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task SplitSubstr_Null_IsNull()
 	{
 		var result = await Eval("SPLIT_SUBSTR(CAST(NULL AS STRING), '-', 0)");
@@ -358,10 +365,12 @@ public class EncodingFunctionIntegrationTests : IntegrationTestBase
 	[InlineData("REGEXP_INSTR('hello world', 'o')", 5L)]
 	[InlineData("REGEXP_INSTR('hello world', 'xyz')", 0L)]
 	[InlineData("REGEXP_INSTR('abc123', '[0-9]+')", 4L)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpInstr_Values(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpInstr_Null_IsNull()
 	{
 		var result = await Eval("REGEXP_INSTR(CAST(NULL AS STRING), 'test')");

@@ -448,6 +448,7 @@ public class SubqueryCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "Subquery")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task WithRecursive_GenerateNumbers()
 	{
 		var rows = await QueryAsync(@"
@@ -462,6 +463,7 @@ public class SubqueryCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "Subquery")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task WithRecursive_HierarchyTraversal()
 	{
 		var p = "RCT1";

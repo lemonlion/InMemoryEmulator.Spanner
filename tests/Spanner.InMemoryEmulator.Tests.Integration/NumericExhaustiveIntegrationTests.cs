@@ -91,6 +91,7 @@ public class NumericExhaustiveIntegrationTests : IntegrationTestBase
 	// ─── NUMERIC in table ───
 	[Fact]
 	[Trait(TestTraits.Category, "NumericExhaustive")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Numeric_InsertAndQuery()
 	{
 		var t = $"NumT_{Guid.NewGuid().ToString("N").Substring(0, 8)}";

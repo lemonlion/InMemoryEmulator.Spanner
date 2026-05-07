@@ -185,6 +185,7 @@ public class ConditionalExhaustiveIntegrationTests : IntegrationTestBase
 	[InlineData("NULL AND NULL")]
 	[InlineData("NOT NULL")]
 	[Trait(TestTraits.Category, "ConditionalExhaustive")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task NullBooleanLogic_ReturnsNull(string expr)
 	{
 		var result = await Eval(expr);

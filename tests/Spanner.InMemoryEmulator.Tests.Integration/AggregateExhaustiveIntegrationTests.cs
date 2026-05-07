@@ -251,6 +251,7 @@ public class AggregateExhaustiveIntegrationTests : IntegrationTestBase
 	[InlineData("SELECT STRING_AGG(x, '-') AS R FROM UNNEST(['hello','world']) AS x", "hello-world")]
 	[InlineData("SELECT STRING_AGG(x, '') AS R FROM UNNEST(['a','b','c']) AS x", "abc")]
 	[Trait(TestTraits.Category, "AggregateExhaustive")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task StringAgg(string sql, string expected)
 	{
 		var rows = await QueryAsync(sql);

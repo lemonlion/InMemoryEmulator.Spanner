@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -229,6 +230,7 @@ public class MathFunctionEdgeCaseIntegrationTests : IntegrationTestBase
 	[InlineData("ROUND(1.2345, 0)", 1.0)]
 	[InlineData("ROUND(99.999, 1)", 100.0)]
 	[InlineData("ROUND(-1.2345, 2)", -1.23)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Round_WithDecimalPlaces(string expr, double expected)
 	{
 		Convert.ToDouble(await Eval(expr)).Should().BeApproximately(expected, 1e-10);

@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -165,6 +166,7 @@ public class TimestampPrecisionIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task TimestampAdd_Day()
 	{
 		var result = await Eval("CAST(TIMESTAMP_ADD(TIMESTAMP '2024-01-01 00:00:00+00', INTERVAL 1 DAY) AS STRING)");
@@ -172,6 +174,7 @@ public class TimestampPrecisionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task TimestampAdd_Hour()
 	{
 		var result = await Eval("CAST(TIMESTAMP_ADD(TIMESTAMP '2024-01-01 00:00:00+00', INTERVAL 2 HOUR) AS STRING)");
@@ -179,6 +182,7 @@ public class TimestampPrecisionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task TimestampSub_Day()
 	{
 		var result = await Eval("CAST(TIMESTAMP_SUB(TIMESTAMP '2024-01-02 00:00:00+00', INTERVAL 1 DAY) AS STRING)");

@@ -330,6 +330,7 @@ public class ComprehensiveCastIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task NewUuid_Returns36CharString()
 	{
 		var result = (string)(await Eval("NEW_UUID()"))!;

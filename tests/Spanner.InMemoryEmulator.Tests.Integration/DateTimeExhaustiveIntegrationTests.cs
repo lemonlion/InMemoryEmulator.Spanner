@@ -170,6 +170,7 @@ public class DateTimeExhaustiveIntegrationTests : IntegrationTestBase
 	[InlineData("CAST(TIMESTAMP_ADD(TIMESTAMP '2024-01-01T00:00:00Z', INTERVAL 24 HOUR) AS STRING)", "2024-01-02")]
 	[InlineData("CAST(TIMESTAMP_ADD(TIMESTAMP '2024-01-01T00:00:00Z', INTERVAL 1 DAY) AS STRING)", "2024-01-02")]
 	[Trait(TestTraits.Category, "DateTimeExhaustive")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task TimestampAdd(string expr, string expected)
 	{
 		var result = await Eval(expr);
@@ -182,6 +183,7 @@ public class DateTimeExhaustiveIntegrationTests : IntegrationTestBase
 	[InlineData("CAST(TIMESTAMP_SUB(TIMESTAMP '2024-01-01T01:00:00Z', INTERVAL 1 HOUR) AS STRING)", "2024-01-01")]
 	[InlineData("CAST(TIMESTAMP_SUB(TIMESTAMP '2024-01-01T00:01:00Z', INTERVAL 1 MINUTE) AS STRING)", "2024-01-01")]
 	[Trait(TestTraits.Category, "DateTimeExhaustive")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task TimestampSub(string expr, string expected)
 	{
 		var result = await Eval(expr);

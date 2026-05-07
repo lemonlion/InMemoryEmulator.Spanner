@@ -430,6 +430,7 @@ public class NullEdgeCaseIntegrationTests : IntegrationTestBase
 	[InlineData("'hello' LIKE CAST(NULL AS STRING)")]
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
 	//   "SELECT NULL LIKE 'a%'; -- Produces an error"
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Like_WithNull_ReturnsNull(string expr)
 	{
 		var act = () => Eval(expr);

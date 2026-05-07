@@ -282,6 +282,7 @@ public class CastCoercionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("CAST(TIMESTAMP '1999-12-31T23:59:59Z' AS STRING)", "1999-12-31T23:59:59Z")]
 	[InlineData("CAST(TIMESTAMP '2024-07-04T18:00:00Z' AS STRING)", "2024-07-04T18:00:00Z")]
 	[Trait(TestTraits.Category, "CastCoercionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Cast_TimestampToString(string expr, string expected)
 	{
 		var result = await Eval(expr);
@@ -392,6 +393,7 @@ public class CastCoercionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("CAST(CAST('3.5' AS NUMERIC) AS INT64)", 4L)]
 	[InlineData("CAST(CAST('0.5' AS NUMERIC) AS INT64)", 0L)]
 	[Trait(TestTraits.Category, "CastCoercionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Cast_NumericToInt64(string expr, long expected)
 	{
 		var result = await Eval(expr);
@@ -659,6 +661,7 @@ public class CastCoercionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("CAST(DATE '1970-01-01' AS TIMESTAMP)", "1970-01-01T00:00:00Z")]
 	[InlineData("CAST(DATE '2024-12-31' AS TIMESTAMP)", "2024-12-31T00:00:00Z")]
 	[Trait(TestTraits.Category, "CastCoercionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Cast_DateToTimestamp(string expr, string expectedStr)
 	{
 		var result = await Eval(expr);
@@ -677,6 +680,7 @@ public class CastCoercionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("CAST(TIMESTAMP '1970-01-01T00:00:00Z' AS DATE)", "1970-01-01")]
 	[InlineData("CAST(TIMESTAMP '2024-12-31T18:00:00Z' AS DATE)", "2024-12-31")]
 	[Trait(TestTraits.Category, "CastCoercionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Cast_TimestampToDate(string expr, string expectedStr)
 	{
 		var result = await Eval(expr);

@@ -275,6 +275,7 @@ public class JsonFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "JsonFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task JsonValueArray_ExtractsStringArray()
 	{
 		var rows = await QueryAsync("SELECT v FROM UNNEST(JSON_VALUE_ARRAY(PARSE_JSON('{\"a\":[\"x\",\"y\",\"z\"]}'), '$.a')) AS v");
@@ -300,6 +301,7 @@ public class JsonFunctionCoreIntegrationTests : IntegrationTestBase
 	[InlineData("TO_JSON_STRING(true)", "true")]
 	[InlineData("TO_JSON_STRING(false)", "false")]
 	[Trait(TestTraits.Category, "JsonFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ToJsonString_Scalars(string expr, string expected)
 	{
 		var result = await Eval(expr);
@@ -308,6 +310,7 @@ public class JsonFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "JsonFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ToJsonString_Null()
 	{
 		var result = await Eval("TO_JSON_STRING(NULL)");
@@ -408,6 +411,7 @@ public class JsonFunctionCoreIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task JsonExtract_EquivalentToJsonQuery()
 	{
 		var result = await Eval("JSON_EXTRACT(PARSE_JSON('{\"a\":{\"b\":1}}'), '$.a')");
@@ -415,6 +419,7 @@ public class JsonFunctionCoreIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task JsonExtractScalar_EquivalentToJsonValue()
 	{
 		var result = await Eval("JSON_EXTRACT_SCALAR(PARSE_JSON('{\"name\":\"Alice\"}'), '$.name')");
@@ -422,6 +427,7 @@ public class JsonFunctionCoreIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task JsonExtractScalar_ReturnsNumber()
 	{
 		var result = await Eval("JSON_EXTRACT_SCALAR(PARSE_JSON('{\"age\":30}'), '$.age')");
@@ -429,6 +435,7 @@ public class JsonFunctionCoreIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task JsonExtractArray_EquivalentToJsonQueryArray()
 	{
 		var result = await Eval("ARRAY_LENGTH(JSON_EXTRACT_ARRAY(PARSE_JSON('[1,2,3]'), '$'))");
@@ -436,6 +443,7 @@ public class JsonFunctionCoreIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task JsonExtract_NullInput_ReturnsNull()
 	{
 		var result = await Eval("JSON_EXTRACT(CAST(NULL AS JSON), '$.a')");

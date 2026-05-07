@@ -51,6 +51,7 @@ public class DateFunctionAndSetOpEdgeCaseIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "Query")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Union_Bare_DefaultsToDistinct()
 	{
 		var rows = await Q("SELECT 1 AS x UNION SELECT 1 AS x");
@@ -60,6 +61,7 @@ public class DateFunctionAndSetOpEdgeCaseIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "Query")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Union_Bare_CombinesDifferentRows()
 	{
 		var rows = await Q("SELECT 1 AS x UNION SELECT 2 AS x");
@@ -68,6 +70,7 @@ public class DateFunctionAndSetOpEdgeCaseIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "Query")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Except_Bare_DefaultsToDistinct()
 	{
 		var rows = await Q("SELECT 1 AS x UNION ALL SELECT 1 AS x EXCEPT SELECT 1 AS x");
@@ -76,6 +79,7 @@ public class DateFunctionAndSetOpEdgeCaseIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "Query")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Intersect_Bare_DefaultsToDistinct()
 	{
 		var rows = await Q("SELECT 1 AS x UNION ALL SELECT 2 AS x INTERSECT SELECT 1 AS x");

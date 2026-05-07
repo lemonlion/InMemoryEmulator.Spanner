@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
+using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
 namespace Spanner.InMemoryEmulator.Tests.Integration;
 
@@ -305,6 +306,7 @@ public class StringFunctionExtendedEdgeCaseIntegrationTests : IntegrationTestBas
 	[InlineData("REGEXP_EXTRACT('abc123', '[0-9]+')", "123")]
 	[InlineData("REGEXP_EXTRACT('abc123def456', '[0-9]+')", "123")]
 	[InlineData("REGEXP_EXTRACT('hello world', '(\\w+)')", "hello")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpExtract_Values(string expr, string expected)
 	{
 		(await Eval(expr)).Should().Be(expected);
@@ -472,6 +474,7 @@ public class StringFunctionExtendedEdgeCaseIntegrationTests : IntegrationTestBas
 	}
 
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Format_NullArg_ReturnsNULLString()
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#format_string

@@ -162,6 +162,7 @@ public class MathExhaustiveIntegrationTests : IntegrationTestBase
 	[InlineData("ROUND(1234.5678, 0)", 1235.0)]
 	[InlineData("ROUND(0.0, 5)", 0.0)]
 	[Trait(TestTraits.Category, "MathExhaustive")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Round(string expr, double expected)
 	{
 		var result = await Eval(expr);

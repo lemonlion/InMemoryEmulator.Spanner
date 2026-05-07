@@ -183,6 +183,7 @@ public class SubqueryExhaustiveIntegrationTests : IntegrationTestBase
 	// ─── ARRAY subquery ───
 	[Fact]
 	[Trait(TestTraits.Category, "SubqueryExhaustive")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArraySubquery()
 	{
 		var (_, d) = await SeedTables();

@@ -2336,10 +2336,18 @@ internal class ExpressionEvaluator
 	private object? EvalDiv(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#div
-		//   "DIV(X, Y): integer division."
+		//   "DIV(X, Y): Returns the result of integer division of X by Y.
+		//    Division by zero returns an error."
+		//   INT64 × INT64 → INT64, NUMERIC × NUMERIC → NUMERIC
 		var a = Evaluate(func.Arguments[0], row);
 		var b = Evaluate(func.Arguments[1], row);
 		if (a == null || b == null) return null;
+		// NUMERIC inputs: divide then truncate toward zero, return NUMERIC
+		if (a is decimal da && b is decimal db)
+		{
+			if (db == 0m) throw new InvalidOperationException("Division by zero in DIV.");
+			return Math.Truncate(da / db);
+		}
 		var la = Convert.ToInt64(a);
 		var lb = Convert.ToInt64(b);
 		if (lb == 0) throw new InvalidOperationException("Division by zero in DIV.");
@@ -2520,7 +2528,10 @@ internal class ExpressionEvaluator
 	private object? EvalDateCtor(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date
-		//   DATE(year, month, day) or DATE(timestamp_expression)
+		//   DATE(year, month, day) or DATE(timestamp_expression[, time_zone])
+		//   "Extracts the DATE from a TIMESTAMP expression. It includes an optional
+		//    parameter to specify a time zone. If no time zone is specified, the
+		//    default time zone, America/Los_Angeles, is used."
 		if (func.Arguments.Count >= 3)
 		{
 			var year = Evaluate(func.Arguments[0], row);
@@ -2531,8 +2542,15 @@ internal class ExpressionEvaluator
 		}
 		var v = Evaluate(func.Arguments[0], row);
 		if (v == null) return null;
-		if (v is DateTime dt) return dt.Date;
-		if (v is DateTimeOffset dto) return dto.UtcDateTime.Date;
+		if (v is DateTime dt)
+		{
+			// For UTC timestamps, convert to default timezone before extracting date
+			if (dt.Kind == DateTimeKind.Utc)
+				dt = TimeZoneInfo.ConvertTimeFromUtc(dt, DefaultTimeZone);
+			return dt.Date;
+		}
+		if (v is DateTimeOffset dto)
+			return TimeZoneInfo.ConvertTimeFromUtc(dto.UtcDateTime, DefaultTimeZone).Date;
 		return DateTime.Parse(Convert.ToString(v)!).Date;
 	}
 

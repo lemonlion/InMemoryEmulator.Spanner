@@ -886,11 +886,16 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 				}
 				catch (Exception ex)
 				{
-					// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#executebatchdmlresponse
-					//   "If a statement fails, the status in the response body identifies the cause."
-					var errorCode = ex.Message.Contains("already exists")
-						? Google.Rpc.Code.AlreadyExists
-						: Google.Rpc.Code.InvalidArgument;
+						// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#executebatchdmlresponse
+						//   "If a statement fails, the status in the response body identifies the cause."
+						// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.rpc#google.rpc.Code
+						//   Duplicate primary key → ALREADY_EXISTS (6)
+						//   Foreign key violation → FAILED_PRECONDITION (9)
+						var errorCode = ex.Message.Contains("already exists")
+							? Google.Rpc.Code.AlreadyExists
+							: ex.Message.Contains("Foreign key constraint")
+							? Google.Rpc.Code.FailedPrecondition
+							: Google.Rpc.Code.InvalidArgument;
 					response.Status = new Google.Rpc.Status
 					{
 						Code = (int)errorCode,

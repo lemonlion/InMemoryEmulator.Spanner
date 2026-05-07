@@ -1388,6 +1388,44 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 		((DateTime)result!).Should().Be(new DateTime(2025, 2, 28));
 	}
 
+	// ════════════════════════════════════════════════════════════════
+	// ExecuteBatchDml error code mapping
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#executebatchdmlresponse
+	//   "If a statement fails, the status in the response body identifies the cause."
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.rpc#google.rpc.Code
+	//   Foreign key violation → FAILED_PRECONDITION (9)
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task BatchDml_ForeignKeyViolation_ReturnsFailedPrecondition()
+	{
+		// Arrange: parent + child tables with FK constraint
+		await ExecuteDdlAsync(
+			"CREATE TABLE ECB_FKParent (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+		await ExecuteDdlAsync(
+			"CREATE TABLE ECB_FKChild (ChildId INT64 NOT NULL, ParentId INT64, CONSTRAINT FK_ECB_Parent FOREIGN KEY (ParentId) REFERENCES ECB_FKParent (Id)) PRIMARY KEY (ChildId)");
+		await InsertAsync("ECB_FKParent", new Dictionary<string, object?> { ["Id"] = 1L });
+
+		using var connection = Fixture.CreateConnection();
+		await connection.OpenAsync();
+
+		// Act: batch DML inserts a child row with non-existent parent → FK violation
+		var act = async () =>
+		{
+			await connection.RunWithRetriableTransactionAsync(async transaction =>
+			{
+				var cmd = transaction.CreateBatchDmlCommand();
+				cmd.Add("INSERT INTO ECB_FKChild (ChildId, ParentId) VALUES (100, 999)");
+				await cmd.ExecuteNonQueryAsync();
+			});
+		};
+
+		// Assert: should be FailedPrecondition, not InvalidArgument
+		var ex = await act.Should().ThrowAsync<SpannerException>();
+		ex.Which.ErrorCode.Should().Be(ErrorCode.FailedPrecondition);
+	}
+
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
 	public async Task LastDay_LeapYear_ReturnsLastDayOfMonth()
@@ -1580,6 +1618,56 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 	public async Task Mod_Numeric_DivideByZero_ThrowsError()
 	{
 		var act = async () => await QueryAsync("SELECT MOD(NUMERIC '10', NUMERIC '0') AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// TIMESTAMP_TRUNC NANOSECOND
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_trunc
+	//   "NANOSECOND: Truncates to nanosecond precision (identity)."
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task TimestampTrunc_Nanosecond_IsIdentity()
+	{
+		var result = await Eval("TIMESTAMP_TRUNC(TIMESTAMP '2025-03-15T10:30:45.123456789Z', NANOSECOND)");
+		result.Should().BeOfType<DateTime>();
+		// NANOSECOND truncation is an identity operation
+		var ts = (DateTime)result!;
+		ts.Year.Should().Be(2025);
+		ts.Month.Should().Be(3);
+		ts.Day.Should().Be(15);
+		ts.Hour.Should().Be(10);
+		ts.Minute.Should().Be(30);
+		ts.Second.Should().Be(45);
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// UPDATE/DELETE without WHERE clause
+	// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax
+	//   "The WHERE clause is required."
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Update_WithoutWhere_RejectsStatement()
+	{
+		await ExecuteDdlAsync("CREATE TABLE ECB_NoWhere (Id INT64 NOT NULL, Val INT64) PRIMARY KEY (Id)");
+		await InsertAsync("ECB_NoWhere", new Dictionary<string, object?> { ["Id"] = 1L, ["Val"] = 10L });
+
+		var act = async () => await ExecuteDmlAsync("UPDATE ECB_NoWhere SET Val = 99");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Delete_WithoutWhere_RejectsStatement()
+	{
+		await ExecuteDdlAsync("CREATE TABLE ECB_NoWhere2 (Id INT64 NOT NULL, Val INT64) PRIMARY KEY (Id)");
+		await InsertAsync("ECB_NoWhere2", new Dictionary<string, object?> { ["Id"] = 1L, ["Val"] = 10L });
+
+		var act = async () => await ExecuteDmlAsync("DELETE FROM ECB_NoWhere2");
 		await act.Should().ThrowAsync<SpannerException>();
 	}
 }

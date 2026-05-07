@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.69] - 2026-07-10
+
+### Fixed
+- **ExecuteBatchDml FK error code**: Foreign key constraint violations in `ExecuteBatchDml` now correctly return `FAILED_PRECONDITION` (9) instead of `INVALID_ARGUMENT` (3), matching `ExecuteSql` and `ExecuteStreamingSql` behavior.
+- **TIMESTAMP_TRUNC NANOSECOND**: `TIMESTAMP_TRUNC(ts, NANOSECOND)` is now supported as an identity operation instead of throwing "unsupported part".
+- **UPDATE/DELETE without WHERE clause**: DML `UPDATE` and `DELETE` statements now require a `WHERE` clause as mandated by the Spanner SQL specification. Use `WHERE true` to affect all rows.
+
 ## [1.0.68] - 2026-07-10
 
 ### Fixed

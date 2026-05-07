@@ -2681,6 +2681,9 @@ internal class ExpressionEvaluator
 
 		var truncated = part switch
 		{
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_trunc
+			//   "NANOSECOND: No truncation (identity operation)."
+			"NANOSECOND" => dt,
 			"MICROSECOND" => new DateTime(dt.Ticks / 10 * 10, dt.Kind),
 			"MILLISECOND" => new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second, dt.Millisecond, dt.Kind),
 			"SECOND" => new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, dt.Second, dt.Kind),

@@ -220,6 +220,11 @@ internal class DmlExecutor
 	//   "Updates existing rows in a table."
 	public DmlResult ExecuteUpdate(UpdateStatement update, IDictionary<string, object?>? parameters)
 	{
+		// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#update_statement
+		//   "The WHERE clause is required."
+		if (update.Where == null)
+			throw new InvalidOperationException("UPDATE requires a WHERE clause. To update all rows, use WHERE true.");
+
 		if (!_database.Schema.TryGetTable(update.Table, out var table) || table == null)
 			throw new InvalidOperationException($"Table '{update.Table}' not found.");
 
@@ -293,6 +298,11 @@ internal class DmlExecutor
 	//   "Deletes rows from a table."
 	public DmlResult ExecuteDelete(DeleteStatement delete, IDictionary<string, object?>? parameters)
 	{
+		// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#delete_statement
+		//   "The WHERE clause is required."
+		if (delete.Where == null)
+			throw new InvalidOperationException("DELETE requires a WHERE clause. To delete all rows, use WHERE true.");
+
 		if (!_database.Schema.TryGetTable(delete.Table, out var table) || table == null)
 			throw new InvalidOperationException($"Table '{delete.Table}' not found.");
 

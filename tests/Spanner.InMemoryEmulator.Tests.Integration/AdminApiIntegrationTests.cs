@@ -14,7 +14,7 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 // ╚══════════════════════════════════════════════════════════════════════════╝
 
 [Collection(IntegrationCollection.Name)]
-[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 public class AdminApiIntegrationTests : IntegrationTestBase
 {
 	private readonly EmulatorSession _session;

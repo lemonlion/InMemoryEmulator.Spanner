@@ -249,7 +249,9 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ForUpdate_WithWhereClause()
 	{
-		var result = await Eval("SELECT 42 AS x WHERE true FOR UPDATE");
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#where_clause
+		//   WHERE without FROM is invalid; wrap in a FROM subquery.
+		var result = await Eval("SELECT 42 AS x FROM (SELECT 1) AS t WHERE true FOR UPDATE");
 		result.Should().Be(42L);
 	}
 

@@ -1094,7 +1094,9 @@ public class RpcValidationTests
 	[Fact]
 	public async Task ExecuteSql_WithRecursive_BaseReturnsNoRows_EmptyResult()
 	{
-		// Act: base case WHERE 1=0 returns no rows, so recursion never starts
+		// Act: base case returns no rows (empty UNNEST), so recursion never starts
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#where_clause
+		//   WHERE without FROM is invalid on real Spanner; use UNNEST of empty array.
 		var result = await _service.ExecuteSql(
 			new ExecuteSqlRequest
 			{
@@ -1102,7 +1104,7 @@ public class RpcValidationTests
 				Transaction = new TransactionSelector { SingleUse = new TransactionOptions { ReadOnly = new TransactionOptions.Types.ReadOnly() } },
 				Sql = @"
 					WITH RECURSIVE empty AS (
-						SELECT 1 AS n WHERE 1 = 0
+						SELECT CAST(NULL AS INT64) AS n FROM UNNEST(ARRAY<INT64>[]) AS _x
 						UNION ALL
 						SELECT n + 1 FROM empty WHERE n < 5
 					)

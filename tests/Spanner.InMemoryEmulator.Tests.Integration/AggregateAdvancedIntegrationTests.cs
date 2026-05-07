@@ -54,7 +54,9 @@ public class AggregateAdvancedIntegrationTests : IntegrationTestBase
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Count_Star_OnEmptyUnion()
 	{
-		(await EvalCount("SELECT COUNT(*) FROM (SELECT 1 WHERE false)")).Should().Be(0L);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#where_clause
+		//   WHERE without FROM is invalid; use UNNEST of empty array for zero rows.
+		(await EvalCount("SELECT COUNT(*) FROM UNNEST(ARRAY<INT64>[]) AS x")).Should().Be(0L);
 	}
 
 	[Fact]
@@ -114,7 +116,7 @@ public class AggregateAdvancedIntegrationTests : IntegrationTestBase
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Sum_Empty_ReturnsNull()
 	{
-		(await Eval("SELECT SUM(x) FROM (SELECT 1 AS x WHERE false)")).Should().BeNull();
+		(await Eval("SELECT SUM(x) FROM UNNEST(ARRAY<INT64>[]) AS x")).Should().BeNull();
 	}
 
 	// ═══════════════════════════════════════════════════════════════
@@ -146,7 +148,7 @@ public class AggregateAdvancedIntegrationTests : IntegrationTestBase
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Avg_Empty_ReturnsNull()
 	{
-		(await Eval("SELECT AVG(x) FROM (SELECT 1 AS x WHERE false)")).Should().BeNull();
+		(await Eval("SELECT AVG(x) FROM UNNEST(ARRAY<INT64>[]) AS x")).Should().BeNull();
 	}
 
 	// ═══════════════════════════════════════════════════════════════
@@ -413,14 +415,14 @@ public class AggregateAdvancedIntegrationTests : IntegrationTestBase
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Exists_False()
 	{
-		(await Eval("SELECT EXISTS(SELECT 1 WHERE false)")).Should().Be(false);
+		(await Eval("SELECT EXISTS(SELECT 1 FROM UNNEST(ARRAY<INT64>[]) AS x)")).Should().Be(false);
 	}
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task NotExists_True()
 	{
-		(await Eval("SELECT NOT EXISTS(SELECT 1 WHERE false)")).Should().Be(true);
+		(await Eval("SELECT NOT EXISTS(SELECT 1 FROM UNNEST(ARRAY<INT64>[]) AS x)")).Should().Be(true);
 	}
 
 	[Fact]

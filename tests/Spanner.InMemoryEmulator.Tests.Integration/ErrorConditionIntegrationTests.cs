@@ -46,6 +46,22 @@ public class ErrorConditionIntegrationTests : IntegrationTestBase
 	}
 
 	// ═══════════════════════════════════════════════════════════════
+	// WHERE without FROM
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#where_clause
+	//   "Query without FROM clause cannot have a WHERE clause"
+	// ═══════════════════════════════════════════════════════════════
+
+	[Theory]
+	[InlineData("SELECT 1 WHERE false")]
+	[InlineData("SELECT 1 WHERE true")]
+	[InlineData("SELECT 1 AS x WHERE 1 = 0")]
+	public async Task Query_WhereWithoutFrom_Throws(string sql)
+	{
+		var act = () => QueryAsync(sql);
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	// ═══════════════════════════════════════════════════════════════
 	// Division by zero
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions
 	// ═══════════════════════════════════════════════════════════════

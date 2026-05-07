@@ -238,6 +238,13 @@ internal class QueryExecutor
 	public ResultSet Execute(SelectStatement select, IDictionary<string, object?>? parameters,
 		Dictionary<string, QueryBody>? cteMap = null, Dictionary<string, object?>? outerRow = null)
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#where_clause
+		//   "Query without FROM clause cannot have a WHERE clause"
+		if (select.From == null && select.Where != null)
+		{
+			throw new InvalidOperationException("Query without FROM clause cannot have a WHERE clause");
+		}
+
 		var evaluator = new ExpressionEvaluator(parameters, this, cteMap, outerRow);
 
 		// 1. FROM — get all rows from the source table

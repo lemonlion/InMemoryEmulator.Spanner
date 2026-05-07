@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.67] - 2026-07-10
+
+### Fixed
+- **LPAD/RPAD(BYTES) corruption**: `LPAD` and `RPAD` now correctly pad byte arrays instead of converting them to "System.Byte[]" strings.
+- **SPLIT(BYTES) corruption**: `SPLIT` now correctly splits BYTES values and returns `ARRAY<BYTES>` instead of converting to string.
+
 ## [1.0.66] - 2026-07-10
 
 ### Fixed

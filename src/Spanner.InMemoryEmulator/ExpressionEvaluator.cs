@@ -1700,7 +1700,13 @@ internal class ExpressionEvaluator
 	{
 		var s = Evaluate(func.Arguments[0], row);
 		if (s == null) return null;
-		var str = Convert.ToString(s) ?? "";
+
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#split
+		//   SPLIT works on both STRING and BYTES.
+		if (s is byte[] bytes)
+			return SplitBytes(bytes, func.Arguments.Count > 1 ? Evaluate(func.Arguments[1], row) : null);
+
+		var str = (string)s;
 		string delimiter;
 		if (func.Arguments.Count > 1)
 		{
@@ -1725,11 +1731,55 @@ internal class ExpressionEvaluator
 		return str.Split(delimiter).Cast<object?>().ToList();
 	}
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#split
+	//   SPLIT(BYTES, BYTES) → ARRAY<BYTES>
+	private static object? SplitBytes(byte[] source, object? delimVal)
+	{
+		byte[] delimiter;
+		if (delimVal is null) return null;
+		delimiter = delimVal is byte[] db ? db : new byte[] { (byte)',' };
+
+		if (delimiter.Length == 0)
+		{
+			// Empty delimiter splits into individual bytes
+			var result = new List<object?>();
+			foreach (var b in source)
+				result.Add(new byte[] { b });
+			return result;
+		}
+
+		var parts = new List<object?>();
+		int start = 0;
+		while (start <= source.Length)
+		{
+			int idx = -1;
+			for (int i = start; i <= source.Length - delimiter.Length; i++)
+			{
+				if (source.AsSpan(i, delimiter.Length).SequenceEqual(delimiter))
+				{
+					idx = i;
+					break;
+				}
+			}
+			if (idx < 0)
+			{
+				var last = new byte[source.Length - start];
+				Buffer.BlockCopy(source, start, last, 0, last.Length);
+				parts.Add(last);
+				break;
+			}
+			var part = new byte[idx - start];
+			Buffer.BlockCopy(source, start, part, 0, part.Length);
+			parts.Add(part);
+			start = idx + delimiter.Length;
+		}
+		return parts;
+	}
+
 	private object? EvalPad(FunctionCallExpr func, Dictionary<string, object?> row, bool padLeft)
 	{
 		var s = Evaluate(func.Arguments[0], row);
 		if (s == null) return null;
-		var str = Convert.ToString(s) ?? "";
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#lpad
 		var lenVal = Evaluate(func.Arguments[1], row);
 		if (lenVal == null) return null;
@@ -1737,7 +1787,13 @@ internal class ExpressionEvaluator
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#lpad
 		//   "This function returns an error if: return_length is negative"
 		if (len < 0) throw new InvalidOperationException($"{(padLeft ? "LPAD" : "RPAD")}: return_length must not be negative.");
-		// Truncate if length is less than the string length
+
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#lpad
+		//   LPAD/RPAD work on both STRING and BYTES.
+		if (s is byte[] bytes)
+			return PadBytes(bytes, len, func.Arguments.Count > 2 ? Evaluate(func.Arguments[2], row) : null, padLeft, func.Name);
+
+		var str = (string)s;
 		if (len == 0) return "";
 		if (len <= str.Length) return str[..len];
 		var padVal = func.Arguments.Count > 2 ? Evaluate(func.Arguments[2], row) : (object)" ";
@@ -1758,6 +1814,39 @@ internal class ExpressionEvaluator
 		}
 		if (padLeft) sb.Append(str);
 		return sb.ToString();
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#lpad
+	//   LPAD/RPAD for BYTES: pads byte array to target length.
+	private static byte[] PadBytes(byte[] bytes, int len, object? padVal, bool padLeft, string funcName)
+	{
+		if (len == 0) return Array.Empty<byte>();
+		if (len <= bytes.Length)
+		{
+			var truncated = new byte[len];
+			Buffer.BlockCopy(bytes, 0, truncated, 0, len);
+			return truncated;
+		}
+		if (padVal == null) return null!;
+		var pad = padVal is byte[] pb ? pb : new byte[] { 0x20 };
+		if (pad.Length == 0) throw new InvalidOperationException($"{funcName}: pattern must not be empty.");
+
+		var result = new byte[len];
+		var needed = len - bytes.Length;
+		if (padLeft)
+		{
+			// Fill beginning with pad pattern
+			for (int i = 0; i < needed; i++)
+				result[i] = pad[i % pad.Length];
+			Buffer.BlockCopy(bytes, 0, result, needed, bytes.Length);
+		}
+		else
+		{
+			Buffer.BlockCopy(bytes, 0, result, 0, bytes.Length);
+			for (int i = 0; i < needed; i++)
+				result[bytes.Length + i] = pad[i % pad.Length];
+		}
+		return result;
 	}
 
 	private object? EvalRepeat(FunctionCallExpr func, Dictionary<string, object?> row)

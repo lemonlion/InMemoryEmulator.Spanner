@@ -1461,4 +1461,66 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 		result.Should().BeOfType<byte[]>();
 		System.Text.Encoding.UTF8.GetString((byte[])result!).Should().Be("hello");
 	}
+
+	// ════════════════════════════════════════════════════════════════
+	// LPAD/RPAD for BYTES
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#lpad
+	//   "Pads a STRING or BYTES value."
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Lpad_Bytes_PadsWithPattern()
+	{
+		// LPAD(b'hi', 5, b'\x00') should produce b'\x00\x00\x00hi' (3 null bytes + hi)
+		var result = await Eval(@"LPAD(b'hi', 5, b'\x00')");
+		result.Should().BeOfType<byte[]>();
+		var bytes = (byte[])result!;
+		bytes.Length.Should().Be(5);
+		bytes[0].Should().Be(0x00);
+		bytes[1].Should().Be(0x00);
+		bytes[2].Should().Be(0x00);
+		bytes[3].Should().Be((byte)'h');
+		bytes[4].Should().Be((byte)'i');
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Rpad_Bytes_PadsWithPattern()
+	{
+		var result = await Eval(@"RPAD(b'hi', 5, b'\x00')");
+		result.Should().BeOfType<byte[]>();
+		var bytes = (byte[])result!;
+		bytes.Length.Should().Be(5);
+		bytes[0].Should().Be((byte)'h');
+		bytes[1].Should().Be((byte)'i');
+		bytes[2].Should().Be(0x00);
+		bytes[3].Should().Be(0x00);
+		bytes[4].Should().Be(0x00);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Lpad_Bytes_Truncates()
+	{
+		// LPAD(b'hello', 3, b'x') should truncate to first 3 bytes
+		var result = await Eval("LPAD(b'hello', 3, b'x')");
+		result.Should().BeOfType<byte[]>();
+		System.Text.Encoding.UTF8.GetString((byte[])result!).Should().Be("hel");
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// SPLIT for BYTES
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#split
+	//   "Splits a STRING or BYTES value, using the argument as the delimiter."
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Split_Bytes_SplitsCorrectly()
+	{
+		// SPLIT(b'a,b,c', b',') should return array of 3 BYTES elements
+		var rows = await QueryAsync("SELECT ARRAY_LENGTH(SPLIT(b'a,b,c', b',')) AS R");
+		rows[0]["R"].Should().Be(3L);
+	}
 }

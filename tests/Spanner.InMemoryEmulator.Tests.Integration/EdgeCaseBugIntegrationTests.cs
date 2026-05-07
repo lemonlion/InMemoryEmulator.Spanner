@@ -1729,6 +1729,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArrayAgg_WithOrderByNullsFirst_NullsComesFirst()
 	{
 		await ExecuteDdlAsync("CREATE TABLE ECB_AggNulls (Id INT64 NOT NULL, Val STRING(10)) PRIMARY KEY (Id)");
@@ -1750,6 +1751,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task StringAgg_WithOrderByNullsLast_NullsExcluded()
 	{
 		// STRING_AGG ignores NULLs by default, but NULLS LAST should still parse
@@ -1811,6 +1813,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArrayAgg_RespectNulls_IncludesNullsInResult()
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
@@ -1833,6 +1836,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArrayConcatAgg_WithOrderBy_SortsBeforeConcatenation()
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_concat_agg
@@ -1855,6 +1859,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArrayConcatAgg_WithLimit_LimitsArraysBeforeConcatenation()
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_concat_agg

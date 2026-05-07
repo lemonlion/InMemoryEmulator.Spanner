@@ -201,6 +201,10 @@ public abstract class IntegrationTestBase
 			DateTime => SpannerDbType.Timestamp,
 			DateTimeOffset => SpannerDbType.Timestamp,
 			byte[] => SpannerDbType.Bytes,
+			string[] => SpannerDbType.ArrayOf(SpannerDbType.String),
+			long[] => SpannerDbType.ArrayOf(SpannerDbType.Int64),
+			double[] => SpannerDbType.ArrayOf(SpannerDbType.Float64),
+			bool[] => SpannerDbType.ArrayOf(SpannerDbType.Bool),
 			_ => throw new NotSupportedException(
 				$"Cannot infer SpannerDbType for CLR type {value.GetType().Name}. " +
 				$"Use an explicit SpannerDbType parameter instead.")

@@ -1408,16 +1408,19 @@ internal class QueryExecutor
 	{
 		var func = win.Function as FunctionCallExpr;
 		var args = func?.Arguments ?? new List<SqlExpression>();
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/navigation_functions
+		//   "IGNORE NULLS: all NULL values of expr are excluded from the calculation."
+		bool ignoreNulls = func?.NullHandling == false;
 
 		for (int i = 0; i < sorted.Count; i++)
 		{
 			object? result = funcName switch
 			{
-				"LAG" => EvalLagLead(args, sorted, i, evaluator, isLag: true),
-				"LEAD" => EvalLagLead(args, sorted, i, evaluator, isLag: false),
-				"FIRST_VALUE" => EvalFirstLastValue(args, win, sorted, i, evaluator, isFirst: true),
-				"LAST_VALUE" => EvalFirstLastValue(args, win, sorted, i, evaluator, isFirst: false),
-				"NTH_VALUE" => EvalNthValue(args, win, sorted, i, evaluator),
+				"LAG" => EvalLagLead(args, sorted, i, evaluator, isLag: true, ignoreNulls),
+				"LEAD" => EvalLagLead(args, sorted, i, evaluator, isLag: false, ignoreNulls),
+				"FIRST_VALUE" => EvalFirstLastValue(args, win, sorted, i, evaluator, isFirst: true, ignoreNulls),
+				"LAST_VALUE" => EvalFirstLastValue(args, win, sorted, i, evaluator, isFirst: false, ignoreNulls),
+				"NTH_VALUE" => EvalNthValue(args, win, sorted, i, evaluator, ignoreNulls),
 				_ => throw new NotSupportedException($"Unsupported navigation function: {funcName}")
 			};
 			sorted[i][resultAlias] = result;
@@ -1429,7 +1432,8 @@ internal class QueryExecutor
 		List<Dictionary<string, object?>> sorted,
 		int currentIndex,
 		ExpressionEvaluator evaluator,
-		bool isLag)
+		bool isLag,
+		bool ignoreNulls)
 	{
 		var valueExpr = args[0];
 		int offset = args.Count > 1
@@ -1438,6 +1442,23 @@ internal class QueryExecutor
 		object? defaultValue = args.Count > 2
 			? evaluator.Evaluate(args[2], sorted[currentIndex])
 			: null;
+
+		if (ignoreNulls)
+		{
+			// Skip rows where value is NULL, counting only non-null values
+			int found = 0;
+			int step = isLag ? -1 : 1;
+			for (int j = currentIndex + step; j >= 0 && j < sorted.Count; j += step)
+			{
+				var val = evaluator.Evaluate(valueExpr, sorted[j]);
+				if (val != null)
+				{
+					found++;
+					if (found == offset) return val;
+				}
+			}
+			return defaultValue;
+		}
 
 		int targetIndex = isLag ? currentIndex - offset : currentIndex + offset;
 		if (targetIndex < 0 || targetIndex >= sorted.Count)
@@ -1451,11 +1472,24 @@ internal class QueryExecutor
 		List<Dictionary<string, object?>> sorted,
 		int currentIndex,
 		ExpressionEvaluator evaluator,
-		bool isFirst)
+		bool isFirst,
+		bool ignoreNulls)
 	{
 		var valueExpr = args[0];
 		var frameRows = GetFrameRows(win, sorted, currentIndex);
 		if (frameRows.Count == 0) return null;
+
+		if (ignoreNulls)
+		{
+			var sequence = isFirst ? frameRows : frameRows.AsEnumerable().Reverse();
+			foreach (var row in sequence)
+			{
+				var val = evaluator.Evaluate(valueExpr, row);
+				if (val != null) return val;
+			}
+			return null;
+		}
+
 		var targetRow = isFirst ? frameRows[0] : frameRows[^1];
 		return evaluator.Evaluate(valueExpr, targetRow);
 	}
@@ -1465,11 +1499,28 @@ internal class QueryExecutor
 		WindowExpr win,
 		List<Dictionary<string, object?>> sorted,
 		int currentIndex,
-		ExpressionEvaluator evaluator)
+		ExpressionEvaluator evaluator,
+		bool ignoreNulls)
 	{
 		var valueExpr = args[0];
 		int n = Convert.ToInt32(evaluator.Evaluate(args[1], sorted[currentIndex]));
 		var frameRows = GetFrameRows(win, sorted, currentIndex);
+
+		if (ignoreNulls)
+		{
+			int found = 0;
+			foreach (var row in frameRows)
+			{
+				var val = evaluator.Evaluate(valueExpr, row);
+				if (val != null)
+				{
+					found++;
+					if (found == n) return val;
+				}
+			}
+			return null;
+		}
+
 		if (n < 1 || n > frameRows.Count) return null;
 		return evaluator.Evaluate(valueExpr, frameRows[n - 1]);
 	}

@@ -432,12 +432,12 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
-	public async Task Repeat_NegativeCount_ReturnsEmpty()
+	public async Task Repeat_NegativeCount_ThrowsError()
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#repeat
-		// If repetitions <= 0, the function returns an empty value.
-		var result = await Eval("REPEAT('hello', -1)");
-		result.Should().Be("");
+		//   "This function returns an error if the repetitions value is negative."
+		var act = async () => await Eval("REPEAT('hello', -1)");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	[Fact]

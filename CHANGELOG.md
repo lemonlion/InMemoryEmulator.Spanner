@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.58] - 2026-07-10
+
+### Fixed
+- **SAFE_DIVIDE NaN passthrough**: `SAFE_DIVIDE(NaN, x)` and `SAFE_DIVIDE(x, NaN)` now correctly return NaN instead of NULL. Per docs: "All mathematical functions return NaN if any of the arguments is NaN."
+- **SAFE_DIVIDE Infinity handling**: `SAFE_DIVIDE(Inf, finite)` now correctly returns Infinity (input was already Inf, not an overflow). `SAFE_DIVIDE(Inf, Inf)` correctly returns NULL (indeterminate form).
+- **REPEAT negative count**: `REPEAT('abc', -1)` now correctly throws an error. Per docs: "This function returns an error if the repetitions value is negative." Previously returned empty string.
+- **IGNORE NULLS for window navigation functions**: `FIRST_VALUE`, `LAST_VALUE`, `LAG`, `LEAD`, and `NTH_VALUE` now properly respect the `IGNORE NULLS` clause, skipping NULL values when counting offsets or searching frames.
+
+### Added
+- 9 new integration tests: SAFE_DIVIDE NaN/Infinity (4), REPEAT negative/zero (2), IGNORE NULLS for FIRST_VALUE/LAST_VALUE (2), ARRAY_INCLUDES type coercion (1).
+
 ## [1.0.57] - 2026-07-10
 
 ### Added

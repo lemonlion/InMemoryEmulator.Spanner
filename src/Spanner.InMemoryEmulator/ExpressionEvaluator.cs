@@ -1546,10 +1546,12 @@ internal class ExpressionEvaluator
 		if (s == null) return null;
 		var str = Convert.ToString(s) ?? "";
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#repeat
+		//   "This function returns an error if the repetitions value is negative."
 		var countVal = Evaluate(func.Arguments[1], row);
 		if (countVal == null) return null;
 		var count = Convert.ToInt32(countVal);
-		return string.Concat(Enumerable.Repeat(str, Math.Max(0, count)));
+		if (count < 0) throw new InvalidOperationException("REPEAT: repetitions must not be negative.");
+		return string.Concat(Enumerable.Repeat(str, count));
 	}
 
 	private object? EvalFormat(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -2042,6 +2044,7 @@ internal class ExpressionEvaluator
 		var b = Evaluate(func.Arguments[1], row);
 		if (a == null || b == null) return null;
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#safe_divide
+		//   "Equivalent to the division operator (X / Y), but returns NULL if an error occurs."
 		//   "Returns NUMERIC when both arguments are NUMERIC."
 		if (a is decimal da && b is decimal db)
 		{
@@ -2049,10 +2052,19 @@ internal class ExpressionEvaluator
 			try { return da / db; }
 			catch (OverflowException) { return null; }
 		}
+		var dblA = Convert.ToDouble(a);
 		var dblB = Convert.ToDouble(b);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions
+		//   "All mathematical functions return NaN if any of the arguments is NaN."
+		if (double.IsNaN(dblA) || double.IsNaN(dblB)) return double.NaN;
+		// Division by zero is an error → return NULL
 		if (dblB == 0) return null;
-		var result = Convert.ToDouble(a) / dblB;
-		if (double.IsInfinity(result) || double.IsNaN(result)) return null;
+		var result = dblA / dblB;
+		// NaN from Inf/Inf is an error → NULL
+		if (double.IsNaN(result)) return null;
+		// Overflow from finite/finite producing Inf is an error → NULL
+		// But Inf/finite = Inf is valid (input was already Inf)
+		if (double.IsInfinity(result) && !double.IsInfinity(dblA)) return null;
 		return result;
 	}
 

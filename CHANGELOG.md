@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.73] - 2026-07-10
+
+### Added
+- **INFORMATION_SCHEMA.SPANNER_STATISTICS**: Added support for querying the `SPANNER_STATISTICS` table (returns empty results as the emulator has no optimizer statistics packages).
+
 ## [1.0.72] - 2026-07-10
 
 ### Added

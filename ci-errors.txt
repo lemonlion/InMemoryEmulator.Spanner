@@ -1,0 +1,30 @@
+AggregateAdvancedIntegrationTests.Count_Star_OnEmptyUnion	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+AggregateAdvancedIntegrationTests.Sum_Empty_ReturnsNull	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+AggregateAdvancedIntegrationTests.NotExists_True	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+AggregateAdvancedIntegrationTests.Exists_False	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+AggregateAdvancedIntegrationTests.Avg_Empty_ReturnsNull	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+AggregateFunctionCoreIntegrationTests.ApproxCountDistinct_AllSameValue_ReturnsOne	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+AggregateFunctionCoreIntegrationTests.ApproxCountDistinct_AllNull_ReturnsZero	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+AggregateFunctionCoreIntegrationTests.ApproxCountDistinct_ReturnsDistinctCount	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+AggregateFunctionExtendedIntegrationTests.Combined_Aggregate_Arithmetic	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+ArrayFunctionCoreIntegrationTests.ArrayAvg_IntArray	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+ArrayFunctionCoreIntegrationTests.ArraySum_IntArray	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+ArrayFunctionEdgeCaseIntegrationTests.ArrayConcat_SecondNull_ReturnsNull	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+ArrayFunctionEdgeCaseIntegrationTests.ArrayConcat_NullArray_ReturnsNull	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+ComparisonOperatorExtendedIntegrationTests.Array_Equality_DifferentLength_ReturnsFalse	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+ComparisonOperatorExtendedIntegrationTests.Array_Equality_SameElements_ReturnsTrue	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+ComparisonOperatorExtendedIntegrationTests.Array_Equality_DifferentElements_ReturnsFalse	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+ComprehensiveCastIntegrationTests.NewUuid_Returns36CharString	System.InvalidCastException : Unable to cast object of type 'System.Guid' to type 'System.String'.
+ConstraintIntegrationTests.OnConflict_DoNothing_WithoutConflictTarget	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+ConstraintIntegrationTests.OnConflict_DoUpdate_WithWhere_SkipsWhenConditionFalse	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+DateFunctionAndSetOpEdgeCaseIntegrationTests.Intersect_Bare_DefaultsToDistinct	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+DateFunctionAndSetOpEdgeCaseIntegrationTests.Except_Bare_DefaultsToDistinct	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+DateFunctionAndSetOpEdgeCaseIntegrationTests.Union_Bare_CombinesDifferentRows	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+DateFunctionAndSetOpEdgeCaseIntegrationTests.Union_Bare_DefaultsToDistinct	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+DateTimeCoreIntegrationTests.AddDate_Alias	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+DateTimeCoreIntegrationTests.SubDate_Alias	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+DateTimeCoreIntegrationTests.GenerateTimestampArray_HourStep	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+EdgeCaseBugIntegrationTests.Like_EscapedUnderscore_MatchesLiteralUnderscore	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+EdgeCaseBugIntegrationTests.OrderBy_NullsFirst_DescPutsNullsAtStart	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+EdgeCaseBugIntegrationTests.LastDay_Year_ReturnsDecember31	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+EdgeCaseBugIntegrationTests.OrderBy_NullsLast_AscPutsNullsAtEnd	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.

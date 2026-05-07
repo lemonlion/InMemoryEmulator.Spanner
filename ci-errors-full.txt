@@ -1,0 +1,145 @@
+AggregateAdvancedIntegrationTests.Count_Star_OnEmptyUnion	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+AggregateAdvancedIntegrationTests.Sum_Empty_ReturnsNull	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+AggregateAdvancedIntegrationTests.NotExists_True	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+AggregateAdvancedIntegrationTests.Exists_False	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+AggregateAdvancedIntegrationTests.Avg_Empty_ReturnsNull	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+AggregateFunctionCoreIntegrationTests.ApproxCountDistinct_AllSameValue_ReturnsOne	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+AggregateFunctionCoreIntegrationTests.ApproxCountDistinct_AllNull_ReturnsZero	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+AggregateFunctionCoreIntegrationTests.ApproxCountDistinct_ReturnsDistinctCount	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+AggregateFunctionExtendedIntegrationTests.Combined_Aggregate_Arithmetic	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+ArrayFunctionCoreIntegrationTests.ArrayAvg_IntArray	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+ArrayFunctionCoreIntegrationTests.ArraySum_IntArray	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+ArrayFunctionEdgeCaseIntegrationTests.ArrayConcat_SecondNull_ReturnsNull	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+ArrayFunctionEdgeCaseIntegrationTests.ArrayConcat_NullArray_ReturnsNull	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+ComparisonOperatorExtendedIntegrationTests.Array_Equality_DifferentLength_ReturnsFalse	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+ComparisonOperatorExtendedIntegrationTests.Array_Equality_SameElements_ReturnsTrue	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+ComparisonOperatorExtendedIntegrationTests.Array_Equality_DifferentElements_ReturnsFalse	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+ComprehensiveCastIntegrationTests.NewUuid_Returns36CharString	System.InvalidCastException : Unable to cast object of type 'System.Guid' to type 'System.String'.
+ConstraintIntegrationTests.OnConflict_DoNothing_WithoutConflictTarget	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+ConstraintIntegrationTests.OnConflict_DoUpdate_WithWhere_SkipsWhenConditionFalse	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+DateFunctionAndSetOpEdgeCaseIntegrationTests.Intersect_Bare_DefaultsToDistinct	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+DateFunctionAndSetOpEdgeCaseIntegrationTests.Except_Bare_DefaultsToDistinct	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+DateFunctionAndSetOpEdgeCaseIntegrationTests.Union_Bare_CombinesDifferentRows	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+DateFunctionAndSetOpEdgeCaseIntegrationTests.Union_Bare_DefaultsToDistinct	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+DateTimeCoreIntegrationTests.AddDate_Alias	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+DateTimeCoreIntegrationTests.SubDate_Alias	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+DateTimeCoreIntegrationTests.GenerateTimestampArray_HourStep	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+EdgeCaseBugIntegrationTests.Like_EscapedUnderscore_MatchesLiteralUnderscore	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+EdgeCaseBugIntegrationTests.OrderBy_NullsFirst_DescPutsNullsAtStart	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+EdgeCaseBugIntegrationTests.LastDay_Year_ReturnsDecember31	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+EdgeCaseBugIntegrationTests.OrderBy_NullsLast_AscPutsNullsAtEnd	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+EdgeCaseBugIntegrationTests.LastDay_Month_ReturnsLastDayOfMonth	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+EdgeCaseBugIntegrationTests.RegexpReplace_Backreference_WorksCorrectly	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+EdgeCaseBugIntegrationTests.Like_EscapedPercent_MatchesLiteralPercent	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+EdgeCaseBugIntegrationTests.LastValue_IgnoreNulls_SkipsNullRows	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+EdgeCaseBugIntegrationTests.LastDay_LeapYear_ReturnsLastDayOfMonth	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+EdgeCaseBugIntegrationTests.FirstValue_IgnoreNulls_SkipsNullRows	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+EncodingFunctionIntegrationTests.SplitSubstr_Null_IsNull	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+EncodingFunctionIntegrationTests.SplitSubstr_Second	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+EncodingFunctionIntegrationTests.SplitSubstr_Basic	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+EncodingFunctionIntegrationTests.ContainsSubstr_Null_IsNull	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+EncodingFunctionIntegrationTests.RegexpInstr_Null_IsNull	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+EncodingFunctionIntegrationTests.SplitSubstr_Last	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+JsonFunctionCoreIntegrationTests.JsonExtract_EquivalentToJsonQuery	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+JsonFunctionCoreIntegrationTests.JsonExtract_NullInput_ReturnsNull	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+JsonFunctionCoreIntegrationTests.JsonExtractScalar_ReturnsNumber	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+JsonFunctionCoreIntegrationTests.JsonExtractScalar_EquivalentToJsonValue	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+JsonFunctionCoreIntegrationTests.ToJsonString_Null	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+JsonFunctionCoreIntegrationTests.JsonExtractArray_EquivalentToJsonQueryArray	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+NumericExhaustiveIntegrationTests.Numeric_InsertAndQuery	System.NotSupportedException : Cannot infer SpannerDbType for CLR type SpannerNumeric. Use an explicit SpannerDbType parameter instead.
+OperatorIntegrationTests.LikeAny_WithNullPattern_MatchesOtherPattern	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+OperatorIntegrationTests.Having_WithoutGroupBy_ImplicitAggregation	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+OperatorIntegrationTests.LikeAll_NonMatchBeforeNull_ReturnsFalse	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+OperatorIntegrationTests.LikeAny_OnlyNullPatterns_ReturnsNull	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+OperatorIntegrationTests.LikeAll_WithNullPattern_ReturnsNull	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+OrderLimitDistinctExhaustiveIntegrationTests.Distinct_ArrayColumn_DeduplicatesIdenticalArrays	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+OrderLimitDistinctExhaustiveIntegrationTests.Distinct_ArrayColumn_KeepsDifferentArrays	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+QuerySyntaxEdgeCaseIntegrationTests.NotLikeAny_NegatesResult	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+QuerySyntaxEdgeCaseIntegrationTests.LikeAll_FailsOnePattern	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+QuerySyntaxEdgeCaseIntegrationTests.Except_Bare_DefaultsToDistinct	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+QuerySyntaxEdgeCaseIntegrationTests.Union_Bare_DefaultsToDistinct	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+QuerySyntaxEdgeCaseIntegrationTests.ForUpdate_WithWhereClause	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+QuerySyntaxEdgeCaseIntegrationTests.LikeAll_MatchesAllPatterns	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+QuerySyntaxEdgeCaseIntegrationTests.LikeSome_IsSynonymForAny	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+QuerySyntaxEdgeCaseIntegrationTests.LikeAny_MatchesOnePattern	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+QuerySyntaxEdgeCaseIntegrationTests.Intersect_Bare_DefaultsToDistinct	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+QuerySyntaxEdgeCaseIntegrationTests.ForUpdate_ParsesAndReturnsResults	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+QuerySyntaxEdgeCaseIntegrationTests.LikeAny_NoMatch	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+StringFunctionCoreIntegrationTests.SplitSubstr_BasicCase	Google.Cloud.Spanner.Data.SpannerException : Operation is not implemented or not supported/enabled in this service.
+StringFunctionExtendedEdgeCaseIntegrationTests.Format_NullArg_ReturnsNULLString	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+StringFunctionExtendedIntegrationTests.RegexpExtract_NullPosition_ReturnsNull	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+StringFunctionExtendedIntegrationTests.RegexpExtract_NullOccurrence_ReturnsNull	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+SubqueryCoreIntegrationTests.WithRecursive_HierarchyTraversal	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+SubqueryCoreIntegrationTests.WithRecursive_GenerateNumbers	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+TrigFunctionIntegrationTests.Acos_OutOfDomain_ReturnsNaN	Google.Cloud.Spanner.Data.SpannerException : Operation was attempted past the valid range.
+TrigFunctionIntegrationTests.Asin_OutOfDomain_ReturnsNaN	Google.Cloud.Spanner.Data.SpannerException : Operation was attempted past the valid range.
+TrigFunctionIntegrationTests.Atanh_MinusOne_IsNegInf	Google.Cloud.Spanner.Data.SpannerException : Operation was attempted past the valid range.
+TrigFunctionIntegrationTests.Atanh_OutOfDomain_ReturnsNaN	Google.Cloud.Spanner.Data.SpannerException : Operation was attempted past the valid range.
+TrigFunctionIntegrationTests.Asin_NegOutOfDomain_ReturnsNaN	Google.Cloud.Spanner.Data.SpannerException : Operation was attempted past the valid range.
+TrigFunctionIntegrationTests.Acosh_LessThanOne_ReturnsNaN	Google.Cloud.Spanner.Data.SpannerException : Operation was attempted past the valid range.
+TrigFunctionIntegrationTests.Atanh_One_IsInf	Google.Cloud.Spanner.Data.SpannerException : Operation was attempted past the valid range.
+WindowFunctionCoreIntegrationTests.MultipleWindowFunctions_InOneQuery	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionCoreIntegrationTests.Lag_PreviousValue	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionCoreIntegrationTests.Lead_NextValue	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionCoreIntegrationTests.WindowFunction_WithWhere	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionCoreIntegrationTests.RowNumber_Partitioned	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionCoreIntegrationTests.Rank_WithTies	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionCoreIntegrationTests.DenseRank_NoGaps	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionCoreIntegrationTests.RowNumber_GlobalOrder	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionCoreIntegrationTests.Avg_Over_Partitioned	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionCoreIntegrationTests.FirstValue_PerPartition	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionCoreIntegrationTests.Lag_WithDefault	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionCoreIntegrationTests.LastValue_PerPartition	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionCoreIntegrationTests.Sum_Over_RunningTotal	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionCoreIntegrationTests.MinMax_Over_Partitioned	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionCoreIntegrationTests.WindowFunction_EmptyResult	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionCoreIntegrationTests.Sum_Over_Partitioned	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionCoreIntegrationTests.Lag_WithOffset	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionCoreIntegrationTests.Ntile_Splits	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionCoreIntegrationTests.RowNumber_DescendingOrder	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionCoreIntegrationTests.Count_Over_Partitioned	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionEdgeCaseIntegrationTests.FirstValue_OverEntirePartition	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionEdgeCaseIntegrationTests.Lead_WithOffset2	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionEdgeCaseIntegrationTests.Ntile_EvenDistribution	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionEdgeCaseIntegrationTests.MultipleWindowFuns_SameQuery	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionEdgeCaseIntegrationTests.Rank_WithTies	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionEdgeCaseIntegrationTests.Lag_WithNullValues	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionEdgeCaseIntegrationTests.Lag_WithOffset2	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionEdgeCaseIntegrationTests.LastValue_OverEntirePartition	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionEdgeCaseIntegrationTests.RowNumber_WithPartition	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionEdgeCaseIntegrationTests.Lead_DefaultOffset	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionEdgeCaseIntegrationTests.DenseRank_WithTies	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionEdgeCaseIntegrationTests.SumWindow_RunningTotal	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionEdgeCaseIntegrationTests.RowNumber_Sequential	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionEdgeCaseIntegrationTests.Lag_DefaultOffset	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionEdgeCaseIntegrationTests.Ntile_UnevenDistribution	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionEdgeCaseIntegrationTests.CountWindow_RunningCount	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionEdgeCaseIntegrationTests.Lag_WithDefault	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Count_Over_PartitionBy	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Min_Over_PartitionBy	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Ntile_3Buckets	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Avg_Over_PartitionBy	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Rank_WithTies	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Count_Over_OrderBy_RunningCount	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Lead_WithOffset	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Sum_Over_OrderBy_RunningTotal	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Lag_WithDefault	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.MultipleWindowFunctions	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Sum_RowsBetween_UnboundedPreceding_CurrentRow	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Max_Over_PartitionBy	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Ntile_2Buckets	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.DenseRank_WithTies	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Lead_Default	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Lag_Default	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.RowNumber_OverOrderBy	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.WindowFunction_WithWhere	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Sum_OverEmpty_FullPartition	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.RowNumber_PartitionByDept	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.FirstValue_PartitionBy	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Lead_WithDefault	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Sum_Over_PartitionBy	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.WindowFunction_EmptyResult	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Avg_Over_OrderBy_RunningAvg	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.LastValue_WithFrame	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Lag_WithOffset	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+WindowFunctionExhaustiveIntegrationTests.Sum_RowsBetween_Preceding_Following	Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.

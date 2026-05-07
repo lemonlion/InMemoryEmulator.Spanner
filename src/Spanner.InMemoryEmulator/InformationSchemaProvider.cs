@@ -55,6 +55,8 @@ internal class InformationSchemaProvider
 			"CHANGE_STREAM_COLUMNS" => GetChangeStreamColumns(),
 			// Ref: https://cloud.google.com/spanner/docs/information-schema#information_schemachange_stream_options
 			"CHANGE_STREAM_OPTIONS" => GetChangeStreamOptions(),
+			// Ref: https://cloud.google.com/spanner/docs/information-schema#spanner_statistics
+			"SPANNER_STATISTICS" => GetSpannerStatistics(),
 			_ => throw new InvalidOperationException($"INFORMATION_SCHEMA.{tableName} is not supported.")
 		};
 
@@ -683,6 +685,16 @@ internal class InformationSchemaProvider
 				});
 			}
 		}
+		return (cols, rows);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/information-schema#spanner_statistics
+	//   "This table lists the available query optimizer statistics packages."
+	//   The in-memory emulator has no statistics packages, so this returns an empty result set.
+	private (List<string>, List<Dictionary<string, object?>>) GetSpannerStatistics()
+	{
+		var cols = new List<string> { "CATALOG_NAME", "SCHEMA_NAME", "PACKAGE_NAME", "ALLOW_GC" };
+		var rows = new List<Dictionary<string, object?>>();
 		return (cols, rows);
 	}
 }

@@ -1859,4 +1859,16 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 		result[2].Should().Be("c");
 		result[3].Should().Be("d");
 	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task InformationSchema_SpannerStatistics_ReturnsEmptyResult()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/information-schema#spanner_statistics
+		//   SPANNER_STATISTICS lists available query optimizer statistics packages.
+		var rows = await QueryAsync("SELECT * FROM INFORMATION_SCHEMA.SPANNER_STATISTICS");
+		rows.Should().NotBeNull();
+		// The emulator has no statistics packages, so the result should be empty
+		rows.Should().BeEmpty();
+	}
 }

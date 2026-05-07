@@ -791,6 +791,9 @@ internal class ExpressionEvaluator
 	{
 		var val = Evaluate(func.Arguments[0], row);
 		if (val is null) return null;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#length
+		//   LENGTH works on both STRING and BYTES. For BYTES, returns the number of bytes.
+		if (val is byte[] bytes) return (long)bytes.Length;
 		return fn((string)val);
 	}
 
@@ -859,6 +862,21 @@ internal class ExpressionEvaluator
 	{
 		var parts = func.Arguments.Select(a => Evaluate(a, row)).ToList();
 		if (parts.Any(p => p is null)) return null;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#concat
+		//   CONCAT works on both STRING and BYTES. All arguments must be the same type.
+		if (parts[0] is byte[])
+		{
+			var totalLen = parts.Sum(p => ((byte[])p!).Length);
+			var result = new byte[totalLen];
+			var offset = 0;
+			foreach (var p in parts)
+			{
+				var b = (byte[])p!;
+				Buffer.BlockCopy(b, 0, result, offset, b.Length);
+				offset += b.Length;
+			}
+			return result;
+		}
 		return string.Concat(parts.Select(p => p!.ToString()));
 	}
 
@@ -867,6 +885,11 @@ internal class ExpressionEvaluator
 		var s = Evaluate(func.Arguments[0], row);
 		var pos = Evaluate(func.Arguments[1], row);
 		if (s is null || pos is null) return null;
+
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#substr
+		//   SUBSTR works on both STRING and BYTES.
+		if (s is byte[] bytes)
+			return EvalSubstrBytes(bytes, pos, func.Arguments.Count > 2 ? Evaluate(func.Arguments[2], row) : null);
 
 		var str = (string)s;
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#substr
@@ -906,6 +929,42 @@ internal class ExpressionEvaluator
 		if (startIndex < 0) startIndex = 0;
 		if (startIndex >= str.Length) return "";
 		return str[startIndex..];
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#substr
+	//   SUBSTR for BYTES uses the same 1-based position semantics as STRING.
+	private static object? EvalSubstrBytes(byte[] bytes, object pos, object? lenObj)
+	{
+		var position = Convert.ToInt32(pos);
+		if (position == 0 || position < -bytes.Length)
+			position = 1;
+
+		int startIndex;
+
+		if (lenObj is not null)
+		{
+			var length = Convert.ToInt32(lenObj);
+			if (length < 0) throw new InvalidOperationException("SUBSTR length must be non-negative.");
+
+			startIndex = position < 0 ? bytes.Length + position : position - 1;
+			if (startIndex < 0)
+			{
+				length += startIndex;
+				startIndex = 0;
+			}
+			if (length <= 0 || startIndex >= bytes.Length) return Array.Empty<byte>();
+			var actualLen = Math.Min(length, bytes.Length - startIndex);
+			var result = new byte[actualLen];
+			Buffer.BlockCopy(bytes, startIndex, result, 0, actualLen);
+			return result;
+		}
+
+		startIndex = position < 0 ? bytes.Length + position : position - 1;
+		if (startIndex < 0) startIndex = 0;
+		if (startIndex >= bytes.Length) return Array.Empty<byte>();
+		var slice = new byte[bytes.Length - startIndex];
+		Buffer.BlockCopy(bytes, startIndex, slice, 0, slice.Length);
+		return slice;
 	}
 
 	private object? EvalReplace(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -1456,6 +1515,13 @@ internal class ExpressionEvaluator
 			var result = new List<object?>(arrA.Count + arrB.Count);
 			result.AddRange(arrA);
 			result.AddRange(arrB);
+			return result;
+		}
+		if (a is byte[] ba && b is byte[] bb)
+		{
+			var result = new byte[ba.Length + bb.Length];
+			Buffer.BlockCopy(ba, 0, result, 0, ba.Length);
+			Buffer.BlockCopy(bb, 0, result, ba.Length, bb.Length);
 			return result;
 		}
 		return a.ToString() + b.ToString();

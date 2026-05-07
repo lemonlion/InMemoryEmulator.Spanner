@@ -1267,4 +1267,76 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 			"SELECT TIMESTAMP_ADD(TIMESTAMP '9999-12-31 23:59:59Z', INTERVAL 1000000000 DAY) AS R");
 		await act.Should().ThrowAsync<SpannerException>();
 	}
+
+	// ════════════════════════════════════════════════════════════════
+	// BYTES support for string functions
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#length
+	//   "Returns the length of the STRING or BYTES value."
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#concat
+	//   "Concatenates one or more STRING or BYTES values into a single result."
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#substr
+	//   "Gets a portion of a STRING or BYTES value."
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#concatenation_operator
+	//   "|| is overloaded: STRING || STRING, BYTES || BYTES, ARRAY<T> || ARRAY<T>"
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Length_Bytes_ReturnsByteCount()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#length
+		//   "If value is BYTES, returns the number of bytes."
+		var result = await Eval("LENGTH(b'hello')");
+		result.Should().Be(5L);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Length_BytesFromCast_ReturnsByteCount()
+	{
+		var result = await Eval("LENGTH(CAST('abc' AS BYTES))");
+		result.Should().Be(3L);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Concat_Bytes_ConcatenatesByteValues()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#concat
+		//   "Concatenates one or more values into a single result. All values must be BYTES or STRING."
+		var result = await Eval("CONCAT(b'hello', b' world')");
+		result.Should().BeOfType<byte[]>();
+		System.Text.Encoding.UTF8.GetString((byte[])result!).Should().Be("hello world");
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Substr_Bytes_ExtractsSubsequence()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#substr
+		//   "Gets a portion of a STRING or BYTES value."
+		var result = await Eval("SUBSTR(b'hello world', 1, 5)");
+		result.Should().BeOfType<byte[]>();
+		System.Text.Encoding.UTF8.GetString((byte[])result!).Should().Be("hello");
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Substr_Bytes_FromPositionToEnd()
+	{
+		var result = await Eval("SUBSTR(b'hello world', 7)");
+		result.Should().BeOfType<byte[]>();
+		System.Text.Encoding.UTF8.GetString((byte[])result!).Should().Be("world");
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task ConcatOperator_Bytes_ConcatenatesCorrectly()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#concatenation_operator
+		//   "BYTES || BYTES → BYTES"
+		var result = await Eval("b'hello' || b' world'");
+		result.Should().BeOfType<byte[]>();
+		System.Text.Encoding.UTF8.GetString((byte[])result!).Should().Be("hello world");
+	}
 }

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.64] - 2026-07-10
+
+### Fixed
+- **LENGTH(BYTES) crash**: `LENGTH`, `CHAR_LENGTH`, and `CHARACTER_LENGTH` now correctly return the byte count for BYTES inputs instead of throwing an InvalidCastException.
+- **CONCAT(BYTES) corruption**: `CONCAT` with BYTES arguments now properly concatenates byte arrays instead of converting to "System.Byte[]" strings.
+- **SUBSTR(BYTES) crash**: `SUBSTR`/`SUBSTRING` now correctly extracts subsequences from BYTES values instead of throwing an InvalidCastException.
+- **BYTES || BYTES operator**: The concatenation operator (`||`) now correctly concatenates BYTES values instead of producing "System.Byte[]System.Byte[]" strings.
+
 ## [1.0.63] - 2026-07-10
 
 ### Fixed

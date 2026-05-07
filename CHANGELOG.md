@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.56] - 2026-07-10
+
+### Fixed
+- **TIMESTAMP_DIFF rejects MONTH/YEAR**: `TIMESTAMP_DIFF` now correctly throws an error for MONTH and YEAR date parts, which are only valid for `DATE_DIFF`. Per docs, TIMESTAMP_DIFF only supports NANOSECOND through DAY.
+- **DATE_DIFF proper boundary counting**: `DATE_DIFF` now has its own implementation with correct boundary-counting semantics for WEEK (Sunday boundaries), ISOWEEK (Monday boundaries), QUARTER, and ISOYEAR date parts. Previously delegated to TIMESTAMP_DIFF which lacked these parts.
+- **CAST hex strings to INT64**: `CAST('0x1A' AS INT64)` now correctly parses hexadecimal string literals to integers.
+
+### Added
+- 11 new integration tests: TIMESTAMP_DIFF MONTH/YEAR rejection (2), DATE_DIFF boundary counting for WEEK/ISOWEEK/QUARTER/ISOYEAR (6), CAST hex to INT64 (3).
+
 ## [1.0.55] - 2026-07-10
 
 ### Fixed

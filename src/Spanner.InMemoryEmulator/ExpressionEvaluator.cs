@@ -1033,7 +1033,12 @@ internal class ExpressionEvaluator
 			{
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
 				//   CAST(float AS INT64) rounds halfway cases away from zero.
-				TypeCode.Int64 => value is double d ? (long)Math.Round(d, MidpointRounding.AwayFromZero) : value is float f ? (long)Math.Round(f, MidpointRounding.AwayFromZero) : Convert.ToInt64(value),
+				//   CAST('0x1A' AS INT64) parses hexadecimal string to INT64.
+				TypeCode.Int64 => value is double d ? (long)Math.Round(d, MidpointRounding.AwayFromZero)
+					: value is float f ? (long)Math.Round(f, MidpointRounding.AwayFromZero)
+					: value is string s && s.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+						? Convert.ToInt64(s[2..], 16)
+						: Convert.ToInt64(value),
 				TypeCode.Float64 => ConvertToFloat64(value),
 				TypeCode.Float32 => ConvertToFloat32(value),
 				TypeCode.Bool => Convert.ToBoolean(value),
@@ -2296,6 +2301,7 @@ internal class ExpressionEvaluator
 		var dt1 = ts1 is DateTime d1 ? d1 : DateTime.Parse(Convert.ToString(ts1)!);
 		var dt2 = ts2 is DateTime d2 ? d2 : DateTime.Parse(Convert.ToString(ts2)!);
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_diff
+		//   granularity only supports: NANOSECOND, MICROSECOND, MILLISECOND, SECOND, MINUTE, HOUR, DAY
 		var diff = dt1 - dt2;
 		return part switch
 		{
@@ -2306,9 +2312,7 @@ internal class ExpressionEvaluator
 			"MINUTE" => (long)diff.TotalMinutes,
 			"HOUR" => (long)diff.TotalHours,
 			"DAY" => (long)diff.TotalDays,
-			"MONTH" => (long)((dt1.Year - dt2.Year) * 12 + dt1.Month - dt2.Month),
-			"YEAR" => (long)(dt1.Year - dt2.Year),
-			_ => throw new InvalidOperationException($"TIMESTAMP_DIFF: unsupported part '{part}'.")
+			_ => throw new InvalidOperationException($"TIMESTAMP_DIFF: unsupported part '{part}'. Only NANOSECOND through DAY are supported.")
 		};
 	}
 
@@ -2405,8 +2409,44 @@ internal class ExpressionEvaluator
 
 	private object? EvalDateDiff(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
-		return EvalTimestampDiff(func, row);
+		var v1 = Evaluate(func.Arguments[0], row);
+		var v2 = Evaluate(func.Arguments[1], row);
+		var part = Convert.ToString(Evaluate(func.Arguments[2], row))?.ToUpperInvariant();
+		if (v1 == null || v2 == null) return null;
+		var dt1 = v1 is DateTime d1 ? d1 : DateTime.Parse(Convert.ToString(v1)!);
+		var dt2 = v2 is DateTime d2 ? d2 : DateTime.Parse(Convert.ToString(v2)!);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date_diff
+		//   Counts unit boundaries between two dates.
+		return part switch
+		{
+			"DAY" => (long)(dt1.Date - dt2.Date).TotalDays,
+			"WEEK" => DateDiffWeek(dt1, dt2, DayOfWeek.Sunday),
+			"ISOWEEK" => DateDiffWeek(dt1, dt2, DayOfWeek.Monday),
+			"MONTH" => (long)((dt1.Year - dt2.Year) * 12 + dt1.Month - dt2.Month),
+			"QUARTER" => (long)((dt1.Year * 4 + (dt1.Month - 1) / 3) - (dt2.Year * 4 + (dt2.Month - 1) / 3)),
+			"YEAR" => (long)(dt1.Year - dt2.Year),
+			"ISOYEAR" => (long)(System.Globalization.ISOWeek.GetYear(dt1) - System.Globalization.ISOWeek.GetYear(dt2)),
+			_ => throw new InvalidOperationException($"DATE_DIFF: unsupported part '{part}'.")
+		};
 	}
+
+	// Counts weekday-based week boundaries between two dates.
+	private static long DateDiffWeek(DateTime dt1, DateTime dt2, DayOfWeek weekStart)
+	{
+		// Compute a week number relative to an arbitrary epoch using the given week start day.
+		// Each date's week number = floor((daysSinceEpoch + offset) / 7)
+		// where offset aligns the week start day to boundary 0.
+		var epoch = new DateTime(1970, 1, 1); // Thursday
+		var days1 = (long)(dt1.Date - epoch).TotalDays;
+		var days2 = (long)(dt2.Date - epoch).TotalDays;
+		// offset so that weekStart day maps to 0 mod 7
+		int offset = ((int)DayOfWeek.Thursday - (int)weekStart + 7) % 7;
+		var week1 = FloorDiv(days1 + offset, 7);
+		var week2 = FloorDiv(days2 + offset, 7);
+		return week1 - week2;
+	}
+
+	private static long FloorDiv(long a, long b) => Math.DivRem(a, b, out long rem) - (rem < 0 ? 1 : 0);
 
 	private object? EvalDateTrunc(FunctionCallExpr func, Dictionary<string, object?> row)
 	{

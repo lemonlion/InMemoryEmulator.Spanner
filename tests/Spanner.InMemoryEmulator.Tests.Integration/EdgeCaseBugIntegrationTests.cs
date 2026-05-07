@@ -14,6 +14,12 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 {
 	public EdgeCaseBugIntegrationTests(EmulatorSession session) : base(session) { }
 
+	private async Task<object?> Eval(string expr)
+	{
+		var rows = await QueryAsync($"SELECT {expr} AS R");
+		return rows[0]["R"];
+	}
+
 	private async Task<string> FreshTable(string prefix)
 	{
 		var t = $"{prefix}_{Guid.NewGuid().ToString("N")[..8]}";
@@ -604,4 +610,65 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 		var act = async () => await QueryAsync("SELECT GENERATE_ARRAY(CAST('nan' AS FLOAT64), 5, 1) AS R");
 		await act.Should().ThrowAsync<SpannerException>();
 	}
+
+	// ════════════════════════════════════════════════════════════════
+	// 12. TIMESTAMP_DIFF should NOT support MONTH or YEAR
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_diff
+	//   granularity only supports: NANOSECOND, MICROSECOND, MILLISECOND, SECOND, MINUTE, HOUR, DAY
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task TimestampDiff_Month_ThrowsError()
+	{
+		var act = async () => await QueryAsync(
+			"SELECT TIMESTAMP_DIFF(TIMESTAMP '2025-01-01T00:00:00Z', TIMESTAMP '2024-01-01T00:00:00Z', MONTH) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task TimestampDiff_Year_ThrowsError()
+	{
+		var act = async () => await QueryAsync(
+			"SELECT TIMESTAMP_DIFF(TIMESTAMP '2025-01-01T00:00:00Z', TIMESTAMP '2024-01-01T00:00:00Z', YEAR) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// 13. DATE_DIFF boundary-counting for WEEK/ISOWEEK/QUARTER/ISOYEAR
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date_diff
+	//   WEEK counts Sunday boundaries; ISOWEEK counts Monday boundaries
+	// ════════════════════════════════════════════════════════════════
+
+	[Theory]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	// WEEK: Sunday boundaries — Oct 14 (Sat) → Oct 15 (Sun) = 1 boundary
+	[InlineData("DATE_DIFF(DATE '2017-10-15', DATE '2017-10-14', WEEK)", 1L)]
+	// WEEK: Mon→Sat same week = 0
+	[InlineData("DATE_DIFF(DATE '2017-12-18', DATE '2017-12-17', WEEK)", 0L)]
+	// ISOWEEK: Monday boundaries — Sun→Mon = 1; Mon→Sun same week = 0
+	[InlineData("DATE_DIFF(DATE '2017-12-18', DATE '2017-12-17', ISOWEEK)", 1L)]
+	// QUARTER: Jan 1 to Apr 1 = 1 quarter boundary
+	[InlineData("DATE_DIFF(DATE '2024-04-01', DATE '2024-01-01', QUARTER)", 1L)]
+	// QUARTER: within same quarter = 0
+	[InlineData("DATE_DIFF(DATE '2024-03-31', DATE '2024-01-01', QUARTER)", 0L)]
+	// ISOYEAR: per docs 2017-12-30 to 2014-12-30 = 2 (not 3)
+	[InlineData("DATE_DIFF(DATE '2017-12-30', DATE '2014-12-30', ISOYEAR)", 2L)]
+	public async Task DateDiff_BoundaryCounting(string expr, long expected) =>
+		(await Eval(expr)).Should().Be(expected);
+
+	// ════════════════════════════════════════════════════════════════
+	// 14. CAST hex string to INT64
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
+	//   "Hexadecimal values ... CAST('0x1A' AS INT64)"
+	// ════════════════════════════════════════════════════════════════
+
+	[Theory]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[InlineData("CAST('0x1A' AS INT64)", 26L)]
+	[InlineData("CAST('0xff' AS INT64)", 255L)]
+	[InlineData("CAST('0x0' AS INT64)", 0L)]
+	public async Task Cast_HexString_ToInt64(string expr, long expected) =>
+		(await Eval(expr)).Should().Be(expected);
 }

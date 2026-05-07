@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.62] - 2026-07-10
+
+### Fixed
+- **PARSE_TIMESTAMP timezone parameter**: The optional third timezone parameter is now respected. When parsing a timestamp string without timezone info, the 3rd parameter specifies which timezone to assume, and the result is converted to UTC.
+- **CAST(NaN/Infinity AS INT64)**: Now correctly throws an error. Previously produced undefined C# behavior (garbage values). `SAFE_CAST` correctly returns NULL.
+- **CAST(large FLOAT64 AS INT64)**: Values exceeding INT64 range (e.g., 1e19) now correctly throw an error instead of producing overflow garbage.
+- **Uncaught exceptions in ExecuteSql/ExecuteStreamingSql**: FormatException, OverflowException, and other unexpected exceptions are now caught and returned as proper gRPC INVALID_ARGUMENT errors instead of raw "Unknown" server errors. This fixes `CAST('' AS INT64)`, `CAST('abc' AS FLOAT64)`, etc.
+
+### Added
+- 7 new integration tests: PARSE_TIMESTAMP timezone (1), CAST NaN/Inf/overflow to INT64 (4), uncaught exception handling (2).
+
 ## [1.0.61] - 2026-07-10
 
 ### Fixed

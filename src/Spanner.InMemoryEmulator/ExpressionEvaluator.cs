@@ -1080,8 +1080,15 @@ internal class ExpressionEvaluator
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
 				//   CAST(float AS INT64) rounds halfway cases away from zero.
 				//   CAST('0x1A' AS INT64) parses hexadecimal string to INT64.
-				TypeCode.Int64 => value is double d ? (long)Math.Round(d, MidpointRounding.AwayFromZero)
-					: value is float f ? (long)Math.Round(f, MidpointRounding.AwayFromZero)
+				//   CAST(NaN/Inf AS INT64) should throw an error.
+				TypeCode.Int64 => value is double d
+					? (double.IsNaN(d) || double.IsInfinity(d) || d > (double)long.MaxValue || d < (double)long.MinValue
+						? throw new InvalidOperationException($"Could not cast '{d}' to type INT64")
+						: (long)Math.Round(d, MidpointRounding.AwayFromZero))
+					: value is float f
+					? (float.IsNaN(f) || float.IsInfinity(f) || f > (float)long.MaxValue || f < (float)long.MinValue
+						? throw new InvalidOperationException($"Could not cast '{f}' to type INT64")
+						: (long)Math.Round(f, MidpointRounding.AwayFromZero))
 					: value is string s && s.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
 						? Convert.ToInt64(s[2..], 16)
 						: Convert.ToInt64(value),
@@ -2564,6 +2571,19 @@ internal class ExpressionEvaluator
 		if (fmtVal == null || strVal == null) return null;
 		var fmt = Convert.ToString(fmtVal)!;
 		var str = Convert.ToString(strVal)!;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#parse_timestamp
+		//   PARSE_TIMESTAMP(format_string, timestamp_string[, time_zone])
+		//   If no timezone in format/string, the 3rd parameter specifies which timezone to assume.
+		if (func.Arguments.Count > 2)
+		{
+			var tzStr = Convert.ToString(Evaluate(func.Arguments[2], row));
+			if (!string.IsNullOrEmpty(tzStr))
+			{
+				var tz = TimeZoneInfo.FindSystemTimeZoneById(tzStr);
+				var local = DateTime.ParseExact(str, ConvertSpannerDateFormat(fmt), System.Globalization.CultureInfo.InvariantCulture);
+				return TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(local, DateTimeKind.Unspecified), tz);
+			}
+		}
 		return DateTime.ParseExact(str, ConvertSpannerDateFormat(fmt), System.Globalization.CultureInfo.InvariantCulture,
 			System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal);
 	}

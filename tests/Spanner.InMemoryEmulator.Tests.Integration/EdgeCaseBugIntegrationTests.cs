@@ -1135,4 +1135,77 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 		var result = await Eval(@"ENDS_WITH(b'\x01\x02\x03', b'\x02\x03')");
 		result.Should().Be(true);
 	}
+
+	// ════════════════════════════════════════════════════════════════
+	// PARSE_TIMESTAMP with timezone parameter
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#parse_timestamp
+	//   "PARSE_TIMESTAMP(format_string, timestamp_string[, time_zone])"
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task ParseTimestamp_WithTimezone_ConvertsToUtc()
+	{
+		// 16:00 in America/Los_Angeles (PST = UTC-8 in January) should become 2024-01-15 00:00:00 UTC
+		var result = await Eval(@"FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', '2024-01-14 16:00:00', 'America/Los_Angeles'), 'UTC')");
+		result.Should().Be("2024-01-15 00:00:00");
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// CAST(NaN/Infinity AS INT64) should throw error
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Cast_NaN_AsInt64_ThrowsError()
+	{
+		var act = async () => await QueryAsync("SELECT CAST(CAST('nan' AS FLOAT64) AS INT64) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Cast_Infinity_AsInt64_ThrowsError()
+	{
+		var act = async () => await QueryAsync("SELECT CAST(CAST('inf' AS FLOAT64) AS INT64) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Cast_LargeDouble_AsInt64_ThrowsError()
+	{
+		var act = async () => await QueryAsync("SELECT CAST(1.0e19 AS INT64) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task SafeCast_NaN_AsInt64_ReturnsNull()
+	{
+		var result = await Eval("SAFE_CAST(CAST('nan' AS FLOAT64) AS INT64)");
+		result.Should().BeNull();
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// Uncaught exceptions (FormatException etc.) should return proper errors
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.rpc#google.rpc.Code
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Cast_EmptyString_AsInt64_ThrowsError()
+	{
+		var act = async () => await QueryAsync("SELECT CAST('' AS INT64) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Cast_InvalidString_AsFloat64_ThrowsError()
+	{
+		var act = async () => await QueryAsync("SELECT CAST('abc' AS FLOAT64) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
 }

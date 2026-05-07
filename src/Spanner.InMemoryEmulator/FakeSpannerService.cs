@@ -544,6 +544,10 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 			{
 				throw new RpcException(new Status(StatusCode.Unimplemented, ex.Message));
 			}
+			catch (Exception ex) when (ex is not RpcException)
+			{
+				throw new RpcException(new Status(StatusCode.InvalidArgument, ex.Message));
+			}
 		}
 		catch (RpcException ex)
 		{
@@ -638,6 +642,10 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 			catch (NotSupportedException ex)
 			{
 				throw new RpcException(new Status(StatusCode.Unimplemented, ex.Message));
+			}
+			catch (Exception ex) when (ex is not RpcException)
+			{
+				throw new RpcException(new Status(StatusCode.InvalidArgument, ex.Message));
 			}
 
 			NotifyResponseSent(nameof(ExecuteStreamingSql), request, null, DateTimeOffset.UtcNow - startTime, StatusCode.OK, DateTimeOffset.UtcNow);

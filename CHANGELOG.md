@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.60] - 2026-07-10
+
+### Fixed
+- **EXP overflow**: `EXP(x)` now correctly throws an error when the result overflows to Infinity (e.g., `EXP(710)`). Previously returned Infinity silently. `EXP(-Infinity)` continues to correctly return 0.
+- **REGEXP_REPLACE backreferences**: Backreference syntax (`\1`, `\2`, etc.) in replacement strings now works correctly. Previously, Spanner-style `\1` backreferences were not converted to .NET's `$1` format, causing replacements to be treated as literal text.
+
+### Added
+- 3 new integration tests: EXP overflow (2), REGEXP_REPLACE backreferences (1).
+
 ## [1.0.59] - 2026-07-10
 
 ### Fixed

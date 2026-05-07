@@ -441,7 +441,9 @@ internal class ExpressionEvaluator
 			"SQRT" => EvalMathFunc1Checked(func, row, Math.Sqrt,
 				v => v < 0, "SQRT of negative number"),
 			"POW" or "POWER" => EvalPow(func, row),
-			"EXP" => EvalMathFunc1Double(func, row, Math.Exp),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#exp
+			//   "Generates an error if the result overflows."
+			"EXP" => EvalExp(func, row),
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#ln
 			//   "Generates an error if X is less than or equal to zero."
 			"LN" => EvalMathFunc1Checked(func, row, Math.Log,
@@ -967,6 +969,20 @@ internal class ExpressionEvaluator
 			decimal dec => (decimal)Math.Sign(dec),
 			_ => throw new InvalidOperationException($"Cannot apply SIGN to {val.GetType().Name}")
 		};
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#exp
+	//   "Generates an error if the result overflows."
+	//   "| -inf | 0.0 |"
+	private object? EvalExp(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var val = Evaluate(func.Arguments[0], row);
+		if (val is null) return null;
+		var d = Convert.ToDouble(val);
+		var result = Math.Exp(d);
+		if (double.IsInfinity(result) && !double.IsInfinity(d))
+			throw new InvalidOperationException("EXP overflow: result is not representable as FLOAT64.");
+		return result;
 	}
 
 	private object? EvalMod(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -1875,8 +1891,11 @@ internal class ExpressionEvaluator
 		var pattern = Evaluate(func.Arguments[1], row);
 		var replacement = Evaluate(func.Arguments[2], row);
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_replace
+		//   "You can use backslashed-escaped digits (\1 to \9) within the replacement argument"
 		if (s == null || pattern == null || replacement == null) return null;
-		return Regex.Replace(Convert.ToString(s)!, Convert.ToString(pattern)!, Convert.ToString(replacement)!);
+		// Convert Spanner backreference format (\1, \2) to .NET format ($1, $2)
+		var dotNetReplacement = Regex.Replace(Convert.ToString(replacement)!, @"\\(\d)", "$$$1");
+		return Regex.Replace(Convert.ToString(s)!, Convert.ToString(pattern)!, dotNetReplacement);
 	}
 
 

@@ -959,4 +959,43 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 		var act = () => Eval("POW(0.0, -1.0)");
 		await act.Should().ThrowAsync<SpannerException>();
 	}
+
+	// ════════════════════════════════════════════════════════════════
+	// 14. EXP overflow should throw error
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#exp
+	//   "Generates an error if the result overflows."
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Exp_Overflow_ThrowsError()
+	{
+		// EXP(710) overflows to Infinity for FLOAT64
+		var act = () => Eval("EXP(710.0)");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Exp_NegativeInfinity_ReturnsZero()
+	{
+		// Ref: "| -inf | 0.0 |"
+		var result = await Eval("EXP(CAST('-inf' AS FLOAT64))");
+		result.Should().BeOfType<double>().Which.Should().Be(0.0);
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// 15. REGEXP_REPLACE backreferences use \1 not $1
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_replace
+	//   "You can use backslashed-escaped digits (\1 to \9) within the replacement"
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task RegexpReplace_Backreference_WorksCorrectly()
+	{
+		// Swap first and last word using backreferences
+		var result = await Eval(@"REGEXP_REPLACE('hello world', '(\w+) (\w+)', '\\2 \\1')");
+		result.Should().Be("world hello");
+	}
 }

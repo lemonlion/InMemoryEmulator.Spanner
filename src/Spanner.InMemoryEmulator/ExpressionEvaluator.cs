@@ -2609,7 +2609,8 @@ internal class ExpressionEvaluator
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/format-elements#format_elements_date_time
 		return spannerFmt
 			.Replace("%%", "\x00") // Temporarily escape literal %
-			.Replace("%E9S", "ss.fffffffff") // nanoseconds (limited to 7 digits in .NET)
+			.Replace("%E4Y", "yyyy") // 4-digit year
+			.Replace("%E9S", "ss.fffffff") // nanoseconds (limited to 7 digits in .NET)
 			.Replace("%E3S", "ss.fff").Replace("%E6S", "ss.ffffff")
 			.Replace("%Y", "yyyy").Replace("%m", "MM").Replace("%d", "dd")
 			.Replace("%H", "HH").Replace("%I", "hh").Replace("%M", "mm").Replace("%S", "ss")

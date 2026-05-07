@@ -1208,4 +1208,63 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 		var act = async () => await QueryAsync("SELECT CAST('abc' AS FLOAT64) AS R");
 		await act.Should().ThrowAsync<SpannerException>();
 	}
+
+	// ════════════════════════════════════════════════════════════════
+	// Partitioned DML: INSERT is not supported
+	// Ref: https://cloud.google.com/spanner/docs/dml-partitioned
+	//   "INSERT is not supported."
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task PartitionedDml_Insert_ThrowsError()
+	{
+		var t = await FreshTable("PdmlIns");
+		using var connection = Fixture.CreateConnection();
+		await connection.OpenAsync();
+		var cmd = connection.CreateDmlCommand($"INSERT INTO {t} (Id, Name) VALUES (1, 'Alice')");
+		var act = async () => await cmd.ExecutePartitionedUpdateAsync();
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// FORMAT_TIMESTAMP with %E9S (nanosecond precision) should not crash
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/format-elements#format_elements_date_time
+	//   "%E9S" — seconds with up to 9 fractional digits
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task FormatTimestamp_E9S_DoesNotCrash()
+	{
+		var result = await Eval("FORMAT_TIMESTAMP('%E9S', TIMESTAMP '2020-01-01 12:30:45.123456789Z')");
+		result.Should().NotBeNull();
+		var s = result!.ToString()!;
+		// Should start with "45." (the seconds) and have fractional digits
+		s.Should().StartWith("45.");
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task FormatTimestamp_E4Y_DoesNotCrash()
+	{
+		var result = await Eval("FORMAT_TIMESTAMP('%E4Y', TIMESTAMP '2020-06-15 00:00:00Z')");
+		result.Should().NotBeNull();
+		result!.ToString().Should().Be("2020");
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// TIMESTAMP_ADD overflow should give meaningful error, not crash
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_add
+	//   Adding extreme values should produce an error, not an unhandled exception
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task TimestampAdd_Overflow_ThrowsError()
+	{
+		var act = async () => await QueryAsync(
+			"SELECT TIMESTAMP_ADD(TIMESTAMP '9999-12-31 23:59:59Z', INTERVAL 1000000000 DAY) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
 }

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.63] - 2026-07-10
+
+### Fixed
+- **Partitioned DML INSERT rejection**: INSERT statements are now correctly rejected in Partitioned DML transactions with `InvalidArgument` status code. Only UPDATE and DELETE are supported per the Spanner specification.
+- **FORMAT_TIMESTAMP %E9S crash**: The `%E9S` format specifier (nanosecond-precision seconds) no longer crashes with a FormatException. Limited to 7 fractional digits (maximum .NET precision).
+- **FORMAT_TIMESTAMP %E4Y support**: The `%E4Y` format specifier (4-digit year) is now correctly handled.
+- **TIMESTAMP_ADD overflow**: Adding extreme values to timestamps now returns a proper error instead of an unhandled exception.
+
 ## [1.0.62] - 2026-07-10
 
 ### Fixed

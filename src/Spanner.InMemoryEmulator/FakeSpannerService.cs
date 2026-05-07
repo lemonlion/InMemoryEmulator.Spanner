@@ -425,6 +425,11 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 			   trimmed.StartsWith("DELETE", StringComparison.OrdinalIgnoreCase);
 	}
 
+	private static bool IsInsertStatement(string sql)
+	{
+		return sql.TrimStart().StartsWith("INSERT", StringComparison.OrdinalIgnoreCase);
+	}
+
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.Rollback
 	public override Task<Empty> Rollback(RollbackRequest request, ServerCallContext context)
 	{
@@ -505,6 +510,12 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 				if (txnState?.IsReadOnly == true && IsDmlStatement(request.Sql))
 					throw new RpcException(new Status(StatusCode.FailedPrecondition,
 						"DML statements cannot be executed in a read-only transaction."));
+
+				// Ref: https://cloud.google.com/spanner/docs/dml-partitioned#unsupported_features
+				//   "INSERT is not supported." in partitioned DML.
+				if (txnState?.IsPartitionedDml == true && IsInsertStatement(request.Sql))
+					throw new RpcException(new Status(StatusCode.InvalidArgument,
+						"INSERT is not supported for partitioned DML."));
 
 				var engine = new SqlEngine(_database, txnState?.DmlUndoLog);
 				var parameters = SqlEngine.ExtractParameters(request);
@@ -588,6 +599,12 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 				if (txnState?.IsReadOnly == true && IsDmlStatement(request.Sql))
 					throw new RpcException(new Status(StatusCode.FailedPrecondition,
 						"DML statements cannot be executed in a read-only transaction."));
+
+				// Ref: https://cloud.google.com/spanner/docs/dml-partitioned#unsupported_features
+				//   "INSERT is not supported." in partitioned DML.
+				if (txnState?.IsPartitionedDml == true && IsInsertStatement(request.Sql))
+					throw new RpcException(new Status(StatusCode.InvalidArgument,
+						"INSERT is not supported for partitioned DML."));
 
 				var engine = new SqlEngine(_database, txnState?.DmlUndoLog);
 				var parameters = SqlEngine.ExtractParameters(request);

@@ -829,6 +829,10 @@ internal class ExpressionEvaluator
 	{
 		var val = Evaluate(func.Arguments[0], row);
 		if (val is null) return null;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#trim
+		//   TRIM works on both STRING and BYTES.
+		if (val is byte[] bytes)
+			return TrimBytes(bytes, func.Arguments.Count > 1 ? Evaluate(func.Arguments[1], row) as byte[] : null, mode);
 		var str = (string)val;
 		if (func.Arguments.Count > 1)
 		{
@@ -851,6 +855,30 @@ internal class ExpressionEvaluator
 			TrimMode.End => str.TrimEnd(),
 			_ => str
 		};
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#trim
+	//   For BYTES, trims bytes from the beginning/end that appear in the trim set.
+	private static byte[] TrimBytes(byte[] bytes, byte[]? trimSet, TrimMode mode)
+	{
+		// Default whitespace bytes: space and common ASCII whitespace
+		var set = trimSet ?? new byte[] { 0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D };
+		int start = 0;
+		int end = bytes.Length - 1;
+		if (mode is TrimMode.Both or TrimMode.Start)
+		{
+			while (start <= end && set.Contains(bytes[start]))
+				start++;
+		}
+		if (mode is TrimMode.Both or TrimMode.End)
+		{
+			while (end >= start && set.Contains(bytes[end]))
+				end--;
+		}
+		if (start > end) return Array.Empty<byte>();
+		var result = new byte[end - start + 1];
+		Buffer.BlockCopy(bytes, start, result, 0, result.Length);
+		return result;
 	}
 
 	private object? EvalStringFunc2Bool(FunctionCallExpr func, Dictionary<string, object?> row, Func<string, string, bool> fn)
@@ -1041,8 +1069,27 @@ internal class ExpressionEvaluator
 		if (s is null || sub is null) return null;
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#strpos
 		//   "Returns the 1-based position of the first occurrence, or 0 if not found."
-		var idx = ((string)s).IndexOf((string)sub, StringComparison.Ordinal);
-		return (long)(idx + 1);
+		//   Works on both STRING and BYTES.
+		if (s is byte[] sBytes && sub is byte[] subBytes)
+		{
+			var idx = IndexOfBytes(sBytes, subBytes);
+			return (long)(idx + 1);
+		}
+		var strIdx = ((string)s).IndexOf((string)sub, StringComparison.Ordinal);
+		return (long)(strIdx + 1);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#strpos
+	//   Find first occurrence of pattern in source bytes.
+	private static int IndexOfBytes(byte[] source, byte[] pattern)
+	{
+		if (pattern.Length == 0) return 0;
+		for (int i = 0; i <= source.Length - pattern.Length; i++)
+		{
+			if (source.AsSpan(i, pattern.Length).SequenceEqual(pattern))
+				return i;
+		}
+		return -1;
 	}
 
 	private object? EvalMathFunc1(FunctionCallExpr func, Dictionary<string, object?> row,

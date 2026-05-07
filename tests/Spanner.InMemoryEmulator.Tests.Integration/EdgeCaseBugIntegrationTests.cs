@@ -1404,4 +1404,61 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 		result.Should().BeOfType<DateTime>();
 		((DateTime)result!).Should().Be(new DateTime(2025, 12, 31));
 	}
+
+	// ════════════════════════════════════════════════════════════════
+	// STRPOS for BYTES
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#strpos
+	//   "Returns the 1-based position of the first occurrence of search_value
+	//    in value, or 0 if not found. Works on both STRING and BYTES."
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task StrPos_Bytes_FindsSubsequence()
+	{
+		var result = await Eval("STRPOS(b'hello world', b'world')");
+		result.Should().Be(7L); // 1-based position
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task StrPos_Bytes_NotFound_ReturnsZero()
+	{
+		var result = await Eval("STRPOS(b'hello', b'xyz')");
+		result.Should().Be(0L);
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// TRIM/LTRIM/RTRIM for BYTES
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#trim
+	//   "Removes bytes from BYTES value that appear in bytes_to_trim."
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Trim_Bytes_RemovesBytesFromBothEnds()
+	{
+		// TRIM(b'\x00\x01hello\x01\x00', b'\x00\x01') should remove \x00 and \x01 from both ends
+		var result = await Eval(@"TRIM(b'\x00\x01hello\x01\x00', b'\x00\x01')");
+		result.Should().BeOfType<byte[]>();
+		System.Text.Encoding.UTF8.GetString((byte[])result!).Should().Be("hello");
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Ltrim_Bytes_RemovesBytesFromStart()
+	{
+		var result = await Eval(@"LTRIM(b'\x20\x20hello', b'\x20')");
+		result.Should().BeOfType<byte[]>();
+		System.Text.Encoding.UTF8.GetString((byte[])result!).Should().Be("hello");
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Rtrim_Bytes_RemovesBytesFromEnd()
+	{
+		var result = await Eval(@"RTRIM(b'hello\x20\x20', b'\x20')");
+		result.Should().BeOfType<byte[]>();
+		System.Text.Encoding.UTF8.GetString((byte[])result!).Should().Be("hello");
+	}
 }

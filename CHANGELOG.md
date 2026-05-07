@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.66] - 2026-07-10
+
+### Fixed
+- **STRPOS(BYTES) crash**: `STRPOS` now correctly finds byte subsequences in BYTES values instead of throwing an InvalidCastException.
+- **TRIM/LTRIM/RTRIM(BYTES) crash**: `TRIM`, `LTRIM`, and `RTRIM` now correctly trim bytes from BYTES values instead of throwing an InvalidCastException.
+
 ## [1.0.65] - 2026-07-10
 
 ### Fixed

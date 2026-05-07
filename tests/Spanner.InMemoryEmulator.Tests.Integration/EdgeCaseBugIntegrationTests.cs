@@ -827,4 +827,136 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 		var result = await Eval("ARRAY_INCLUDES([1, 2, 3], 2)");
 		result.Should().Be(true);
 	}
+
+	// ════════════════════════════════════════════════════════════════
+	// 10. SAFE_ADD/SAFE_SUBTRACT/SAFE_MULTIPLY NaN passthrough
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions
+	//   "All mathematical functions return NaN if any of the arguments is NaN."
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task SafeAdd_NanInput_ReturnsNan()
+	{
+		var result = await Eval("SAFE_ADD(CAST('nan' AS FLOAT64), 1.0)");
+		result.Should().BeOfType<double>().Which.Should().Be(double.NaN);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task SafeSubtract_NanInput_ReturnsNan()
+	{
+		var result = await Eval("SAFE_SUBTRACT(10.0, CAST('nan' AS FLOAT64))");
+		result.Should().BeOfType<double>().Which.Should().Be(double.NaN);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task SafeMultiply_NanInput_ReturnsNan()
+	{
+		var result = await Eval("SAFE_MULTIPLY(CAST('nan' AS FLOAT64), 5.0)");
+		result.Should().BeOfType<double>().Which.Should().Be(double.NaN);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task SafeAdd_InfinityPlusFinite_ReturnsInfinity()
+	{
+		// Inf + finite is not overflow — the input was already Inf
+		var result = await Eval("SAFE_ADD(CAST('+inf' AS FLOAT64), 1.0)");
+		result.Should().BeOfType<double>().Which.Should().Be(double.PositiveInfinity);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task SafeSubtract_InfinityMinusFinite_ReturnsInfinity()
+	{
+		var result = await Eval("SAFE_SUBTRACT(CAST('+inf' AS FLOAT64), 1.0)");
+		result.Should().BeOfType<double>().Which.Should().Be(double.PositiveInfinity);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task SafeMultiply_InfinityTimesFinite_ReturnsInfinity()
+	{
+		var result = await Eval("SAFE_MULTIPLY(CAST('+inf' AS FLOAT64), 2.0)");
+		result.Should().BeOfType<double>().Which.Should().Be(double.PositiveInfinity);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task SafeAdd_InfinityPlusNegInfinity_ReturnsNull()
+	{
+		// Inf + (-Inf) = NaN (indeterminate form) → SAFE_ returns NULL
+		var result = await Eval("SAFE_ADD(CAST('+inf' AS FLOAT64), CAST('-inf' AS FLOAT64))");
+		result.Should().BeNull();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task SafeMultiply_InfinityTimesZero_ReturnsNull()
+	{
+		// Inf * 0 = NaN (indeterminate form) → SAFE_ returns NULL
+		var result = await Eval("SAFE_MULTIPLY(CAST('+inf' AS FLOAT64), 0.0)");
+		result.Should().BeNull();
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// 11. SIGN(NaN) should return NaN
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#sign
+	//   "| NaN | NaN |"
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Sign_NaN_ReturnsNan()
+	{
+		var result = await Eval("SIGN(CAST('nan' AS FLOAT64))");
+		result.Should().BeOfType<double>().Which.Should().Be(double.NaN);
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// 12. GREATEST/LEAST with NaN should return NaN
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#greatest
+	//   "in the case of floating-point arguments, if any argument is NaN, returns NaN"
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Greatest_WithNaN_ReturnsNan()
+	{
+		var result = await Eval("GREATEST(1.0, CAST('nan' AS FLOAT64), 3.0)");
+		result.Should().BeOfType<double>().Which.Should().Be(double.NaN);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Least_WithNaN_ReturnsNan()
+	{
+		var result = await Eval("LEAST(1.0, CAST('nan' AS FLOAT64), 3.0)");
+		result.Should().BeOfType<double>().Which.Should().Be(double.NaN);
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// 13. POW error cases
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#pow
+	//   "| Finite value < 0 | Non-integer | Error |"
+	//   "| 0 | Finite value < 0 | Error |"
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Pow_NegativeBaseNonIntegerExponent_ThrowsError()
+	{
+		var act = () => Eval("POW(-2.0, 0.5)");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Pow_ZeroBaseNegativeExponent_ThrowsError()
+	{
+		var act = () => Eval("POW(0.0, -1.0)");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
 }

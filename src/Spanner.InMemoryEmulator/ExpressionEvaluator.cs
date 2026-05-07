@@ -428,7 +428,7 @@ internal class ExpressionEvaluator
 			"TRUNC" => EvalTrunc(func, row),
 			"GREATEST" => EvalGreatestLeast(func, row, greatest: true),
 			"LEAST" => EvalGreatestLeast(func, row, greatest: false),
-			"SIGN" => EvalMathFunc1(func, row, l => Math.Sign(l), d => Math.Sign(d), d => Math.Sign(d)),
+			"SIGN" => EvalSign(func, row),
 			"DIV" => EvalDiv(func, row),
 			"IEEE_DIVIDE" => EvalIeeeDivide(func, row),
 			"SAFE_DIVIDE" => EvalSafeDivide(func, row),
@@ -952,6 +952,23 @@ internal class ExpressionEvaluator
 		return fn(d);
 	}
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#sign
+	//   "Returns -1, 0, or +1 for negative, zero and positive arguments respectively."
+	//   "| NaN | NaN |"
+	private object? EvalSign(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var val = Evaluate(func.Arguments[0], row);
+		if (val is null) return null;
+		return val switch
+		{
+			long l => (long)Math.Sign(l),
+			double d => double.IsNaN(d) ? d : (double)Math.Sign(d),
+			float f => double.IsNaN(f) ? (double)f : (double)Math.Sign(f),
+			decimal dec => (decimal)Math.Sign(dec),
+			_ => throw new InvalidOperationException($"Cannot apply SIGN to {val.GetType().Name}")
+		};
+	}
+
 	private object? EvalMod(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		var a = Evaluate(func.Arguments[0], row);
@@ -1009,9 +1026,11 @@ internal class ExpressionEvaluator
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#greatest
 		//   "Returns NULL if any of the inputs is NULL."
+		//   "in the case of floating-point arguments, if any argument is NaN, returns NaN"
 		var values = func.Arguments.Select(a => Evaluate(a, row)).ToList();
 		if (values.Any(v => v is null)) return null;
 		if (values.Count == 0) return null;
+		if (values.Any(v => v is double d && double.IsNaN(d))) return double.NaN;
 
 		return values.Aggregate((a, b) =>
 		{
@@ -2109,6 +2128,9 @@ internal class ExpressionEvaluator
 				};
 			}
 			var da = Convert.ToDouble(a); var db = Convert.ToDouble(b);
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions
+			//   "All mathematical functions return NaN if any of the arguments is NaN."
+			if (double.IsNaN(da) || double.IsNaN(db)) return double.NaN;
 			var result = op switch
 			{
 				"ADD" => da + db,
@@ -2116,7 +2138,11 @@ internal class ExpressionEvaluator
 				"MUL" => da * db,
 				_ => throw new NotSupportedException()
 			};
-			if (double.IsInfinity(result) || double.IsNaN(result)) return null;
+			// NaN from indeterminate form (e.g., Inf + (-Inf), Inf * 0) → NULL
+			if (double.IsNaN(result)) return null;
+			// Overflow: finite op finite → Inf is an error → NULL
+			// But Inf op finite → Inf is valid (input was already Inf)
+			if (double.IsInfinity(result) && !double.IsInfinity(da) && !double.IsInfinity(db)) return null;
 			return result;
 		}
 		catch (OverflowException) { return null; }
@@ -2127,7 +2153,16 @@ internal class ExpressionEvaluator
 		var a = Evaluate(func.Arguments[0], row);
 		var b = Evaluate(func.Arguments[1], row);
 		if (a == null || b == null) return null;
-		return Math.Pow(Convert.ToDouble(a), Convert.ToDouble(b));
+		var da = Convert.ToDouble(a);
+		var db = Convert.ToDouble(b);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#pow
+		//   "| Finite value < 0 | Non-integer | Error |"
+		if (double.IsFinite(da) && da < 0 && double.IsFinite(db) && db != Math.Truncate(db))
+			throw new InvalidOperationException("Negative value raised to a non-integer power.");
+		//   "| 0 | Finite value < 0 | Error |"
+		if (da == 0 && double.IsFinite(db) && db < 0)
+			throw new InvalidOperationException("Zero raised to a negative power.");
+		return Math.Pow(da, db);
 	}
 
 	private object? EvalLog(FunctionCallExpr func, Dictionary<string, object?> row)

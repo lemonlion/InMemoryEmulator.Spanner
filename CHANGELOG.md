@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.59] - 2026-07-10
+
+### Fixed
+- **SAFE_ADD/SAFE_SUBTRACT/SAFE_MULTIPLY NaN passthrough**: These functions now correctly return NaN when any input is NaN, instead of NULL. Per docs: "All mathematical functions return NaN if any of the arguments is NaN."
+- **SAFE_ADD/SAFE_SUBTRACT/SAFE_MULTIPLY Infinity handling**: `SAFE_ADD(Inf, 1)` now correctly returns Infinity (passthrough, not overflow). Only finite+finite→Inf is treated as overflow (returns NULL). Indeterminate forms like `Inf+(-Inf)` correctly return NULL.
+- **SIGN(NaN)**: Now correctly returns NaN instead of throwing ArithmeticException.
+- **GREATEST/LEAST with NaN**: Now correctly returns NaN if any floating-point argument is NaN, per docs.
+- **POW error cases**: `POW(negative, non-integer)` and `POW(0, negative)` now correctly throw errors instead of returning NaN/Infinity silently.
+
+### Added
+- 13 new integration tests: SAFE_ADD/SUBTRACT/MULTIPLY NaN and Infinity (8), SIGN NaN (1), GREATEST/LEAST NaN (2), POW error cases (2).
+
 ## [1.0.58] - 2026-07-10
 
 ### Fixed

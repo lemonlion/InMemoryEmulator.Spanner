@@ -1,4 +1,0 @@
-Test run for C:\git\Spanner.InMemoryEmulator\tests\Spanner.InMemoryEmulator.Tests.Integration\bin\Debug\net8.0\Spanner.InMemoryEmulator.Tests.Integration.dll (.NETCoreApp,Version=v8.0)
-A total of 1 test files matched the specified pattern.
-
-Passed!  - Failed:     0, Passed:     8, Skipped:     0, Total:     8, Duration: 6 s - Spanner.InMemoryEmulator.Tests.Integration.dll (net8.0)

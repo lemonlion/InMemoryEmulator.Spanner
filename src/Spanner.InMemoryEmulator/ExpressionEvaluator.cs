@@ -1163,6 +1163,14 @@ internal class ExpressionEvaluator
 		if (a is null || b is null) return null;
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#mod
 		//   "An error is generated if Y is 0."
+		//   MOD preserves type: INT64→INT64, NUMERIC→NUMERIC, FLOAT64→FLOAT64.
+		if (a is decimal || b is decimal)
+		{
+			var da = Convert.ToDecimal(a);
+			var db = Convert.ToDecimal(b);
+			if (db == 0m) throw new InvalidOperationException("Division by zero in MOD.");
+			return da % db;
+		}
 		return a switch
 		{
 			long la when b is long lb => lb == 0
@@ -4111,9 +4119,12 @@ internal class ExpressionEvaluator
 		var val = Evaluate(func.Arguments[0], row);
 		if (val == null) return null;
 		if (val is not System.Collections.IList list) throw new InvalidOperationException("ARRAY_IS_DISTINCT: non-array argument.");
-		var set = new HashSet<object?>();
-		foreach (var item in list)
-			if (!set.Add(item?.ToString())) return false;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#array_is_distinct
+		//   Returns TRUE if all elements are distinct. Uses value equality, not string equality.
+		//   Two NULLs are considered equal (not distinct).
+		for (int i = 0; i < list.Count; i++)
+			for (int j = i + 1; j < list.Count; j++)
+				if (CompareValues(list[i], list[j]) == 0) return false;
 		return true;
 	}
 

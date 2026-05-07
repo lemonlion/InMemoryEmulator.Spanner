@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.68] - 2026-07-10
+
+### Fixed
+- **ARRAY_IS_DISTINCT incorrect comparison**: Previously compared elements using string representation, causing false duplicates with different types. Now uses proper value comparison semantics matching Spanner's DISTINCT behavior.
+- **MOD NUMERIC precision loss**: `MOD` with NUMERIC arguments now preserves decimal precision instead of converting to FLOAT64.
+
 ## [1.0.67] - 2026-07-10
 
 ### Fixed

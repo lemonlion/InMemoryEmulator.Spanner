@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Google.Cloud.Spanner.Data;
+using Google.Cloud.Spanner.V1;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
@@ -1522,5 +1523,63 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 		// SPLIT(b'a,b,c', b',') should return array of 3 BYTES elements
 		var rows = await QueryAsync("SELECT ARRAY_LENGTH(SPLIT(b'a,b,c', b',')) AS R");
 		rows[0]["R"].Should().Be(3L);
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// ARRAY_IS_DISTINCT with NULL handling
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#array_is_distinct
+	//   "Returns TRUE if the array has no repeated elements, using the same
+	//    equality comparison as DISTINCT."
+	//   Two NULLs are NOT distinct (i.e., they're considered equal).
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task ArrayIsDistinct_WithDuplicateNulls_ReturnsFalse()
+	{
+		// Two NULL values should be considered duplicates
+		var result = await Eval("ARRAY_IS_DISTINCT([1, NULL, 2, NULL])");
+		result.Should().Be(false);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task ArrayIsDistinct_WithSingleNull_ReturnsTrue()
+	{
+		var result = await Eval("ARRAY_IS_DISTINCT([1, NULL, 2, 3])");
+		result.Should().Be(true);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task ArrayIsDistinct_AllDistinct_ReturnsTrue()
+	{
+		var result = await Eval("ARRAY_IS_DISTINCT([1, 2, 3, 4])");
+		result.Should().Be(true);
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// MOD with NUMERIC type
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#mod
+	//   "MOD(X, Y) returns the remainder when dividing X by Y."
+	//   NUMERIC precision should be preserved.
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Mod_Numeric_PreservesPrecision()
+	{
+		// MOD(NUMERIC '10.5', NUMERIC '3') = 1.5
+		var result = await Eval("MOD(NUMERIC '10.5', NUMERIC '3')");
+		result.Should().BeOfType<SpannerNumeric>();
+		((SpannerNumeric)result!).ToDecimal(LossOfPrecisionHandling.Truncate).Should().Be(1.5m);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Mod_Numeric_DivideByZero_ThrowsError()
+	{
+		var act = async () => await QueryAsync("SELECT MOD(NUMERIC '10', NUMERIC '0') AS R");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 }

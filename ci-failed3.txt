@@ -1,0 +1,149 @@
+test-emulator	Run integration tests (emulator)	´╗┐2026-05-07T12:49:05.0685471Z ##[group]Run dotnet test tests/Spanner.InMemoryEmulator.Tests.Integration/ \
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:05.0686128Z [36;1mdotnet test tests/Spanner.InMemoryEmulator.Tests.Integration/ \[0m
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:05.0686481Z [36;1m  --configuration Release \[0m
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:05.0686762Z [36;1m  --logger "trx;LogFileName=emulator.trx" \[0m
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:05.0687108Z [36;1m  --filter "Target!=InMemoryOnly&Target!=GoEmulatorUnsupported"[0m
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:05.0699785Z shell: /usr/bin/bash -e {0}
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:05.0700017Z env:
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:05.0700183Z   DOTNET_VERSION: 8.0.x
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:05.0700392Z   SPANNER_TEST_TARGET: Emulator
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:05.0700630Z   SPANNER_EMULATOR_HOST: localhost:9010
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:05.0700870Z   DOTNET_ROOT: /usr/share/dotnet
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:05.0701088Z ##[endgroup]
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:07.2666887Z   Determining projects to restore...
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:10.6954005Z   Restored /home/runner/work/InMemoryEmulator.Spanner/InMemoryEmulator.Spanner/tests/Spanner.InMemoryEmulator.Tests.Integration/Spanner.InMemoryEmulator.Tests.Integration.csproj (in 2.5 sec).
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:10.6956274Z   Restored /home/runner/work/InMemoryEmulator.Spanner/InMemoryEmulator.Spanner/src/Spanner.InMemoryEmulator/Spanner.InMemoryEmulator.csproj (in 2.5 sec).
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:10.6962918Z   Restored /home/runner/work/InMemoryEmulator.Spanner/InMemoryEmulator.Spanner/tests/Spanner.InMemoryEmulator.Tests.Shared/Spanner.InMemoryEmulator.Tests.Shared.csproj (in 2.5 sec).
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:21.8348218Z   Spanner.InMemoryEmulator -> /home/runner/work/InMemoryEmulator.Spanner/InMemoryEmulator.Spanner/src/Spanner.InMemoryEmulator/bin/Release/net8.0/Spanner.InMemoryEmulator.dll
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:22.4763693Z   Spanner.InMemoryEmulator.Tests.Shared -> /home/runner/work/InMemoryEmulator.Spanner/InMemoryEmulator.Spanner/tests/Spanner.InMemoryEmulator.Tests.Shared/bin/Release/net8.0/Spanner.InMemoryEmulator.Tests.Shared.dll
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:33.4171146Z   Spanner.InMemoryEmulator.Tests.Integration -> /home/runner/work/InMemoryEmulator.Spanner/InMemoryEmulator.Spanner/tests/Spanner.InMemoryEmulator.Tests.Integration/bin/Release/net8.0/Spanner.InMemoryEmulator.Tests.Integration.dll
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:33.4374785Z Test run for /home/runner/work/InMemoryEmulator.Spanner/InMemoryEmulator.Spanner/tests/Spanner.InMemoryEmulator.Tests.Integration/bin/Release/net8.0/Spanner.InMemoryEmulator.Tests.Integration.dll (.NETCoreApp,Version=v8.0)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:49:33.8370931Z A total of 1 test files matched the specified pattern.
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:23.9101937Z [xUnit.net 00:00:49.73]     Spanner.InMemoryEmulator.Tests.Integration.ErrorConditionIntegrationTests.WindowFunction_Succeeds(sql: "SELECT FIRST_VALUE(Val) OVER (ORDER BY Id) AS FV F"┬À┬À┬À) [FAIL]
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:23.9255217Z [xUnit.net 00:00:49.75]     Spanner.InMemoryEmulator.Tests.Integration.ErrorConditionIntegrationTests.WindowFunction_Succeeds(sql: "SELECT LAG(Val) OVER (ORDER BY Id) AS L FROM ErrTe"┬À┬À┬À) [FAIL]
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:23.9430418Z [xUnit.net 00:00:49.77]     Spanner.InMemoryEmulator.Tests.Integration.ErrorConditionIntegrationTests.WindowFunction_Succeeds(sql: "SELECT LAST_VALUE(Val) OVER (ORDER BY Id) AS LV FR"┬À┬À┬À) [FAIL]
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:23.9605681Z [xUnit.net 00:00:49.79]     Spanner.InMemoryEmulator.Tests.Integration.ErrorConditionIntegrationTests.WindowFunction_Succeeds(sql: "SELECT LEAD(Val) OVER (ORDER BY Id) AS L FROM ErrT"┬À┬À┬À) [FAIL]
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0143152Z   Failed Spanner.InMemoryEmulator.Tests.Integration.ErrorConditionIntegrationTests.WindowFunction_Succeeds(sql: "SELECT FIRST_VALUE(Val) OVER (ORDER BY Id) AS FV F"┬À┬À┬À) [26 ms]
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0144711Z   Error Message:
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0145301Z    Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0146521Z ---- Grpc.Core.RpcException : Status(StatusCode="InvalidArgument", Detail="Analytic functions not supported [at 1:8]
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0147534Z SELECT FIRST_VALUE(Val) OVER (ORDER BY Id) AS FV FROM ErrTest
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0147972Z        ^")
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0149071Z   Stack Trace:
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0149648Z      at Google.Cloud.Spanner.Data.ExecuteHelper.WithErrorTranslationAndProfiling[T](Func`1 t, String name, Logger logger)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0151060Z    at Google.Cloud.Spanner.Data.SpannerDataReader.<>c__DisplayClass68_0.<<ReadAsync>b__0>d.MoveNext()
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0151951Z --- End of stack trace from previous location ---
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0152860Z    at Google.Cloud.Spanner.Data.ExecuteHelper.WithErrorTranslationAndProfiling[T](Func`1 t, String name, Logger logger)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0154254Z    at Spanner.InMemoryEmulator.Tests.Shared.Infrastructure.IntegrationTestBase.QueryAsync(String sql, ValueTuple`3[] parameters) in /home/runner/work/InMemoryEmulator.Spanner/InMemoryEmulator.Spanner/tests/Spanner.InMemoryEmulator.Tests.Shared/Infrastructure/IntegrationTestBase.cs:line 154
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0156228Z    at Spanner.InMemoryEmulator.Tests.Integration.ErrorConditionIntegrationTests.WindowFunction_Succeeds(String sql) in /home/runner/work/InMemoryEmulator.Spanner/InMemoryEmulator.Spanner/tests/Spanner.InMemoryEmulator.Tests.Integration/ErrorConditionIntegrationTests.cs:line 391
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0157378Z --- End of stack trace from previous location ---
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0157822Z ----- Inner Stack Trace -----
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0158676Z    at Grpc.Net.Client.Internal.HttpContentClientStreamReader`2.MoveNextCore(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0159452Z    at Google.Api.Gax.Grpc.Gcp.GcpClientResponseStream`2.MoveNext(CancellationToken token)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0160228Z    at Google.Cloud.Spanner.V1.SpannerClientBuilder.RequestIdOnExceptionInterceptor.WrapExceptionAsync[T](Task`1 task, CallOptions options)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0161102Z    at Google.Cloud.Spanner.V1.Internal.ExecuteHelper.WithSessionExpiryChecking[T](Task`1 task, Session session)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0161851Z    at Google.Cloud.Spanner.V1.ResultStream.<>c__DisplayClass21_1.<<ComputeNextAsync>g__ExecuteStreamingAsync|1>d.MoveNext()
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0162391Z --- End of stack trace from previous location ---
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0163408Z    at Google.Cloud.Spanner.V1.PooledSession.ExecuteMaybeWithTransactionSelectorAsync[TResponse](Action`1 transactionSelectorSetter, Func`1 commandAsync, Func`2 inlinedTransactionExtractor, Boolean skipTransactionCreation, CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0164567Z    at Google.Cloud.Spanner.V1.ResultStream.ComputeNextAsync(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0165156Z    at Google.Cloud.Spanner.V1.ResultStream.MoveNext(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0165747Z    at Google.Cloud.Spanner.V1.ReliableStreamReader.MoveNextAsync(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0166439Z    at Google.Cloud.Spanner.V1.ReliableStreamReader.EnsureInitializedAsync(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0167138Z    at Google.Cloud.Spanner.V1.ReliableStreamReader.GetMetadataAsync(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0167822Z    at Google.Cloud.Spanner.Data.SpannerDataReader.<>c__DisplayClass71_0.<<PopulateMetadataAsync>b__0>d.MoveNext()
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0168467Z --- End of stack trace from previous location ---
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0169074Z    at Google.Cloud.Spanner.Data.ExecuteHelper.WithErrorTranslationAndProfiling[T](Func`1 t, String name, Logger logger)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0170341Z   Failed Spanner.InMemoryEmulator.Tests.Integration.ErrorConditionIntegrationTests.WindowFunction_Succeeds(sql: "SELECT LAG(Val) OVER (ORDER BY Id) AS L FROM ErrTe"┬À┬À┬À) [17 ms]
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0171048Z   Error Message:
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0171384Z    Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0172044Z ---- Grpc.Core.RpcException : Status(StatusCode="InvalidArgument", Detail="Analytic functions not supported [at 1:8]
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0172578Z SELECT LAG(Val) OVER (ORDER BY Id) AS L FROM ErrTest
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0172837Z        ^")
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0172990Z   Stack Trace:
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0173621Z      at Google.Cloud.Spanner.Data.ExecuteHelper.WithErrorTranslationAndProfiling[T](Func`1 t, String name, Logger logger)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0174409Z    at Google.Cloud.Spanner.Data.SpannerDataReader.<>c__DisplayClass68_0.<<ReadAsync>b__0>d.MoveNext()
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0174884Z --- End of stack trace from previous location ---
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0175418Z    at Google.Cloud.Spanner.Data.ExecuteHelper.WithErrorTranslationAndProfiling[T](Func`1 t, String name, Logger logger)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0176896Z    at Spanner.InMemoryEmulator.Tests.Shared.Infrastructure.IntegrationTestBase.QueryAsync(String sql, ValueTuple`3[] parameters) in /home/runner/work/InMemoryEmulator.Spanner/InMemoryEmulator.Spanner/tests/Spanner.InMemoryEmulator.Tests.Shared/Infrastructure/IntegrationTestBase.cs:line 154
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0179011Z    at Spanner.InMemoryEmulator.Tests.Integration.ErrorConditionIntegrationTests.WindowFunction_Succeeds(String sql) in /home/runner/work/InMemoryEmulator.Spanner/InMemoryEmulator.Spanner/tests/Spanner.InMemoryEmulator.Tests.Integration/ErrorConditionIntegrationTests.cs:line 391
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0180138Z --- End of stack trace from previous location ---
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0180425Z ----- Inner Stack Trace -----
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0180897Z    at Grpc.Net.Client.Internal.HttpContentClientStreamReader`2.MoveNextCore(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0181526Z    at Google.Api.Gax.Grpc.Gcp.GcpClientResponseStream`2.MoveNext(CancellationToken token)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0182290Z    at Google.Cloud.Spanner.V1.SpannerClientBuilder.RequestIdOnExceptionInterceptor.WrapExceptionAsync[T](Task`1 task, CallOptions options)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0183156Z    at Google.Cloud.Spanner.V1.Internal.ExecuteHelper.WithSessionExpiryChecking[T](Task`1 task, Session session)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0183911Z    at Google.Cloud.Spanner.V1.ResultStream.<>c__DisplayClass21_1.<<ComputeNextAsync>g__ExecuteStreamingAsync|1>d.MoveNext()
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0184444Z --- End of stack trace from previous location ---
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0185439Z    at Google.Cloud.Spanner.V1.PooledSession.ExecuteMaybeWithTransactionSelectorAsync[TResponse](Action`1 transactionSelectorSetter, Func`1 commandAsync, Func`2 inlinedTransactionExtractor, Boolean skipTransactionCreation, CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0186596Z    at Google.Cloud.Spanner.V1.ResultStream.ComputeNextAsync(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0187156Z    at Google.Cloud.Spanner.V1.ResultStream.MoveNext(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0187750Z    at Google.Cloud.Spanner.V1.ReliableStreamReader.MoveNextAsync(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0188637Z    at Google.Cloud.Spanner.V1.ReliableStreamReader.EnsureInitializedAsync(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0189330Z    at Google.Cloud.Spanner.V1.ReliableStreamReader.GetMetadataAsync(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0190006Z    at Google.Cloud.Spanner.Data.SpannerDataReader.<>c__DisplayClass71_0.<<PopulateMetadataAsync>b__0>d.MoveNext()
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0190519Z --- End of stack trace from previous location ---
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0191062Z    at Google.Cloud.Spanner.Data.ExecuteHelper.WithErrorTranslationAndProfiling[T](Func`1 t, String name, Logger logger)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0192208Z   Failed Spanner.InMemoryEmulator.Tests.Integration.ErrorConditionIntegrationTests.WindowFunction_Succeeds(sql: "SELECT LAST_VALUE(Val) OVER (ORDER BY Id) AS LV FR"┬À┬À┬À) [16 ms]
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0193099Z   Error Message:
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0193465Z    Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0194131Z ---- Grpc.Core.RpcException : Status(StatusCode="InvalidArgument", Detail="Analytic functions not supported [at 1:8]
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0194674Z SELECT LAST_VALUE(Val) OVER (ORDER BY Id) AS LV FROM ErrTest
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0194956Z        ^")
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0195114Z   Stack Trace:
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0195699Z      at Google.Cloud.Spanner.Data.ExecuteHelper.WithErrorTranslationAndProfiling[T](Func`1 t, String name, Logger logger)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0196527Z    at Google.Cloud.Spanner.Data.SpannerDataReader.<>c__DisplayClass68_0.<<ReadAsync>b__0>d.MoveNext()
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0196996Z --- End of stack trace from previous location ---
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0197543Z    at Google.Cloud.Spanner.Data.ExecuteHelper.WithErrorTranslationAndProfiling[T](Func`1 t, String name, Logger logger)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0199063Z    at Spanner.InMemoryEmulator.Tests.Shared.Infrastructure.IntegrationTestBase.QueryAsync(String sql, ValueTuple`3[] parameters) in /home/runner/work/InMemoryEmulator.Spanner/InMemoryEmulator.Spanner/tests/Spanner.InMemoryEmulator.Tests.Shared/Infrastructure/IntegrationTestBase.cs:line 154
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0200994Z    at Spanner.InMemoryEmulator.Tests.Integration.ErrorConditionIntegrationTests.WindowFunction_Succeeds(String sql) in /home/runner/work/InMemoryEmulator.Spanner/InMemoryEmulator.Spanner/tests/Spanner.InMemoryEmulator.Tests.Integration/ErrorConditionIntegrationTests.cs:line 391
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0202130Z --- End of stack trace from previous location ---
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0202414Z ----- Inner Stack Trace -----
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0202881Z    at Grpc.Net.Client.Internal.HttpContentClientStreamReader`2.MoveNextCore(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0203566Z    at Google.Api.Gax.Grpc.Gcp.GcpClientResponseStream`2.MoveNext(CancellationToken token)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0204388Z    at Google.Cloud.Spanner.V1.SpannerClientBuilder.RequestIdOnExceptionInterceptor.WrapExceptionAsync[T](Task`1 task, CallOptions options)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0205725Z    at Google.Cloud.Spanner.V1.Internal.ExecuteHelper.WithSessionExpiryChecking[T](Task`1 task, Session session)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0206989Z    at Google.Cloud.Spanner.V1.ResultStream.<>c__DisplayClass21_1.<<ComputeNextAsync>g__ExecuteStreamingAsync|1>d.MoveNext()
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0207958Z --- End of stack trace from previous location ---
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0209937Z    at Google.Cloud.Spanner.V1.PooledSession.ExecuteMaybeWithTransactionSelectorAsync[TResponse](Action`1 transactionSelectorSetter, Func`1 commandAsync, Func`2 inlinedTransactionExtractor, Boolean skipTransactionCreation, CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0212018Z    at Google.Cloud.Spanner.V1.ResultStream.ComputeNextAsync(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0213075Z    at Google.Cloud.Spanner.V1.ResultStream.MoveNext(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0214142Z    at Google.Cloud.Spanner.V1.ReliableStreamReader.MoveNextAsync(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0215430Z    at Google.Cloud.Spanner.V1.ReliableStreamReader.EnsureInitializedAsync(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0216737Z    at Google.Cloud.Spanner.V1.ReliableStreamReader.GetMetadataAsync(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0217998Z    at Google.Cloud.Spanner.Data.SpannerDataReader.<>c__DisplayClass71_0.<<PopulateMetadataAsync>b__0>d.MoveNext()
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0219160Z --- End of stack trace from previous location ---
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0220181Z    at Google.Cloud.Spanner.Data.ExecuteHelper.WithErrorTranslationAndProfiling[T](Func`1 t, String name, Logger logger)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0222246Z   Failed Spanner.InMemoryEmulator.Tests.Integration.ErrorConditionIntegrationTests.WindowFunction_Succeeds(sql: "SELECT LEAD(Val) OVER (ORDER BY Id) AS L FROM ErrT"┬À┬À┬À) [16 ms]
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0223569Z   Error Message:
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0224168Z    Google.Cloud.Spanner.Data.SpannerException : An invalid argument was sent to Spanner.
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0225396Z ---- Grpc.Core.RpcException : Status(StatusCode="InvalidArgument", Detail="Analytic functions not supported [at 1:8]
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0226348Z SELECT LEAD(Val) OVER (ORDER BY Id) AS L FROM ErrTest
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0226839Z        ^")
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0227121Z   Stack Trace:
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0228038Z      at Google.Cloud.Spanner.Data.ExecuteHelper.WithErrorTranslationAndProfiling[T](Func`1 t, String name, Logger logger)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0230192Z    at Google.Cloud.Spanner.Data.SpannerDataReader.<>c__DisplayClass68_0.<<ReadAsync>b__0>d.MoveNext()
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0231143Z --- End of stack trace from previous location ---
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0232224Z    at Google.Cloud.Spanner.Data.ExecuteHelper.WithErrorTranslationAndProfiling[T](Func`1 t, String name, Logger logger)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0235086Z    at Spanner.InMemoryEmulator.Tests.Shared.Infrastructure.IntegrationTestBase.QueryAsync(String sql, ValueTuple`3[] parameters) in /home/runner/work/InMemoryEmulator.Spanner/InMemoryEmulator.Spanner/tests/Spanner.InMemoryEmulator.Tests.Shared/Infrastructure/IntegrationTestBase.cs:line 154
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0239311Z    at Spanner.InMemoryEmulator.Tests.Integration.ErrorConditionIntegrationTests.WindowFunction_Succeeds(String sql) in /home/runner/work/InMemoryEmulator.Spanner/InMemoryEmulator.Spanner/tests/Spanner.InMemoryEmulator.Tests.Integration/ErrorConditionIntegrationTests.cs:line 391
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0241703Z --- End of stack trace from previous location ---
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0242253Z ----- Inner Stack Trace -----
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0243171Z    at Grpc.Net.Client.Internal.HttpContentClientStreamReader`2.MoveNextCore(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0244481Z    at Google.Api.Gax.Grpc.Gcp.GcpClientResponseStream`2.MoveNext(CancellationToken token)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0246062Z    at Google.Cloud.Spanner.V1.SpannerClientBuilder.RequestIdOnExceptionInterceptor.WrapExceptionAsync[T](Task`1 task, CallOptions options)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0247871Z    at Google.Cloud.Spanner.V1.Internal.ExecuteHelper.WithSessionExpiryChecking[T](Task`1 task, Session session)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0249459Z    at Google.Cloud.Spanner.V1.ResultStream.<>c__DisplayClass21_1.<<ComputeNextAsync>g__ExecuteStreamingAsync|1>d.MoveNext()
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0250568Z --- End of stack trace from previous location ---
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0252669Z    at Google.Cloud.Spanner.V1.PooledSession.ExecuteMaybeWithTransactionSelectorAsync[TResponse](Action`1 transactionSelectorSetter, Func`1 commandAsync, Func`2 inlinedTransactionExtractor, Boolean skipTransactionCreation, CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0255121Z    at Google.Cloud.Spanner.V1.ResultStream.ComputeNextAsync(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0256303Z    at Google.Cloud.Spanner.V1.ResultStream.MoveNext(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0257490Z    at Google.Cloud.Spanner.V1.ReliableStreamReader.MoveNextAsync(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0258569Z    at Google.Cloud.Spanner.V1.ReliableStreamReader.EnsureInitializedAsync(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0259769Z    at Google.Cloud.Spanner.V1.ReliableStreamReader.GetMetadataAsync(CancellationToken cancellationToken)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0261158Z    at Google.Cloud.Spanner.Data.SpannerDataReader.<>c__DisplayClass71_0.<<PopulateMetadataAsync>b__0>d.MoveNext()
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0262227Z --- End of stack trace from previous location ---
+test-emulator	Run integration tests (emulator)	2026-05-07T12:50:24.0263345Z    at Google.Cloud.Spanner.Data.ExecuteHelper.WithErrorTranslationAndProfiling[T](Func`1 t, String name, Logger logger)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:53:33.8002066Z Results File: /home/runner/work/InMemoryEmulator.Spanner/InMemoryEmulator.Spanner/tests/Spanner.InMemoryEmulator.Tests.Integration/TestResults/emulator.trx
+test-emulator	Run integration tests (emulator)	2026-05-07T12:53:33.8006662Z 
+test-emulator	Run integration tests (emulator)	2026-05-07T12:53:33.8148497Z Failed!  - Failed:     4, Passed:  9188, Skipped:     0, Total:  9192, Duration: 3 m 55 s - Spanner.InMemoryEmulator.Tests.Integration.dll (net8.0)
+test-emulator	Run integration tests (emulator)	2026-05-07T12:53:33.8504713Z ##[error]Process completed with exit code 1.

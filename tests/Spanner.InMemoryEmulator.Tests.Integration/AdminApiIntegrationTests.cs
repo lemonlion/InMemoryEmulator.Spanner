@@ -252,19 +252,17 @@ public class AdminApiIntegrationTests : IntegrationTestBase
 
 	private async Task<DatabaseAdminClient> BuildDatabaseAdminClientAsync()
 	{
-		var builder = new DatabaseAdminClientBuilder
-		{
-			EmulatorDetection = EmulatorDetection.EmulatorOnly
-		};
+		var builder = new DatabaseAdminClientBuilder();
+		if (_session.Target != SpannerTestTarget.CloudSpanner)
+			builder.EmulatorDetection = EmulatorDetection.EmulatorOnly;
 		return await builder.BuildAsync();
 	}
 
 	private async Task<InstanceAdminClient> BuildInstanceAdminClientAsync()
 	{
-		var builder = new InstanceAdminClientBuilder
-		{
-			EmulatorDetection = EmulatorDetection.EmulatorOnly
-		};
+		var builder = new InstanceAdminClientBuilder();
+		if (_session.Target != SpannerTestTarget.CloudSpanner)
+			builder.EmulatorDetection = EmulatorDetection.EmulatorOnly;
 		return await builder.BuildAsync();
 	}
 }

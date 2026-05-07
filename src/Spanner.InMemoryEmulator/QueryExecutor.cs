@@ -2082,13 +2082,24 @@ internal class QueryExecutor
 				.Where(v => v != null);
 			if (func.IsDistinct)
 				sortedValues = sortedValues.Distinct(new ObjectValueComparer());
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#string_agg
+			//   "LIMIT count: Specifies the maximum number of expression inputs in the result."
+			if (func.AggregateLimit.HasValue)
+				sortedValues = sortedValues.Take(func.AggregateLimit.Value);
 			return string.Join(delimiter, sortedValues.Select(v => v?.ToString()));
+		}
+
+		// Apply LIMIT even without ORDER BY
+		if (func.AggregateLimit.HasValue)
+		{
+			var limited = values.Where(v => v != null).Take(func.AggregateLimit.Value);
+			return string.Join(delimiter, limited.Select(v => v?.ToString()));
 		}
 
 		return string.Join(delimiter, values.Select(v => v?.ToString()));
 	}
 
-	// ARRAY_AGG(expr [IGNORE/RESPECT NULLS] [ORDER BY ...]): collects values into an array.
+	// ARRAY_AGG(expr [IGNORE/RESPECT NULLS] [ORDER BY ...] [LIMIT n]): collects values into an array.
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
 	private static object? ArrayAggOrdered(FunctionCallExpr func, List<Dictionary<string, object?>> rows,
 		ExpressionEvaluator evaluator, List<object?> values)
@@ -2107,7 +2118,19 @@ internal class QueryExecutor
 				.Where(v => respectNulls || v != null);
 			if (func.IsDistinct)
 				sortedValues = sortedValues.Distinct(new ObjectValueComparer());
-			return sortedValues.ToList();
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
+			//   "LIMIT count: Specifies the maximum number of expression inputs in the result."
+			if (func.AggregateLimit.HasValue)
+				sortedValues = sortedValues.Take(func.AggregateLimit.Value);
+			var result = sortedValues.ToList();
+			// Ref: "If there are zero input rows, this function returns NULL."
+			return result.Count == 0 ? null : result;
+		}
+		// Apply LIMIT even without ORDER BY
+		if (func.AggregateLimit.HasValue && values.Count > 0)
+		{
+			var limited = values.Take(func.AggregateLimit.Value).ToList();
+			return limited.Count == 0 ? null : limited;
 		}
 		return values.Count == 0 ? null : values.ToList();
 	}

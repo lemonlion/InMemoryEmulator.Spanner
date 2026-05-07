@@ -312,11 +312,18 @@ internal static class SqlParsers
 				).AtLeastOnceDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
 				select items.ToList()
 			 ).AsNullable().OptionalOrDefault()
+			 // Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
+			 //   "LIMIT count: Specifies the maximum number of expression inputs in the result."
+			 from aggLimit in (
+				from __ in Token.EqualTo(GoogleSqlToken.Limit)
+				from n in Token.EqualTo(GoogleSqlToken.Number).Apply(Numerics.IntegerInt32)
+				select (int?)n
+			 ).OptionalOrDefault((int?)null)
 			 from close in Token.EqualTo(GoogleSqlToken.CloseParen)
 			 from window in OverClause.AsNullable().OptionalOrDefault()
 			 select window != null
-				? (SqlExpression)new WindowExpr(new FunctionCallExpr(name, args.ToList(), distinct, orderBy, nullHandling, havingBound), window.PartitionBy, window.OrderBy, window.Frame)
-				: (SqlExpression)new FunctionCallExpr(name, args.ToList(), distinct, orderBy, nullHandling, havingBound))
+				? (SqlExpression)new WindowExpr(new FunctionCallExpr(name, args.ToList(), distinct, orderBy, nullHandling, havingBound, aggLimit), window.PartitionBy, window.OrderBy, window.Frame)
+				: (SqlExpression)new FunctionCallExpr(name, args.ToList(), distinct, orderBy, nullHandling, havingBound, aggLimit))
 			// Qualified star: alias.* (Try needed so dot is backtracked when next token is not *)
 			.Or((from dot in Token.EqualTo(GoogleSqlToken.Dot)
 				from _ in Token.EqualTo(GoogleSqlToken.Star)

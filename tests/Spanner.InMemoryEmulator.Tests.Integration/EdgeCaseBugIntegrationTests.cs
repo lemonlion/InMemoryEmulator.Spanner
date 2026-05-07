@@ -1670,4 +1670,44 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 		var act = async () => await ExecuteDmlAsync("DELETE FROM ECB_NoWhere2");
 		await act.Should().ThrowAsync<SpannerException>();
 	}
+
+	// ════════════════════════════════════════════════════════════════
+	// ARRAY_AGG / STRING_AGG with LIMIT
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
+	//   "LIMIT count: Specifies the maximum number of expression inputs in the result."
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task ArrayAgg_WithOrderByAndLimit_LimitsResults()
+	{
+		await ExecuteDdlAsync("CREATE TABLE ECB_AggLim (Id INT64 NOT NULL, Val STRING(10)) PRIMARY KEY (Id)");
+		await InsertAsync("ECB_AggLim",
+			new Dictionary<string, object?> { ["Id"] = 1L, ["Val"] = "c" },
+			new Dictionary<string, object?> { ["Id"] = 2L, ["Val"] = "a" },
+			new Dictionary<string, object?> { ["Id"] = 3L, ["Val"] = "b" },
+			new Dictionary<string, object?> { ["Id"] = 4L, ["Val"] = "d" });
+
+		var rows = await QueryAsync("SELECT ARRAY_AGG(Val ORDER BY Val LIMIT 2) AS R FROM ECB_AggLim");
+		rows.Should().HaveCount(1);
+		var arr = (List<string>)rows[0]["R"]!;
+		arr.Should().HaveCount(2);
+		arr[0].Should().Be("a");
+		arr[1].Should().Be("b");
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task StringAgg_WithOrderByAndLimit_LimitsResults()
+	{
+		await ExecuteDdlAsync("CREATE TABLE ECB_StrAggLim (Id INT64 NOT NULL, Val STRING(10)) PRIMARY KEY (Id)");
+		await InsertAsync("ECB_StrAggLim",
+			new Dictionary<string, object?> { ["Id"] = 1L, ["Val"] = "c" },
+			new Dictionary<string, object?> { ["Id"] = 2L, ["Val"] = "a" },
+			new Dictionary<string, object?> { ["Id"] = 3L, ["Val"] = "b" });
+
+		var rows = await QueryAsync("SELECT STRING_AGG(Val, ',' ORDER BY Val LIMIT 2) AS R FROM ECB_StrAggLim");
+		rows.Should().HaveCount(1);
+		rows[0]["R"].Should().Be("a,b");
+	}
 }

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.71] - 2026-07-10
+
+### Added
+- **ARRAY_AGG/STRING_AGG LIMIT support**: Aggregate functions `ARRAY_AGG` and `STRING_AGG` now support the `LIMIT` clause (e.g., `ARRAY_AGG(x ORDER BY y LIMIT 3)`).
+
+### Fixed
+- **ARRAY_AGG empty result**: `ARRAY_AGG` now correctly returns `NULL` instead of an empty array when the input set is empty, matching real Spanner behavior.
+
+## [1.0.70] - 2026-07-10
+
+### Fixed
+- **DIV() NUMERIC truncation**: `DIV(x, y)` with NUMERIC operands now correctly truncates toward zero instead of rounding.
+- **DATE(timestamp) timezone conversion**: `DATE(timestamp, timezone)` now correctly converts timestamps to the specified timezone before extracting the date.
+
 ## [1.0.69] - 2026-07-10
 
 ### Fixed

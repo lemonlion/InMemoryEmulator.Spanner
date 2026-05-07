@@ -384,6 +384,7 @@ public class ErrorConditionIntegrationTests : IntegrationTestBase
 	[InlineData("SELECT LEAD(Val) OVER (ORDER BY Id) AS L FROM ErrTest")]
 	[InlineData("SELECT FIRST_VALUE(Val) OVER (ORDER BY Id) AS FV FROM ErrTest")]
 	[InlineData("SELECT LAST_VALUE(Val) OVER (ORDER BY Id) AS LV FROM ErrTest")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task WindowFunction_Succeeds(string sql)
 	{
 		await EnsureErrorTableAsync();

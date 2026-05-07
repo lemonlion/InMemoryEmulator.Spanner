@@ -1339,4 +1339,69 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 		result.Should().BeOfType<byte[]>();
 		System.Text.Encoding.UTF8.GetString((byte[])result!).Should().Be("hello world");
 	}
+
+	// ════════════════════════════════════════════════════════════════
+	// REVERSE for BYTES
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#reverse
+	//   "Reverses a STRING or BYTES value."
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Reverse_Bytes_ReversesCorrectly()
+	{
+		var result = await Eval("REVERSE(b'hello')");
+		result.Should().BeOfType<byte[]>();
+		System.Text.Encoding.UTF8.GetString((byte[])result!).Should().Be("olleh");
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// REPLACE for BYTES
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#replace
+	//   "Replaces all occurrences of from_value with to_value in original_value.
+	//    If from_value is empty, returns original_value."
+	//   Works on both STRING and BYTES.
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task Replace_Bytes_ReplacesCorrectly()
+	{
+		var result = await Eval("REPLACE(b'hello world', b'world', b'there')");
+		result.Should().BeOfType<byte[]>();
+		System.Text.Encoding.UTF8.GetString((byte[])result!).Should().Be("hello there");
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// LAST_DAY function
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#last_day
+	//   "Returns the last day of the period that contains the date."
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task LastDay_Month_ReturnsLastDayOfMonth()
+	{
+		var result = await Eval("LAST_DAY(DATE '2025-02-10')");
+		result.Should().BeOfType<DateTime>();
+		((DateTime)result!).Should().Be(new DateTime(2025, 2, 28));
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task LastDay_LeapYear_ReturnsLastDayOfMonth()
+	{
+		var result = await Eval("LAST_DAY(DATE '2024-02-10')");
+		result.Should().BeOfType<DateTime>();
+		((DateTime)result!).Should().Be(new DateTime(2024, 2, 29));
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task LastDay_Year_ReturnsDecember31()
+	{
+		var result = await Eval("LAST_DAY(DATE '2025-06-15', YEAR)");
+		result.Should().BeOfType<DateTime>();
+		((DateTime)result!).Should().Be(new DateTime(2025, 12, 31));
+	}
 }

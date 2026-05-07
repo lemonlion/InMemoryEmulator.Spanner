@@ -363,7 +363,7 @@ internal class ExpressionEvaluator
 
 			// String functions
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions
-			"LENGTH" or "CHAR_LENGTH" or "CHARACTER_LENGTH" => EvalStringFunc1(func, row, s => (long)s.Length),
+			"LENGTH" or "CHAR_LENGTH" or "CHARACTER_LENGTH" => EvalLength(func, row),
 			"LOWER" or "LCASE" => EvalStringFunc1(func, row, s => s.ToLowerInvariant()),
 			"UPPER" or "UCASE" => EvalStringFunc1(func, row, s => s.ToUpperInvariant()),
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#trim
@@ -375,7 +375,7 @@ internal class ExpressionEvaluator
 			"ENDS_WITH" => EvalStringFunc2Bool(func, row, (s, suffix) => s.EndsWith(suffix, StringComparison.Ordinal)),
 			"SUBSTR" or "SUBSTRING" => EvalSubstr(func, row),
 			"REPLACE" => EvalReplace(func, row),
-			"REVERSE" => EvalStringFunc1(func, row, s => new string(s.Reverse().ToArray())),
+			"REVERSE" => EvalReverse(func, row),
 			"STRPOS" => EvalStrPos(func, row),
 			"SPLIT" => EvalSplit(func, row),
 			"LPAD" => EvalPad(func, row, padLeft: true),
@@ -475,6 +475,9 @@ internal class ExpressionEvaluator
 			"DATE_SUB" => EvalDateSub(func, row),
 			"DATE_DIFF" => EvalDateDiff(func, row),
 			"DATE_TRUNC" => EvalDateTrunc(func, row),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#last_day
+			//   LAST_DAY returns the last day of the period that contains the date.
+			"LAST_DAY" => EvalLastDay(func, row),
 			"FORMAT_TIMESTAMP" => EvalFormatTimestamp(func, row),
 			"PARSE_TIMESTAMP" => EvalParseTimestamp(func, row),
 			"FORMAT_DATE" => EvalFormatDate(func, row),
@@ -791,10 +794,33 @@ internal class ExpressionEvaluator
 	{
 		var val = Evaluate(func.Arguments[0], row);
 		if (val is null) return null;
-		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#length
-		//   LENGTH works on both STRING and BYTES. For BYTES, returns the number of bytes.
-		if (val is byte[] bytes) return (long)bytes.Length;
 		return fn((string)val);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#length
+	//   LENGTH works on both STRING and BYTES. For BYTES, returns the number of bytes.
+	private object? EvalLength(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var val = Evaluate(func.Arguments[0], row);
+		if (val is null) return null;
+		if (val is byte[] bytes) return (long)bytes.Length;
+		return (long)((string)val).Length;
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#reverse
+	//   REVERSE works on both STRING and BYTES.
+	private object? EvalReverse(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var val = Evaluate(func.Arguments[0], row);
+		if (val is null) return null;
+		if (val is byte[] bytes)
+		{
+			var result = new byte[bytes.Length];
+			for (int i = 0; i < bytes.Length; i++)
+				result[i] = bytes[bytes.Length - 1 - i];
+			return result;
+		}
+		return new string(((string)val).Reverse().ToArray());
 	}
 
 	private enum TrimMode { Both, Start, End }
@@ -974,10 +1000,38 @@ internal class ExpressionEvaluator
 		var to = Evaluate(func.Arguments[2], row);
 		if (s is null || from is null || to is null) return null;
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#replace
+		//   REPLACE works on both STRING and BYTES.
+		if (s is byte[] sBytes && from is byte[] fromBytes && to is byte[] toBytes)
+		{
+			if (fromBytes.Length == 0) return sBytes;
+			return ReplaceBytesSequence(sBytes, fromBytes, toBytes);
+		}
 		//   REPLACE with empty from_str returns the original string.
 		var fromStr = (string)from;
 		if (fromStr.Length == 0) return s;
 		return ((string)s).Replace(fromStr, (string)to);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#replace
+	//   Replaces all occurrences of a byte sequence within BYTES.
+	private static byte[] ReplaceBytesSequence(byte[] source, byte[] pattern, byte[] replacement)
+	{
+		var result = new List<byte>();
+		int i = 0;
+		while (i < source.Length)
+		{
+			if (i <= source.Length - pattern.Length && source.AsSpan(i, pattern.Length).SequenceEqual(pattern))
+			{
+				result.AddRange(replacement);
+				i += pattern.Length;
+			}
+			else
+			{
+				result.Add(source[i]);
+				i++;
+			}
+		}
+		return result.ToArray();
 	}
 
 	private object? EvalStrPos(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -2608,6 +2662,34 @@ internal class ExpressionEvaluator
 	private object? EvalDateTrunc(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		return EvalTimestampTrunc(func, row);
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#last_day
+	//   LAST_DAY(date_expression[, date_part])
+	//   Returns the last day of the period that contains the date.
+	//   Default date_part is MONTH. Supported: YEAR, QUARTER, MONTH, WEEK, ISOWEEK, ISOYEAR.
+	private object? EvalLastDay(FunctionCallExpr func, Dictionary<string, object?> row)
+	{
+		var val = Evaluate(func.Arguments[0], row);
+		if (val is null) return null;
+		var dt = val is DateTime d ? d : DateTime.Parse(Convert.ToString(val)!);
+
+		var part = "MONTH";
+		if (func.Arguments.Count > 1)
+		{
+			var partVal = Evaluate(func.Arguments[1], row);
+			part = Convert.ToString(partVal)!.ToUpperInvariant();
+		}
+
+		return part switch
+		{
+			"YEAR" => new DateTime(dt.Year, 12, 31),
+			"QUARTER" => new DateTime(dt.Year, ((dt.Month - 1) / 3 + 1) * 3, 1).AddMonths(1).AddDays(-1),
+			"MONTH" => new DateTime(dt.Year, dt.Month, DateTime.DaysInMonth(dt.Year, dt.Month)),
+			"WEEK" => dt.AddDays(6 - (int)dt.DayOfWeek),
+			"ISOWEEK" => dt.AddDays(7 - ((int)dt.DayOfWeek == 0 ? 7 : (int)dt.DayOfWeek)),
+			_ => throw new InvalidOperationException($"LAST_DAY does not support the {part} date part")
+		};
 	}
 
 	private object? EvalFormatTimestamp(FunctionCallExpr func, Dictionary<string, object?> row)

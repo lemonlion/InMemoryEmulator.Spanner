@@ -527,7 +527,7 @@ internal static class SqlParsers
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date_trunc
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_trunc
 	private static readonly HashSet<string> TruncFunctionNames = new(StringComparer.OrdinalIgnoreCase)
-		{ "DATE_TRUNC", "TIMESTAMP_TRUNC" };
+		{ "DATE_TRUNC", "TIMESTAMP_TRUNC", "LAST_DAY" };
 
 	private static TokenListParser<GoogleSqlToken, SqlExpression> TruncFunction { get; } =
 		from name in Token.EqualTo(GoogleSqlToken.Identifier)

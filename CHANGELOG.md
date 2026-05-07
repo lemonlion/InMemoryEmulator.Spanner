@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.65] - 2026-07-10
+
+### Fixed
+- **REVERSE(BYTES) silent wrong result**: `REVERSE` on BYTES values now correctly returns the reversed byte sequence instead of incorrectly returning the byte length.
+- **REPLACE(BYTES) crash**: `REPLACE` on BYTES values now correctly replaces byte subsequences instead of throwing an InvalidCastException.
+
+### Added
+- **LAST_DAY function**: Implements `LAST_DAY(date[, date_part])` which returns the last day of the period containing the date. Supports YEAR, QUARTER, MONTH, WEEK, and ISOWEEK date parts.
+
 ## [1.0.64] - 2026-07-10
 
 ### Fixed

@@ -206,7 +206,9 @@ internal enum JoinType
 	Cross
 }
 
-internal record OrderByColumn(SqlExpression Expr, SortOrder Order);
+internal enum NullsOrder { Default, First, Last }
+
+internal record OrderByColumn(SqlExpression Expr, SortOrder Order, NullsOrder Nulls = NullsOrder.Default);
 
 // ──────────────────────────────────────────────
 // SQL Expressions (shared by DML, SELECT, WHERE)
@@ -246,7 +248,9 @@ internal record BetweenExpr(SqlExpression Value, SqlExpression Low, SqlExpressio
 
 internal record IsNullExpr(SqlExpression Value, bool IsNegated) : SqlExpression;
 
-internal record StarExpr() : SqlExpression;
+internal record StarExpr(
+	List<string>? ExceptColumns = null,
+	List<(SqlExpression Expr, string Alias)>? ReplaceColumns = null) : SqlExpression;
 
 internal record CountStarExpr() : SqlExpression;
 

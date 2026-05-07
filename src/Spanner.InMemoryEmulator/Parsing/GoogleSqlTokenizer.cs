@@ -90,6 +90,8 @@ internal static class GoogleSqlTokenizer
 		["IGNORE"] = GoogleSqlToken.Ignore,
 		["RESPECT"] = GoogleSqlToken.Respect,
 		["NULLS"] = GoogleSqlToken.Nulls,
+		["FIRST"] = GoogleSqlToken.First,
+		["LAST"] = GoogleSqlToken.Last,
 		["CHECK"] = GoogleSqlToken.Check,
 		["CONSTRAINT"] = GoogleSqlToken.Constraint,
 		["FOREIGN"] = GoogleSqlToken.Foreign,

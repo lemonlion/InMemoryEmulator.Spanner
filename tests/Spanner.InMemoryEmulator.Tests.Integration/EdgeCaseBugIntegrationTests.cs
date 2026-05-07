@@ -671,4 +671,61 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 	[InlineData("CAST('0x0' AS INT64)", 0L)]
 	public async Task Cast_HexString_ToInt64(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
+
+	// ════════════════════════════════════════════════════════════════
+	// 15. ORDER BY ... NULLS FIRST / NULLS LAST
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#order_by_clause
+	//   "NULLS FIRST | NULLS LAST"
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task OrderBy_NullsLast_AscPutsNullsAtEnd()
+	{
+		var t = await FreshTable("nullord");
+		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 1L, ["Val"] = 10L });
+		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 2L });
+		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 3L, ["Val"] = 5L });
+		var rows = await QueryAsync($"SELECT Id FROM {t} ORDER BY Val ASC NULLS LAST");
+		rows.Select(r => (long)r["Id"]!).Should().Equal(3L, 1L, 2L);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task OrderBy_NullsFirst_DescPutsNullsAtStart()
+	{
+		var t = await FreshTable("nullord");
+		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 1L, ["Val"] = 10L });
+		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 2L });
+		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 3L, ["Val"] = 5L });
+		var rows = await QueryAsync($"SELECT Id FROM {t} ORDER BY Val DESC NULLS FIRST");
+		rows.Select(r => (long)r["Id"]!).Should().Equal(2L, 1L, 3L);
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// 16. SELECT * EXCEPT / SELECT * REPLACE
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#select_except_clause
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task SelectStar_Except_ExcludesColumns()
+	{
+		var t = await FreshTable("stex");
+		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Val"] = 42L });
+		var rows = await QueryAsync($"SELECT * EXCEPT (Val, Category) FROM {t}");
+		rows[0].Should().ContainKey("Id").And.ContainKey("Name");
+		rows[0].Should().NotContainKey("Val").And.NotContainKey("Category");
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task SelectStar_Replace_SubstitutesExpression()
+	{
+		var t = await FreshTable("strp");
+		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "Alice", ["Val"] = 10L });
+		var rows = await QueryAsync($"SELECT * REPLACE (Val * 2 AS Val) FROM {t}");
+		rows[0]["Val"].Should().Be(20L);
+		rows[0]["Name"].Should().Be("Alice");
+	}
 }

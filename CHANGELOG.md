@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.57] - 2026-07-10
+
+### Added
+- **ORDER BY NULLS FIRST/LAST**: Support for explicit null ordering in ORDER BY clauses (`ORDER BY col ASC NULLS LAST`, `ORDER BY col DESC NULLS FIRST`). Overrides Spanner's default behavior where NULLs are the minimum value.
+- **SELECT * EXCEPT**: Support for `SELECT * EXCEPT (col1, col2)` to exclude specific columns from a star expansion.
+- **SELECT * REPLACE**: Support for `SELECT * REPLACE (expr AS col)` to substitute expressions for specific columns in a star expansion.
+- 4 new integration tests: ORDER BY NULLS FIRST/LAST (2), SELECT * EXCEPT (1), SELECT * REPLACE (1).
+
 ## [1.0.56] - 2026-07-10
 
 ### Fixed

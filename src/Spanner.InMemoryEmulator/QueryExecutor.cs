@@ -522,17 +522,18 @@ internal class QueryExecutor
 
 		foreach (var col in select.Columns)
 		{
-			if (col.Expr is StarExpr)
+			if (col.Expr is StarExpr starExpr)
 			{
 				// SELECT * — expand to all columns from source table
 				// Ref: https://cloud.google.com/spanner/docs/full-text-search/search-indexes
 				//   HIDDEN columns are excluded from SELECT * expansion.
+				var starColumns = new List<(SqlExpression Expr, string Name)>();
 				if (sourceTable != null)
 				{
 					foreach (var tablCol in sourceTable.Columns)
 					{
 						if (tablCol.IsHidden) continue;
-						expandedColumns.Add((new ColumnRefExpr(null, tablCol.Name), tablCol.Name));
+						starColumns.Add((new ColumnRefExpr(null, tablCol.Name), tablCol.Name));
 					}
 				}
 				else if (rows.Count > 0)
@@ -543,9 +544,33 @@ internal class QueryExecutor
 					foreach (var key in rows[0].Keys)
 					{
 						if (key.Contains('.')) continue;
-						expandedColumns.Add((new ColumnRefExpr(null, key), key));
+						starColumns.Add((new ColumnRefExpr(null, key), key));
 					}
 				}
+
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#select_except_clause
+				//   Apply EXCEPT: remove specified columns
+				if (starExpr.ExceptColumns != null)
+				{
+					var exceptSet = new HashSet<string>(starExpr.ExceptColumns, StringComparer.OrdinalIgnoreCase);
+					starColumns.RemoveAll(c => exceptSet.Contains(c.Name));
+				}
+
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#select_replace_clause
+				//   Apply REPLACE: substitute expression for matching columns
+				if (starExpr.ReplaceColumns != null)
+				{
+					var replaceMap = new Dictionary<string, SqlExpression>(StringComparer.OrdinalIgnoreCase);
+					foreach (var (expr, name) in starExpr.ReplaceColumns)
+						replaceMap[name] = expr;
+					for (int i = 0; i < starColumns.Count; i++)
+					{
+						if (replaceMap.TryGetValue(starColumns[i].Name, out var replExpr))
+							starColumns[i] = (replExpr, starColumns[i].Name);
+					}
+				}
+
+				expandedColumns.AddRange(starColumns);
 			}
 			else if (col.Expr is ColumnRefExpr starRef && starRef.Column == "*" && starRef.TableAlias != null)
 			{
@@ -2128,22 +2153,48 @@ internal class QueryExecutor
 		{
 			var ob = orderBy[i];
 			var idx = i;
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#order_by_clause
+			//   "NULL values: NULLs are the minimum possible value."
+			//   NULLS FIRST/LAST overrides the default placement.
+			var isDesc = ob.Order != SortOrder.Asc;
+			var comparer = ob.Nulls == NullsOrder.Default
+				? (IComparer<object?>)ValueComparer.Instance
+				: new NullsOrderComparer(ob.Nulls == NullsOrder.First, isDesc);
 
 			if (idx == 0)
 			{
-				ordered = ob.Order == SortOrder.Asc
-					? rows.OrderBy(r => evaluator.Evaluate(ob.Expr, r), ValueComparer.Instance)
-					: rows.OrderByDescending(r => evaluator.Evaluate(ob.Expr, r), ValueComparer.Instance);
+				ordered = isDesc
+					? rows.OrderByDescending(r => evaluator.Evaluate(ob.Expr, r), comparer)
+					: rows.OrderBy(r => evaluator.Evaluate(ob.Expr, r), comparer);
 			}
 			else
 			{
-				ordered = ob.Order == SortOrder.Asc
-					? ordered!.ThenBy(r => evaluator.Evaluate(ob.Expr, r), ValueComparer.Instance)
-					: ordered!.ThenByDescending(r => evaluator.Evaluate(ob.Expr, r), ValueComparer.Instance);
+				ordered = isDesc
+					? ordered!.ThenByDescending(r => evaluator.Evaluate(ob.Expr, r), comparer)
+					: ordered!.ThenBy(r => evaluator.Evaluate(ob.Expr, r), comparer);
 			}
 		}
 
 		return ordered?.ToList() ?? rows;
+	}
+
+	/// <summary>Comparer that forces NULLs to first or last regardless of sort direction.</summary>
+	private sealed class NullsOrderComparer : IComparer<object?>
+	{
+		private readonly bool _nullsMinimal;
+		public NullsOrderComparer(bool nullsFirst, bool isDescending)
+		{
+			// OrderByDescending reverses comparisons, so we XOR to compensate.
+			_nullsMinimal = nullsFirst != isDescending;
+		}
+
+		public int Compare(object? x, object? y)
+		{
+			if (x is null && y is null) return 0;
+			if (x is null) return _nullsMinimal ? -1 : 1;
+			if (y is null) return _nullsMinimal ? 1 : -1;
+			return ExpressionEvaluator.CompareValues(x, y);
+		}
 	}
 
 	// ── Subquery / CTE / Set Operation helpers ──

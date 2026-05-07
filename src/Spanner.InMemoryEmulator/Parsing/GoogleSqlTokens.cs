@@ -312,6 +312,12 @@ internal enum GoogleSqlToken
 	[Token(Example = "NULLS")]
 	Nulls,
 
+	[Token(Example = "FIRST")]
+	First,
+
+	[Token(Example = "LAST")]
+	Last,
+
 	[Token(Example = "OPTIONS")]
 	Options,
 

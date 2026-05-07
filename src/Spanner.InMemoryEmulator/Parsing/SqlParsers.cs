@@ -183,6 +183,8 @@ internal static class SqlParsers
 		.Or(Token.EqualTo(GoogleSqlToken.Tokenlist).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.Range).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.Nulls).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.First).Select(t => t.ToStringValue()))
+		.Or(Token.EqualTo(GoogleSqlToken.Last).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.Respect).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.Excluded).Select(t => t.ToStringValue()))
 		.Or(Token.EqualTo(GoogleSqlToken.Conflict).Select(t => t.ToStringValue()))
@@ -887,8 +889,34 @@ internal static class SqlParsers
 	// SELECT statement
 	// ──────────────────────────────────────────
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#select_except_clause
+	//   "SELECT * EXCEPT (column1, column2)"
+	//   "SELECT * REPLACE (expr AS column1)"
+	private static TokenListParser<GoogleSqlToken, StarExpr> StarWithModifiers { get; } =
+		from _ in Token.EqualTo(GoogleSqlToken.Star)
+		from except in (
+			from __ in Token.EqualTo(GoogleSqlToken.Except)
+			from _o in Token.EqualTo(GoogleSqlToken.OpenParen)
+			from cols in AnyIdentifier.ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
+			from _c in Token.EqualTo(GoogleSqlToken.CloseParen)
+			select cols.ToList()
+		).OptionalOrDefault((List<string>?)null)
+		from replace in (
+			from __ in Token.EqualTo(GoogleSqlToken.Replace)
+			from _o in Token.EqualTo(GoogleSqlToken.OpenParen)
+			from items in (
+				from ex in Expression
+				from _as in Token.EqualTo(GoogleSqlToken.As)
+				from name in AnyIdentifier
+				select (ex, name)
+			).ManyDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
+			from _c in Token.EqualTo(GoogleSqlToken.CloseParen)
+			select items.ToList()
+		).OptionalOrDefault((List<(SqlExpression, string)>?)null)
+		select new StarExpr(except, replace);
+
 	private static TokenListParser<GoogleSqlToken, SelectColumn> SelectColumnItem { get; } =
-		from expr in Token.EqualTo(GoogleSqlToken.Star).Value((SqlExpression)new StarExpr()).Or(Expression)
+		from expr in StarWithModifiers.Select(s => (SqlExpression)s).Try().Or(Expression)
 		from alias in (
 			from _ in Token.EqualTo(GoogleSqlToken.As)
 			from name in AnyIdentifier
@@ -905,7 +933,15 @@ internal static class SqlParsers
 		from order in Token.EqualTo(GoogleSqlToken.Asc).Value(SortOrder.Asc)
 			.Or(Token.EqualTo(GoogleSqlToken.Desc).Value(SortOrder.Desc))
 			.OptionalOrDefault(SortOrder.Asc)
-		select new OrderByColumn(expr, order);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#order_by_clause
+		//   "NULLS FIRST | NULLS LAST"
+		from nulls in (
+			from _ in Token.EqualTo(GoogleSqlToken.Nulls)
+			from nf in Token.EqualTo(GoogleSqlToken.First).Value(NullsOrder.First)
+				.Or(Token.EqualTo(GoogleSqlToken.Last).Value(NullsOrder.Last))
+			select nf
+		).OptionalOrDefault(NullsOrder.Default)
+		select new OrderByColumn(expr, order, nulls);
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#limit_and_offset_clause
 	//   "LIMIT and OFFSET accept integer literal or parameter values."

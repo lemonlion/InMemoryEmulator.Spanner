@@ -829,6 +829,17 @@ internal class ExpressionEvaluator
 		var a = Evaluate(func.Arguments[0], row);
 		var b = Evaluate(func.Arguments[1], row);
 		if (a is null || b is null) return null;
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#starts_with
+		//   "Takes two STRING or BYTES values."
+		if (a is byte[] ba && b is byte[] bb)
+		{
+			var funcName = func.Name.ToUpperInvariant();
+			if (funcName == "STARTS_WITH")
+				return ba.Length >= bb.Length && ba.AsSpan(0, bb.Length).SequenceEqual(bb);
+			if (funcName == "ENDS_WITH")
+				return ba.Length >= bb.Length && ba.AsSpan(ba.Length - bb.Length).SequenceEqual(bb);
+			return fn(Convert.ToBase64String(ba), Convert.ToBase64String(bb));
+		}
 		return fn((string)a, (string)b);
 	}
 
@@ -2319,8 +2330,8 @@ internal class ExpressionEvaluator
 		var part = Convert.ToString(Evaluate(func.Arguments[2], row))?.ToUpperInvariant();
 		if (ts == null) return null;
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_add
-		//   TIMESTAMP_ADD only supports MICROSECOND through DAY; MONTH/YEAR are not allowed.
-		if (part is "MONTH" or "YEAR")
+		//   TIMESTAMP_ADD only supports: NANOSECOND, MICROSECOND, MILLISECOND, SECOND, MINUTE, HOUR, DAY
+		if (part is "MONTH" or "YEAR" or "WEEK" or "QUARTER")
 			throw new InvalidOperationException($"TIMESTAMP_ADD does not support the {part} date part");
 		var dt = ts is DateTime d ? d : DateTime.Parse(Convert.ToString(ts)!);
 		return AddToPart(dt, part!, amount);
@@ -2332,7 +2343,8 @@ internal class ExpressionEvaluator
 		var amount = Convert.ToInt64(Evaluate(func.Arguments[1], row));
 		var part = Convert.ToString(Evaluate(func.Arguments[2], row))?.ToUpperInvariant();
 		if (ts == null) return null;
-		if (part is "MONTH" or "YEAR")
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_sub
+		if (part is "MONTH" or "YEAR" or "WEEK" or "QUARTER")
 			throw new InvalidOperationException($"TIMESTAMP_SUB does not support the {part} date part");
 		var dt = ts is DateTime d ? d : DateTime.Parse(Convert.ToString(ts)!);
 		return AddToPart(dt, part!, -amount);
@@ -2454,7 +2466,10 @@ internal class ExpressionEvaluator
 		var v = Evaluate(func.Arguments[0], row);
 		var amountVal = Evaluate(func.Arguments[1], row);
 		var part = Convert.ToString(Evaluate(func.Arguments[2], row))?.ToUpperInvariant();
-		// Ref: Standard SQL NULL propagation — NULL amount → NULL result
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date_add
+		//   DATE_ADD only supports: DAY, WEEK, MONTH, QUARTER, YEAR
+		if (part is "NANOSECOND" or "MICROSECOND" or "MILLISECOND" or "SECOND" or "MINUTE" or "HOUR")
+			throw new InvalidOperationException($"DATE_ADD does not support the {part} date part");
 		if (v == null || amountVal == null) return null;
 		var amount = Convert.ToInt32(amountVal);
 		var dt = v is DateTime d ? d : DateTime.Parse(Convert.ToString(v)!);
@@ -2466,7 +2481,10 @@ internal class ExpressionEvaluator
 		var v = Evaluate(func.Arguments[0], row);
 		var amountVal = Evaluate(func.Arguments[1], row);
 		var part = Convert.ToString(Evaluate(func.Arguments[2], row))?.ToUpperInvariant();
-		// Ref: Standard SQL NULL propagation — NULL amount → NULL result
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date_sub
+		//   DATE_SUB only supports: DAY, WEEK, MONTH, QUARTER, YEAR
+		if (part is "NANOSECOND" or "MICROSECOND" or "MILLISECOND" or "SECOND" or "MINUTE" or "HOUR")
+			throw new InvalidOperationException($"DATE_SUB does not support the {part} date part");
 		if (v == null || amountVal == null) return null;
 		var amount = Convert.ToInt32(amountVal);
 		var dt = v is DateTime d ? d : DateTime.Parse(Convert.ToString(v)!);
@@ -2525,7 +2543,17 @@ internal class ExpressionEvaluator
 		var ts = Evaluate(func.Arguments[1], row);
 		if (ts == null) return null;
 		var dt = ts is DateTime d ? d : DateTime.Parse(Convert.ToString(ts)!);
-		// Simplified: use .NET format (Spanner uses strftime-like)
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#format_timestamp
+		//   FORMAT_TIMESTAMP(format_string, timestamp[, time_zone])
+		if (func.Arguments.Count > 2)
+		{
+			var tzStr = Convert.ToString(Evaluate(func.Arguments[2], row));
+			if (!string.IsNullOrEmpty(tzStr))
+			{
+				var tz = TimeZoneInfo.FindSystemTimeZoneById(tzStr);
+				dt = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(dt, DateTimeKind.Utc), tz);
+			}
+		}
 		return dt.ToString(ConvertSpannerDateFormat(fmt ?? ""), System.Globalization.CultureInfo.InvariantCulture);
 	}
 
@@ -2877,6 +2905,8 @@ internal class ExpressionEvaluator
 		var elem = NavigateJsonPath(json, path!);
 		if (elem is JsonElement je)
 		{
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_value
+			//   "Extracts a JSON scalar value" — non-scalar (Object/Array) returns NULL.
 			return je.ValueKind switch
 			{
 				JsonValueKind.String => je.GetString(),
@@ -2884,7 +2914,7 @@ internal class ExpressionEvaluator
 				JsonValueKind.True => "true",
 				JsonValueKind.False => "false",
 				JsonValueKind.Null => null,
-				_ => je.GetRawText()
+				_ => null // Objects and Arrays are not scalar → NULL
 			};
 		}
 		return elem?.ToString();

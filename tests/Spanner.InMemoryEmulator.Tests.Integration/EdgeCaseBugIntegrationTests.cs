@@ -998,4 +998,141 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 		var result = await Eval(@"REGEXP_REPLACE('hello world', '(\w+) (\w+)', '\\2 \\1')");
 		result.Should().Be("world hello");
 	}
+
+	// ════════════════════════════════════════════════════════════════
+	// TIMESTAMP_ADD / TIMESTAMP_SUB reject WEEK and QUARTER
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_add
+	//   "Supported date parts: NANOSECOND, MICROSECOND, MILLISECOND, SECOND, MINUTE, HOUR, DAY"
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task TimestampAdd_Week_ThrowsError()
+	{
+		var act = async () => await QueryAsync("SELECT TIMESTAMP_ADD(TIMESTAMP '2024-01-01T00:00:00Z', INTERVAL 1 WEEK) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task TimestampAdd_Quarter_ThrowsError()
+	{
+		var act = async () => await QueryAsync("SELECT TIMESTAMP_ADD(TIMESTAMP '2024-01-01T00:00:00Z', INTERVAL 1 QUARTER) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task TimestampSub_Week_ThrowsError()
+	{
+		var act = async () => await QueryAsync("SELECT TIMESTAMP_SUB(TIMESTAMP '2024-01-01T00:00:00Z', INTERVAL 1 WEEK) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// DATE_ADD / DATE_SUB reject sub-day parts
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#date_add
+	//   "Supported date parts: DAY, WEEK, MONTH, QUARTER, YEAR"
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task DateAdd_Hour_ThrowsError()
+	{
+		var act = async () => await QueryAsync("SELECT DATE_ADD(DATE '2024-01-01', INTERVAL 1 HOUR) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task DateAdd_Second_ThrowsError()
+	{
+		var act = async () => await QueryAsync("SELECT DATE_ADD(DATE '2024-01-01', INTERVAL 1 SECOND) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task DateSub_Microsecond_ThrowsError()
+	{
+		var act = async () => await QueryAsync("SELECT DATE_SUB(DATE '2024-01-01', INTERVAL 1 MICROSECOND) AS R");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// JSON_VALUE returns NULL for non-scalar (objects and arrays)
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_value
+	//   "Extracts a JSON scalar value and converts it to a SQL STRING value.
+	//    If json_string_expr is ... not a scalar value, then NULL is returned."
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task JsonValue_Object_ReturnsNull()
+	{
+		var result = await Eval(@"JSON_VALUE('{""a"": {""b"": 1}}', '$.a')");
+		result.Should().BeNull();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task JsonValue_Array_ReturnsNull()
+	{
+		var result = await Eval(@"JSON_VALUE('{""a"": [1,2,3]}', '$.a')");
+		result.Should().BeNull();
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// FORMAT_TIMESTAMP with timezone parameter
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#format_timestamp
+	//   "FORMAT_TIMESTAMP(format_string, timestamp[, time_zone])"
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task FormatTimestamp_WithTimezone_ConvertsCorrectly()
+	{
+		// UTC midnight should be 7pm previous day in America/Los_Angeles (UTC-7 in summer, UTC-8 in winter)
+		// January = UTC-8, so 2024-01-15 00:00:00 UTC = 2024-01-14 16:00:00 PST
+		var result = await Eval(@"FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', TIMESTAMP '2024-01-15T00:00:00Z', 'America/Los_Angeles')");
+		result.Should().Be("2024-01-14 16:00:00");
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task FormatTimestamp_WithUtcTimezone_FormatsInUtc()
+	{
+		var result = await Eval(@"FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', TIMESTAMP '2024-01-15T12:30:00Z', 'UTC')");
+		result.Should().Be("2024-01-15 12:30:00");
+	}
+
+	// ════════════════════════════════════════════════════════════════
+	// STARTS_WITH / ENDS_WITH with BYTES type
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#starts_with
+	//   "Takes two STRING or BYTES values."
+	// ════════════════════════════════════════════════════════════════
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task StartsWith_Bytes_WorksCorrectly()
+	{
+		var result = await Eval(@"STARTS_WITH(b'\x01\x02\x03', b'\x01\x02')");
+		result.Should().Be(true);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task StartsWith_Bytes_ReturnsFalse()
+	{
+		var result = await Eval(@"STARTS_WITH(b'\x01\x02\x03', b'\x02\x03')");
+		result.Should().Be(false);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task EndsWith_Bytes_WorksCorrectly()
+	{
+		var result = await Eval(@"ENDS_WITH(b'\x01\x02\x03', b'\x02\x03')");
+		result.Should().Be(true);
+	}
 }

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.61] - 2026-07-10
+
+### Fixed
+- **TIMESTAMP_ADD/TIMESTAMP_SUB reject WEEK and QUARTER**: These date parts are now correctly rejected with an error. Per docs, only NANOSECOND through DAY are supported for timestamp arithmetic.
+- **DATE_ADD/DATE_SUB reject sub-day parts**: NANOSECOND, MICROSECOND, MILLISECOND, SECOND, MINUTE, HOUR are now correctly rejected. Per docs, only DAY, WEEK, MONTH, QUARTER, YEAR are supported for date arithmetic.
+- **JSON_VALUE returns NULL for non-scalar**: `JSON_VALUE` now correctly returns NULL when the path resolves to a JSON object or array, instead of returning the raw JSON text. Per docs: "Extracts a JSON scalar value."
+- **FORMAT_TIMESTAMP timezone parameter**: The optional third timezone parameter is now respected. `FORMAT_TIMESTAMP('%H:%M', ts, 'America/Los_Angeles')` correctly converts to the target timezone before formatting.
+- **STARTS_WITH/ENDS_WITH BYTES support**: These functions now correctly handle `BYTES` type inputs with byte-level prefix/suffix comparison, instead of throwing an InvalidCastException.
+
+### Added
+- 12 new integration tests: TIMESTAMP_ADD/SUB part validation (3), DATE_ADD/SUB part validation (3), JSON_VALUE non-scalar (2), FORMAT_TIMESTAMP timezone (2), STARTS_WITH/ENDS_WITH BYTES (3).
+
 ## [1.0.60] - 2026-07-10
 
 ### Fixed

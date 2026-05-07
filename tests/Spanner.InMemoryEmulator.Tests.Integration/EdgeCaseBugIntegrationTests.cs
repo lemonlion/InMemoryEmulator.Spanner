@@ -1710,4 +1710,153 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 		rows.Should().HaveCount(1);
 		rows[0]["R"].Should().Be("a,b");
 	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task ArrayAgg_WithOrderByNullsFirst_NullsComesFirst()
+	{
+		await ExecuteDdlAsync("CREATE TABLE ECB_AggNulls (Id INT64 NOT NULL, Val STRING(10)) PRIMARY KEY (Id)");
+		await InsertAsync("ECB_AggNulls",
+			new Dictionary<string, object?> { ["Id"] = 1L, ["Val"] = "b" },
+			new Dictionary<string, object?> { ["Id"] = 2L, ["Val"] = null },
+			new Dictionary<string, object?> { ["Id"] = 3L, ["Val"] = "a" });
+
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
+		//   "NULLS FIRST | NULLS LAST control sorting of NULL values within the ORDER BY clause."
+		var rows = await QueryAsync("SELECT ARRAY_AGG(Val ORDER BY Val ASC NULLS FIRST) AS R FROM ECB_AggNulls");
+		rows.Should().HaveCount(1);
+		var arr = rows[0]["R"] as System.Collections.IList;
+		arr.Should().NotBeNull();
+		arr![0].Should().BeNull();
+		arr[1].Should().Be("a");
+		arr[2].Should().Be("b");
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task StringAgg_WithOrderByNullsLast_NullsExcluded()
+	{
+		// STRING_AGG ignores NULLs by default, but NULLS LAST should still parse
+		await ExecuteDdlAsync("CREATE TABLE ECB_StrNulls (Id INT64 NOT NULL, Val STRING(10)) PRIMARY KEY (Id)");
+		await InsertAsync("ECB_StrNulls",
+			new Dictionary<string, object?> { ["Id"] = 1L, ["Val"] = "b" },
+			new Dictionary<string, object?> { ["Id"] = 2L, ["Val"] = null },
+			new Dictionary<string, object?> { ["Id"] = 3L, ["Val"] = "a" });
+
+		var rows = await QueryAsync("SELECT STRING_AGG(Val, ',' ORDER BY Val ASC NULLS LAST) AS R FROM ECB_StrNulls");
+		rows.Should().HaveCount(1);
+		// STRING_AGG ignores NULL values, so result is just "a,b"
+		rows[0]["R"].Should().Be("a,b");
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task TimestampDiff_WithMonth_ReturnsError()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_diff
+		//   Only NANOSECOND, MICROSECOND, MILLISECOND, SECOND, MINUTE, HOUR, DAY are valid parts.
+		await ExecuteDdlAsync("CREATE TABLE ECB_TsDiffM (Id INT64 NOT NULL, Ts TIMESTAMP) PRIMARY KEY (Id)");
+		await InsertAsync("ECB_TsDiffM",
+			new Dictionary<string, object?> { ["Id"] = 1L, ["Ts"] = DateTime.UtcNow });
+
+		var act = () => QueryAsync("SELECT TIMESTAMP_DIFF(Ts, TIMESTAMP '2020-01-01T00:00:00Z', MONTH) FROM ECB_TsDiffM");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task TimestampDiff_WithYear_ReturnsError()
+	{
+		await ExecuteDdlAsync("CREATE TABLE ECB_TsDiffY (Id INT64 NOT NULL, Ts TIMESTAMP) PRIMARY KEY (Id)");
+		await InsertAsync("ECB_TsDiffY",
+			new Dictionary<string, object?> { ["Id"] = 1L, ["Ts"] = DateTime.UtcNow });
+
+		var act = () => QueryAsync("SELECT TIMESTAMP_DIFF(Ts, TIMESTAMP '2020-01-01T00:00:00Z', YEAR) FROM ECB_TsDiffY");
+		await act.Should().ThrowAsync<SpannerException>();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task ArrayAgg_IgnoreNulls_AllNullValues_ReturnsNull()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
+		//   "If there are zero input rows, this function returns NULL."
+		//   When IGNORE NULLS filters all rows, result should be NULL.
+		await ExecuteDdlAsync("CREATE TABLE ECB_AggAllNull (Id INT64 NOT NULL, Val STRING(10)) PRIMARY KEY (Id)");
+		await InsertAsync("ECB_AggAllNull",
+			new Dictionary<string, object?> { ["Id"] = 1L, ["Val"] = null },
+			new Dictionary<string, object?> { ["Id"] = 2L, ["Val"] = null },
+			new Dictionary<string, object?> { ["Id"] = 3L, ["Val"] = null });
+
+		var rows = await QueryAsync("SELECT ARRAY_AGG(Val IGNORE NULLS) AS R FROM ECB_AggAllNull");
+		rows.Should().HaveCount(1);
+		rows[0]["R"].Should().BeNull();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task ArrayAgg_RespectNulls_IncludesNullsInResult()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
+		//   "RESPECT NULLS ... include NULLs in the output array."
+		await ExecuteDdlAsync("CREATE TABLE ECB_AggRespNull (Id INT64 NOT NULL, Val STRING(10)) PRIMARY KEY (Id)");
+		await InsertAsync("ECB_AggRespNull",
+			new Dictionary<string, object?> { ["Id"] = 1L, ["Val"] = "a" },
+			new Dictionary<string, object?> { ["Id"] = 2L, ["Val"] = null },
+			new Dictionary<string, object?> { ["Id"] = 3L, ["Val"] = "b" });
+
+		var rows = await QueryAsync("SELECT ARRAY_AGG(Val RESPECT NULLS ORDER BY Val ASC NULLS LAST) AS R FROM ECB_AggRespNull");
+		rows.Should().HaveCount(1);
+		var arr = rows[0]["R"] as System.Collections.IList;
+		arr.Should().NotBeNull();
+		arr!.Count.Should().Be(3);
+		arr[0].Should().Be("a");
+		arr[1].Should().Be("b");
+		arr[2].Should().BeNull();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task ArrayConcatAgg_WithOrderBy_SortsBeforeConcatenation()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_concat_agg
+		//   "ORDER BY key [...] - Sorts input arrays before concatenation."
+		await ExecuteDdlAsync("CREATE TABLE ECB_ArrConcOrd (Id INT64 NOT NULL, Arr ARRAY<STRING(10)>, Ord INT64) PRIMARY KEY (Id)");
+		await InsertAsync("ECB_ArrConcOrd",
+			new Dictionary<string, object?> { ["Id"] = 1L, ["Arr"] = new[] { "c", "d" }, ["Ord"] = 2L },
+			new Dictionary<string, object?> { ["Id"] = 2L, ["Arr"] = new[] { "a", "b" }, ["Ord"] = 1L });
+
+		var rows = await QueryAsync("SELECT ARRAY_CONCAT_AGG(Arr ORDER BY Ord) AS R FROM ECB_ArrConcOrd");
+		rows.Should().HaveCount(1);
+		var result = rows[0]["R"] as System.Collections.IList;
+		result.Should().NotBeNull();
+		result!.Count.Should().Be(4);
+		result[0].Should().Be("a");
+		result[1].Should().Be("b");
+		result[2].Should().Be("c");
+		result[3].Should().Be("d");
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	public async Task ArrayConcatAgg_WithLimit_LimitsArraysBeforeConcatenation()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_concat_agg
+		//   "LIMIT n - Limits the number of input arrays used."
+		await ExecuteDdlAsync("CREATE TABLE ECB_ArrConcLim (Id INT64 NOT NULL, Arr ARRAY<STRING(10)>, Ord INT64) PRIMARY KEY (Id)");
+		await InsertAsync("ECB_ArrConcLim",
+			new Dictionary<string, object?> { ["Id"] = 1L, ["Arr"] = new[] { "a", "b" }, ["Ord"] = 1L },
+			new Dictionary<string, object?> { ["Id"] = 2L, ["Arr"] = new[] { "c", "d" }, ["Ord"] = 2L },
+			new Dictionary<string, object?> { ["Id"] = 3L, ["Arr"] = new[] { "e", "f" }, ["Ord"] = 3L });
+
+		var rows = await QueryAsync("SELECT ARRAY_CONCAT_AGG(Arr ORDER BY Ord LIMIT 2) AS R FROM ECB_ArrConcLim");
+		rows.Should().HaveCount(1);
+		var result = rows[0]["R"] as System.Collections.IList;
+		result.Should().NotBeNull();
+		result!.Count.Should().Be(4);
+		result[0].Should().Be("a");
+		result[1].Should().Be("b");
+		result[2].Should().Be("c");
+		result[3].Should().Be("d");
+	}
 }

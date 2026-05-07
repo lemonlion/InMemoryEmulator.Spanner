@@ -308,7 +308,15 @@ internal static class SqlParsers
 					from order in Token.EqualTo(GoogleSqlToken.Asc).Value(SortOrder.Asc)
 						.Or(Token.EqualTo(GoogleSqlToken.Desc).Value(SortOrder.Desc))
 						.OptionalOrDefault(SortOrder.Asc)
-					select new OrderByColumn(expr, order)
+					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
+					//   "NULLS FIRST | NULLS LAST control sorting of NULL values within the ORDER BY clause."
+					from nulls in (
+						from _ in Token.EqualTo(GoogleSqlToken.Nulls)
+						from nf in Token.EqualTo(GoogleSqlToken.First).Value(NullsOrder.First)
+							.Or(Token.EqualTo(GoogleSqlToken.Last).Value(NullsOrder.Last))
+						select nf
+					).OptionalOrDefault(NullsOrder.Default)
+					select new OrderByColumn(expr, order, nulls)
 				).AtLeastOnceDelimitedBy(Token.EqualTo(GoogleSqlToken.Comma))
 				select items.ToList()
 			 ).AsNullable().OptionalOrDefault()

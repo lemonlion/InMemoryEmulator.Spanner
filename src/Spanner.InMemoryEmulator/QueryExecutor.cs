@@ -1995,7 +1995,7 @@ internal class QueryExecutor
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#var_samp
 				"VAR_SAMP" or "VARIANCE" => VarSamp(values),
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_concat_agg
-				"ARRAY_CONCAT_AGG" => ArrayConcatAgg(values),
+				"ARRAY_CONCAT_AGG" => ArrayConcatAgg(func, effectiveRows, evaluator, values),
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/approximate_aggregate_functions#approx_count_distinct
 				// Returns the approximate count of distinct values. In-memory emulator returns exact count.
 				"APPROX_COUNT_DISTINCT" => (long)values.Distinct(new ObjectValueComparer()).Count(),
@@ -2051,11 +2051,31 @@ internal class QueryExecutor
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_concat_agg
 	//   "Concatenates elements from arrays into a single array."
-	private static object? ArrayConcatAgg(List<object?> values)
+	//   Supports ORDER BY (sorts input arrays before concatenation) and LIMIT (limits number of input arrays).
+	private static object? ArrayConcatAgg(FunctionCallExpr func, List<Dictionary<string, object?>> rows,
+		ExpressionEvaluator evaluator, List<object?> values)
 	{
 		if (values.Count == 0) return null;
+
+		// If ORDER BY specified, re-evaluate values in sorted row order
+		IEnumerable<object?> orderedValues;
+		if (func.AggregateOrderBy != null && func.AggregateOrderBy.Count > 0)
+		{
+			var sortedRows = OrderRows(func.AggregateOrderBy, rows, evaluator);
+			orderedValues = sortedRows.Select(r => evaluator.Evaluate(func.Arguments[0], r))
+				.Where(v => v != null);
+		}
+		else
+		{
+			orderedValues = values;
+		}
+
+		// Apply LIMIT to limit number of input arrays
+		if (func.AggregateLimit.HasValue)
+			orderedValues = orderedValues.Take(func.AggregateLimit.Value);
+
 		var result = new List<object?>();
-		foreach (var val in values)
+		foreach (var val in orderedValues)
 		{
 			if (val is System.Collections.IList list)
 				foreach (var item in list) result.Add(item);

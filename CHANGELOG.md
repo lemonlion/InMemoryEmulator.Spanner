@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.72] - 2026-07-10
+
+### Added
+- **Aggregate ORDER BY NULLS FIRST/LAST**: `ARRAY_AGG` and `STRING_AGG` now support `NULLS FIRST`/`NULLS LAST` in their `ORDER BY` clause (e.g., `ARRAY_AGG(x ORDER BY y NULLS FIRST)`).
+- **ARRAY_CONCAT_AGG ORDER BY and LIMIT**: `ARRAY_CONCAT_AGG` now properly respects `ORDER BY` and `LIMIT` clauses, sorting input arrays and limiting inputs before concatenation.
+
+### Fixed
+- **TIMESTAMP_DIFF MONTH/YEAR**: Added regression tests confirming that `TIMESTAMP_DIFF` correctly rejects unsupported date parts (`MONTH`, `YEAR`) with an error.
+
 ## [1.0.71] - 2026-07-10
 
 ### Added

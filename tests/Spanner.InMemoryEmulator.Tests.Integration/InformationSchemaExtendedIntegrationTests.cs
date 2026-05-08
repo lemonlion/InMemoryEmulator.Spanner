@@ -902,8 +902,11 @@ public class InformationSchemaExtendedIntegrationTests : IntegrationTestBase
 		rows[1]["COLUMN_NAME"]!.ToString().Should().Be("B");
 	}
 
+	// Go emulator bug: DROP TABLE followed by CREATE TABLE with same name but different
+	//   schema returns 0 rows from INFORMATION_SCHEMA. DDL processing gap in Go emulator.
 	[Fact]
 	[Trait(TestTraits.Category, "InformationSchemaExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Tables_DropAndRecreate_ShowsNewSchema()
 	{
 		var table = $"IST_{Guid.NewGuid():N}".Substring(0, 30);

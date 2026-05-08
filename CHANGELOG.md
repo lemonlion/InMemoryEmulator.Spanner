@@ -15,6 +15,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **JSON_QUERY_ARRAY return type**: When input is JSON type, `JSON_QUERY_ARRAY` now returns `ARRAY<JSON>` (JsonElement values) instead of `ARRAY<STRING>`, matching Cloud Spanner's documented return type behavior.
 
 ### Changed
+- **Window function docstring**: Corrected misleading documentation in WindowFunctionIntegrationTests.cs — Cloud Spanner fully supports window/analytic functions (ROW_NUMBER, RANK, DENSE_RANK, etc.).
+
+## [1.0.81] - 2026-07-07
+
+### Fixed
+- **TO_JSON_STRING parity**: `TO_JSON_STRING` now correctly rejects non-JSON type arguments (INT64, STRING, BOOL, etc.) matching Cloud Spanner behavior. Use `TO_JSON_STRING(TO_JSON(value))` to convert SQL values to JSON strings.
+- **JSON typed literals**: `JSON 'value'` literals now correctly produce JSON type values (via PARSE_JSON) instead of raw strings, ensuring proper type propagation through functions like `TO_JSON_STRING`.
+- **JSON_QUERY_ARRAY return type**: When input is JSON type, `JSON_QUERY_ARRAY` now returns `ARRAY<JSON>` (JsonElement values) instead of `ARRAY<STRING>`, matching Cloud Spanner's documented return type behavior.
+
+### Changed
+- **Window function docstring**: Corrected misleading documentation in WindowFunctionIntegrationTests.cs — Cloud Spanner fully supports window/analytic functions (ROW_NUMBER, RANK, DENSE_RANK, etc.).
+
+## [1.0.81] - 2026-07-07
+
+### Fixed
+- **TO_JSON_STRING parity**: `TO_JSON_STRING` now correctly rejects non-JSON type arguments (INT64, STRING, BOOL, etc.) matching Cloud Spanner behavior. Use `TO_JSON_STRING(TO_JSON(value))` to convert SQL values to JSON strings.
+- **JSON typed literals**: `JSON 'value'` literals now correctly produce JSON type values (via PARSE_JSON) instead of raw strings, ensuring proper type propagation through functions like `TO_JSON_STRING`.
+- **JSON_QUERY_ARRAY return type**: When input is JSON type, `JSON_QUERY_ARRAY` now returns `ARRAY<JSON>` (JsonElement values) instead of `ARRAY<STRING>`, matching Cloud Spanner's documented return type behavior.
+
+### Changed
 - **Window function docstring**: Corrected misleading documentation in WindowFunctionIntegrationTests.cs.
 
 ## [1.0.73] - 2026-07-10

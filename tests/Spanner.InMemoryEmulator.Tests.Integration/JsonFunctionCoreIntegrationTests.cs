@@ -323,11 +323,13 @@ public class JsonFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "JsonFunction")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ToJsonString_Null()
 	{
 		var result = await Eval("TO_JSON_STRING(NULL)");
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json_string
 		//   SQL NULL input → SQL NULL output
+		// Go emulator bug: throws instead of returning SQL NULL for untyped NULL input.
 		result.Should().BeNull();
 	}
 

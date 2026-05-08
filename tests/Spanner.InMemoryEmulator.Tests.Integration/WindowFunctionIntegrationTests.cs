@@ -10,6 +10,10 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 /// These functions (ROW_NUMBER, RANK, DENSE_RANK, NTILE, PERCENT_RANK, CUME_DIST)
 /// are standard SQL analytic functions supported by Cloud Spanner and this emulator.
 /// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions
+/// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/navigation_functions
+/// The Go emulator does NOT support window functionsumbering_functions
+/// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/navigation_functions
+/// The Go emulator does NOT support window functionsumbering_functions
 /// The Go emulator does NOT support window functions.
 /// </summary>
 [Collection(IntegrationCollection.Name)]

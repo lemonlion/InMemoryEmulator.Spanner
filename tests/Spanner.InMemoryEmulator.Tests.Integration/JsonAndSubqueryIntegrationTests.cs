@@ -27,7 +27,10 @@ public class JsonAndSubqueryIntegrationTests : IntegrationTestBase
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json_string
 	//   TO_JSON_STRING(json_expr) only accepts JSON type input.
 	//   SQL NULL input returns SQL NULL.
+	// Go emulator bug: CAST(NULL AS JSON) is treated as JSON null instead of SQL NULL,
+	//   so TO_JSON_STRING returns "null" string instead of SQL NULL.
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ToJsonString_JsonNull_ReturnsNull() =>
 		(await Eval("TO_JSON_STRING(CAST(NULL AS JSON))")).Should().BeNull();
 

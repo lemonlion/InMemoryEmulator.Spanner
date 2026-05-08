@@ -271,7 +271,11 @@ public class ErrorConditionIntegrationTests : IntegrationTestBase
 	// DDL errors
 	// ═══════════════════════════════════════════════════════════════
 
+	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.admin.database.v1#updatedatabaseddlrequest
+	//   Duplicate CREATE TABLE should fail. Go emulator has DDL deduplication that
+	//   silently accepts identical DDL statements as no-ops.
 	[Fact]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task CreateTable_DuplicateName_Throws()
 	{
 		try

@@ -92,11 +92,25 @@ public class EmulatorSession : IAsyncLifetime
 			var adminClient = await new DatabaseAdminClientBuilder().BuildAsync();
 			var parent = $"projects/{ProjectId}/instances/{InstanceId}";
 
-			await adminClient.CreateDatabaseAsync(new CreateDatabaseRequest
+			// Retry with back-off when the instance is at its database limit.
+			// The CI pre-cleanup step drops stale databases but may still be in progress.
+			for (var attempt = 0; ; attempt++)
 			{
-				Parent = parent,
-				CreateStatement = $"CREATE DATABASE `{DatabaseId}`"
-			});
+				try
+				{
+					await adminClient.CreateDatabaseAsync(new CreateDatabaseRequest
+					{
+						Parent = parent,
+						CreateStatement = $"CREATE DATABASE `{DatabaseId}`"
+					});
+					break;
+				}
+				catch (Grpc.Core.RpcException ex) when (
+					ex.StatusCode == Grpc.Core.StatusCode.ResourceExhausted && attempt < 5)
+				{
+					await Task.Delay(TimeSpan.FromSeconds(10 * (attempt + 1)));
+				}
+			}
 		}
 	}
 

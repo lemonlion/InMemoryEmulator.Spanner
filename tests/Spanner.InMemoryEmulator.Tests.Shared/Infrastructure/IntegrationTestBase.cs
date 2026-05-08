@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Google.Cloud.Spanner.Data;
 using Google.Cloud.Spanner.V1;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
@@ -13,18 +14,31 @@ namespace Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 public abstract class IntegrationTestBase
 {
 	protected readonly ITestDatabaseFixture Fixture;
+	private readonly EmulatorSession _session;
 
 	protected IntegrationTestBase(EmulatorSession session)
 	{
+		_session = session;
 		Fixture = TestFixtureFactory.Create(session);
 	}
 
 	// ─── DDL ───
 
+	// Matches: CREATE TABLE tableName or CREATE TABLE IF NOT EXISTS tableName
+	private static readonly Regex CreateTableRegex = new(
+		@"^\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:`?(\w+)`?|(\w+))",
+		RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+	// Matches: CREATE (?:UNIQUE|NULL_FILTERED)? INDEX indexName
+	private static readonly Regex CreateIndexRegex = new(
+		@"^\s*CREATE\s+(?:UNIQUE\s+|NULL_FILTERED\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:`?(\w+)`?|(\w+))",
+		RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
 	/// <summary>
 	/// Executes DDL statements (CREATE TABLE, CREATE INDEX, etc.).
 	/// InMemory: uses direct database API.
 	/// Emulator/Cloud: uses SpannerConnection.CreateDdlCommand (Database Admin API).
+	/// Deduplicates CREATE TABLE/INDEX calls to avoid hitting DDL rate limits.
 	/// </summary>
 	protected async Task ExecuteDdlAsync(params string[] statements)
 	{
@@ -35,14 +49,54 @@ public abstract class IntegrationTestBase
 			return;
 		}
 
-		// Go emulator / Cloud: DDL goes through the Database Admin gRPC API
+		// Go emulator / Cloud: DDL goes through the Database Admin gRPC API.
+		// DDL is rate-limited (~5 ops/min on Cloud Spanner), so skip duplicates.
+		var statementsToExecute = new List<string>();
+		foreach (var stmt in statements)
+		{
+			var key = GetDdlDeduplicationKey(stmt);
+			if (key != null && !_session.ExecutedDdl.TryAdd(key, 0))
+			{
+				// Already executed this DDL statement in this session — skip it.
+				continue;
+			}
+			statementsToExecute.Add(stmt);
+		}
+
+		if (statementsToExecute.Count == 0)
+			return;
+
 		using var connection = Fixture.CreateConnection();
 		await connection.OpenAsync();
-		foreach (var stmt in statements)
+		foreach (var stmt in statementsToExecute)
 		{
 			var cmd = connection.CreateDdlCommand(stmt);
 			await cmd.ExecuteNonQueryAsync();
 		}
+	}
+
+	/// <summary>
+	/// Extracts a deduplication key from a DDL statement.
+	/// Returns null for statements that should never be deduplicated (ALTER, DROP).
+	/// </summary>
+	private static string? GetDdlDeduplicationKey(string statement)
+	{
+		var tableMatch = CreateTableRegex.Match(statement);
+		if (tableMatch.Success)
+		{
+			var name = tableMatch.Groups[1].Success ? tableMatch.Groups[1].Value : tableMatch.Groups[2].Value;
+			return $"TABLE:{name}";
+		}
+
+		var indexMatch = CreateIndexRegex.Match(statement);
+		if (indexMatch.Success)
+		{
+			var name = indexMatch.Groups[1].Success ? indexMatch.Groups[1].Value : indexMatch.Groups[2].Value;
+			return $"INDEX:{name}";
+		}
+
+		// ALTER TABLE, DROP TABLE, etc. — always execute
+		return null;
 	}
 
 	// ─── Data Seeding ───

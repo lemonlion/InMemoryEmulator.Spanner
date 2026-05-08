@@ -8,15 +8,21 @@ on:
 
 env:
   DOTNET_VERSION: '8.0.x'
+  SHARD_COUNT: 4
 
 jobs:
   test-cloud-spanner:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     env:
       SPANNER_TEST_TARGET: CloudSpanner
       GCP_PROJECT_ID: spanner-emulator-ci
       SPANNER_INSTANCE_ID: ci-test-instance
-      SPANNER_DATABASE_ID: test-${{ github.run_id }}
+      SPANNER_DATABASE_ID: test-${{ github.run_id }}-${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v5
 
@@ -32,18 +38,45 @@ jobs:
       - name: Build
         run: dotnet build --configuration Release
 
-      - name: Run integration tests (Cloud Spanner)
+      - name: Compute shard filter
+        id: shard
+        run: |
+          # List all test classes, assign each to a shard by hash of class name.
+          # This ensures stable distribution across runs.
+          # Test names are: Namespace.ClassName.MethodName — extract ClassName
+          CLASSES=$(dotnet test tests/Spanner.InMemoryEmulator.Tests.Integration/ \
+            --configuration Release --no-build --list-tests 2>/dev/null \
+            | grep -oP '^\s+\S+' | sed 's/^\s*//' \
+            | awk -F. '{print $(NF-1)}' | sort -u)
+
+          FILTER_PARTS=()
+          while IFS= read -r class; do
+            [ -z "$class" ] && continue
+            # CRC32 hash via cksum, modulo shard count
+            HASH=$(echo -n "$class" | cksum | awk '{print $1}')
+            SHARD_ID=$((HASH % ${{ env.SHARD_COUNT }}))
+            if [ "$SHARD_ID" -eq "${{ matrix.shard }}" ]; then
+              FILTER_PARTS+=("FullyQualifiedName~${class}")
+            fi
+          done <<< "$CLASSES"
+
+          # Join with | for OR filter
+          FILTER=$(IFS='|'; echo "${FILTER_PARTS[*]}")
+          # Combine with InMemoryOnly exclusion
+          echo "filter=(${FILTER})&Target!=InMemoryOnly" >> "$GITHUB_OUTPUT"
+
+      - name: Run integration tests (Cloud Spanner — shard ${{ matrix.shard }})
         run: |
           dotnet test tests/Spanner.InMemoryEmulator.Tests.Integration/ \
             --configuration Release \
             --no-build \
-            --logger "trx;LogFileName=cloud-spanner.trx" \
-            --filter "Target!=InMemoryOnly"
+            --logger "trx;LogFileName=cloud-spanner-shard-${{ matrix.shard }}.trx" \
+            --filter "${{ steps.shard.outputs.filter }}"
 
       - name: Test summary
         if: always()
         run: |
-          echo "## :test_tube: Cloud Spanner Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "## :test_tube: Cloud Spanner Shard ${{ matrix.shard }} Results" >> $GITHUB_STEP_SUMMARY
           for trx in $(find . -name '*.trx'); do
             file=$(basename "$trx" .trx)
             passed=$(grep -oP 'Counters[^>]*passed="\K[0-9]+' "$trx" | head -1)
@@ -53,10 +86,11 @@ jobs:
             icon=$( [ "$outcome" = "Completed" ] && echo ":white_check_mark:" || echo ":x:" )
             echo "| $icon **$file** | $passed passed | $failed failed | $total total |" >> $GITHUB_STEP_SUMMARY
           done
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: test-results-cloud-spanner
+          name: test-results-cloud-shard-${{ matrix.shard }}
           path: '**/*.trx'
 
       - name: Cleanup — drop ephemeral database

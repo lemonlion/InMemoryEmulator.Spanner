@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Google.Api.Gax;
 using Google.Cloud.Spanner.Admin.Database.V1;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
@@ -13,6 +14,13 @@ namespace Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 public class EmulatorSession : IAsyncLifetime
 {
 	private FakeSpannerServer? _server;
+
+	/// <summary>
+	/// Tracks DDL statements that have already been executed in this session.
+	/// Used to skip duplicate CREATE TABLE/INDEX calls on Cloud Spanner/Emulator
+	/// where DDL is rate-limited and expensive.
+	/// </summary>
+	internal ConcurrentDictionary<string, byte> ExecutedDdl { get; } = new(StringComparer.OrdinalIgnoreCase);
 
 	public SpannerTestTarget Target { get; private set; }
 

@@ -978,7 +978,7 @@ internal class QueryExecutor
 
 		return name switch
 		{
-			"COUNT" or "COUNTIF" or "APPROX_COUNT_DISTINCT" => TypeCode.Int64,
+			"COUNT" or "COUNTIF" => TypeCode.Int64,
 			"AVG" or "IEEE_DIVIDE" => TypeCode.Float64,
 			"LOGICAL_AND" or "LOGICAL_OR" => TypeCode.Bool,
 			"STRING_AGG" => TypeCode.String,
@@ -1138,8 +1138,7 @@ internal class QueryExecutor
 			or "LOGICAL_AND" or "LOGICAL_OR"
 			or "BIT_AND" or "BIT_OR" or "BIT_XOR"
 			or "STDDEV" or "STDDEV_SAMP" or "VAR_SAMP" or "VARIANCE"
-			or "ARRAY_CONCAT_AGG"
-			or "APPROX_COUNT_DISTINCT",
+			or "ARRAY_CONCAT_AGG",
 		_ => false
 	};
 
@@ -2003,9 +2002,6 @@ internal class QueryExecutor
 				"VAR_SAMP" or "VARIANCE" => VarSamp(values),
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_concat_agg
 				"ARRAY_CONCAT_AGG" => ArrayConcatAgg(func, effectiveRows, evaluator, values),
-				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/approximate_aggregate_functions#approx_count_distinct
-				// Returns the approximate count of distinct values. In-memory emulator returns exact count.
-				"APPROX_COUNT_DISTINCT" => (long)values.Distinct(new ObjectValueComparer()).Count(),
 				_ => throw new NotSupportedException($"Aggregate function '{func.Name}' not supported.")
 			};
 		}

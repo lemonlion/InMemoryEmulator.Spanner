@@ -251,31 +251,6 @@ public class EncodingFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	// ═══════════════════════════════════════════════════════════════
-	// CONTAINS_SUBSTR — substring search
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#contains_substr
-	// ═══════════════════════════════════════════════════════════════
-
-	[Theory]
-	[InlineData("CONTAINS_SUBSTR('Hello World', 'World')", true)]
-	[InlineData("CONTAINS_SUBSTR('Hello World', 'world')", true)]
-	[InlineData("CONTAINS_SUBSTR('Hello World', 'xyz')", false)]
-	[InlineData("CONTAINS_SUBSTR('Hello World', '')", true)]
-	[InlineData("CONTAINS_SUBSTR('', '')", true)]
-	[InlineData("CONTAINS_SUBSTR('', 'a')", false)]
-	[InlineData("CONTAINS_SUBSTR('abc', 'ABC')", true)]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ContainsSubstr_Values(string expr, bool expected) =>
-		(await Eval(expr)).Should().Be(expected);
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ContainsSubstr_Null_IsNull()
-	{
-		var result = await Eval("CONTAINS_SUBSTR(CAST(NULL AS STRING), 'test')");
-		result.Should().BeNull();
-	}
-
-	// ═══════════════════════════════════════════════════════════════
 	// NORMALIZE / NORMALIZE_AND_CASEFOLD
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#normalize
 	// ═══════════════════════════════════════════════════════════════

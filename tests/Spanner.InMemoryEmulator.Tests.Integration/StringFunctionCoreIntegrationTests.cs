@@ -466,39 +466,6 @@ public class StringFunctionCoreIntegrationTests : IntegrationTestBase
 		result.Should().Be(expected);
 	}
 
-	// ─── UNICODE ───
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#unicode
-
-	[Theory]
-	[InlineData("UNICODE('A')", 65L)]
-	[InlineData("UNICODE('a')", 97L)]
-	[InlineData("UNICODE('0')", 48L)]
-	[InlineData("UNICODE(' ')", 32L)]
-	[Trait(TestTraits.Category, "StringFunction")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Unicode_ReturnsCodePoint(string expr, long expected)
-	{
-		var result = await Eval(expr);
-		result.Should().Be(expected);
-	}
-
-	// ─── CONTAINS_SUBSTR ───
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#contains_substr
-
-	[Theory]
-	[InlineData("CONTAINS_SUBSTR('hello world', 'world')", true)]
-	[InlineData("CONTAINS_SUBSTR('hello world', 'WORLD')", true)]
-	[InlineData("CONTAINS_SUBSTR('hello world', 'xyz')", false)]
-	[InlineData("CONTAINS_SUBSTR('hello', 'hello')", true)]
-	[InlineData("CONTAINS_SUBSTR('hello', '')", true)]
-	[Trait(TestTraits.Category, "StringFunction")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ContainsSubstr_CaseInsensitive(string expr, bool expected)
-	{
-		var result = await Eval(expr);
-		result.Should().Be(expected);
-	}
-
 	// ─── NORMALIZE / NORMALIZE_AND_CASEFOLD ───
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#normalize
 

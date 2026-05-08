@@ -481,18 +481,6 @@ public class DateTimeCoreIntegrationTests : IntegrationTestBase
 		rows.Should().HaveCount(6);
 	}
 
-	// ─── GENERATE_TIMESTAMP_ARRAY ───
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#generate_timestamp_array
-
-	[Fact]
-	[Trait(TestTraits.Category, "DateTime")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task GenerateTimestampArray_HourStep()
-	{
-		var rows = await QueryAsync("SELECT t FROM UNNEST(GENERATE_TIMESTAMP_ARRAY(TIMESTAMP('2024-01-01T00:00:00Z'), TIMESTAMP('2024-01-01T04:00:00Z'), INTERVAL 1 HOUR)) AS t");
-		rows.Should().HaveCount(5);
-	}
-
 	// ─── Date columns in table operations ───
 
 	[Fact]

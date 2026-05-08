@@ -512,50 +512,6 @@ public class AggregateFunctionCoreIntegrationTests : IntegrationTestBase
 		rows[0]["Total"].Should().Be(220L);
 	}
 
-	// ─── APPROX_COUNT_DISTINCT ───
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/approximate_aggregate_functions#approx_count_distinct
-
-	[Fact]
-	[Trait(TestTraits.Category, "AggregateFunction")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ApproxCountDistinct_ReturnsDistinctCount()
-	{
-		var table = "AggApprox1";
-		await SetupNumbersTable(table);
-		// Val has values: 10, 20, 30, 20, NULL → 3 distinct non-null values
-		var result = await Eval($"SELECT APPROX_COUNT_DISTINCT(Val) FROM {table}");
-		result.Should().Be(3L);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Category, "AggregateFunction")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ApproxCountDistinct_AllNull_ReturnsZero()
-	{
-		var table = "AggApprox2";
-		await ExecuteDdlAsync($"CREATE TABLE {table} (Id INT64 NOT NULL, Val INT64) PRIMARY KEY (Id)");
-		await InsertAsync(table,
-			new Dictionary<string, object?> { ["Id"] = 1L },
-			new Dictionary<string, object?> { ["Id"] = 2L });
-		var result = await Eval($"SELECT APPROX_COUNT_DISTINCT(Val) FROM {table}");
-		result.Should().Be(0L);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Category, "AggregateFunction")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ApproxCountDistinct_AllSameValue_ReturnsOne()
-	{
-		var table = "AggApprox3";
-		await ExecuteDdlAsync($"CREATE TABLE {table} (Id INT64 NOT NULL, Val INT64) PRIMARY KEY (Id)");
-		await InsertAsync(table,
-			new Dictionary<string, object?> { ["Id"] = 1L, ["Val"] = 42L },
-			new Dictionary<string, object?> { ["Id"] = 2L, ["Val"] = 42L },
-			new Dictionary<string, object?> { ["Id"] = 3L, ["Val"] = 42L });
-		var result = await Eval($"SELECT APPROX_COUNT_DISTINCT(Val) FROM {table}");
-		result.Should().Be(1L);
-	}
-
 	// ═══════════════════════════════════════════════════════════════
 	// HAVING MAX / MIN
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#having_clause

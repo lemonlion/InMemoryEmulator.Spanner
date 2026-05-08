@@ -202,26 +202,6 @@ public class ArrayFunctionCoreIntegrationTests : IntegrationTestBase
 		result.Should().Be(expected);
 	}
 
-	// ─── ARRAY_SUM / ARRAY_AVG ───
-
-	[Fact]
-	[Trait(TestTraits.Category, "ArrayFunction")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ArraySum_IntArray()
-	{
-		var result = await Eval("ARRAY_SUM([1,2,3,4,5])");
-		result.Should().Be(15L);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Category, "ArrayFunction")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ArrayAvg_IntArray()
-	{
-		var result = await Eval("ARRAY_AVG([10,20,30])");
-		((double)result!).Should().BeApproximately(20.0, 0.01);
-	}
-
 	// ─── ARRAY_SLICE ───
 
 	[Fact]

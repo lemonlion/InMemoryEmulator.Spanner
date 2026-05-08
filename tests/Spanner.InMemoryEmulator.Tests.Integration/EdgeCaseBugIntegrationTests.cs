@@ -1387,22 +1387,6 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 	}
 
 	// ════════════════════════════════════════════════════════════════
-	// LAST_DAY function
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#last_day
-	//   "Returns the last day of the period that contains the date."
-	// ════════════════════════════════════════════════════════════════
-
-	[Fact]
-	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task LastDay_Month_ReturnsLastDayOfMonth()
-	{
-		var result = await Eval("LAST_DAY(DATE '2025-02-10')");
-		result.Should().BeOfType<DateTime>();
-		((DateTime)result!).Should().Be(new DateTime(2025, 2, 28));
-	}
-
-	// ════════════════════════════════════════════════════════════════
 	// ExecuteBatchDml error code mapping
 	// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#executebatchdmlresponse
 	//   "If a statement fails, the status in the response body identifies the cause."
@@ -1438,26 +1422,6 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 		// Assert: should be FailedPrecondition, not InvalidArgument
 		var ex = await act.Should().ThrowAsync<SpannerException>();
 		ex.Which.ErrorCode.Should().Be(ErrorCode.FailedPrecondition);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task LastDay_LeapYear_ReturnsLastDayOfMonth()
-	{
-		var result = await Eval("LAST_DAY(DATE '2024-02-10')");
-		result.Should().BeOfType<DateTime>();
-		((DateTime)result!).Should().Be(new DateTime(2024, 2, 29));
-	}
-
-	[Fact]
-	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task LastDay_Year_ReturnsDecember31()
-	{
-		var result = await Eval("LAST_DAY(DATE '2025-06-15', YEAR)");
-		result.Should().BeOfType<DateTime>();
-		((DateTime)result!).Should().Be(new DateTime(2025, 12, 31));
 	}
 
 	// ════════════════════════════════════════════════════════════════

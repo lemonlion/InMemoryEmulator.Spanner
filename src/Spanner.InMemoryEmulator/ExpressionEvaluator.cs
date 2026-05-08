@@ -407,11 +407,10 @@ internal class ExpressionEvaluator
 			//   CHR does not exist in GCP Spanner. Use CODE_POINTS_TO_STRING instead.
 			"CHR" => throw new NotSupportedException($"Unsupported built-in function: {func.Name.ToLowerInvariant()}."),
 			"CODE_POINTS_TO_STRING" => EvalChr(func, row),
-			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#contains_substr
-			//   CONTAINS_SUBSTR(expression, search_value_literal) — case-insensitive substring search.
-			"CONTAINS_SUBSTR" => EvalContainsSubstr(func, row),
 			"SOUNDEX" => EvalStringFunc1(func, row, EvalSoundex),
-			"UNICODE" => EvalStringFunc1(func, row, s => s.Length > 0 ? (long)char.ConvertToUtf32(s, 0) : 0L),
+			// CONTAINS_SUBSTR and UNICODE do not exist in GCP Spanner.
+			"CONTAINS_SUBSTR" => throw new InvalidOperationException($"Function not found: {func.Name}"),
+			"UNICODE" => throw new InvalidOperationException($"Function not found: {func.Name}"),
 			// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
 			//   INITCAP, TRANSLATE, INSTR do not exist in GCP Spanner.
 			"INITCAP" => throw new InvalidOperationException($"Function not found: {func.Name}"),
@@ -475,9 +474,8 @@ internal class ExpressionEvaluator
 			"DATE_SUB" => EvalDateSub(func, row),
 			"DATE_DIFF" => EvalDateDiff(func, row),
 			"DATE_TRUNC" => EvalDateTrunc(func, row),
-			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#last_day
-			//   LAST_DAY returns the last day of the period that contains the date.
-			"LAST_DAY" => EvalLastDay(func, row),
+			// LAST_DAY does not exist in GCP Spanner (BigQuery only).
+			"LAST_DAY" => throw new InvalidOperationException($"Function not found: {func.Name}"),
 			"FORMAT_TIMESTAMP" => EvalFormatTimestamp(func, row),
 			"PARSE_TIMESTAMP" => EvalParseTimestamp(func, row),
 			"FORMAT_DATE" => EvalFormatDate(func, row),
@@ -547,8 +545,9 @@ internal class ExpressionEvaluator
 			"ARRAY_LAST" => EvalArrayLast(func, row),
 			"ARRAY_MIN" => EvalArrayMinMax(func, row, isMin: true),
 			"ARRAY_MAX" => EvalArrayMinMax(func, row, isMin: false),
-			"ARRAY_SUM" => EvalArrayAggregate(func, row, "SUM"),
-			"ARRAY_AVG" => EvalArrayAggregate(func, row, "AVG"),
+			// ARRAY_SUM and ARRAY_AVG do not exist in GCP Spanner (BigQuery only).
+			"ARRAY_SUM" => throw new InvalidOperationException($"Function not found: {func.Name}"),
+			"ARRAY_AVG" => throw new InvalidOperationException($"Function not found: {func.Name}"),
 			"ARRAY_SLICE" => EvalArraySlice(func, row),
 			"ARRAY_INCLUDES_ANY" => EvalArrayIncludesAnyAll(func, row, any: true),
 			"ARRAY_INCLUDES_ALL" => EvalArrayIncludesAnyAll(func, row, any: false),
@@ -558,8 +557,8 @@ internal class ExpressionEvaluator
 			// Additional date/time functions
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions
 			"GENERATE_DATE_ARRAY" => EvalGenerateDateArray(func, row),
-			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions
-			"GENERATE_TIMESTAMP_ARRAY" => EvalGenerateTimestampArray(func, row),
+			// GENERATE_TIMESTAMP_ARRAY does not exist in GCP Spanner (BigQuery only).
+			"GENERATE_TIMESTAMP_ARRAY" => throw new InvalidOperationException($"Function not found: {func.Name}"),
 			"UNIX_DATE" => EvalUnixDate(func, row),
 			"DATE_FROM_UNIX_DATE" => EvalDateFromUnixDate(func, row),
 
@@ -901,17 +900,6 @@ internal class ExpressionEvaluator
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#contains_substr
-	//   CONTAINS_SUBSTR performs a normalized, case-insensitive substring search.
-	private object? EvalContainsSubstr(FunctionCallExpr func, Dictionary<string, object?> row)
-	{
-		var a = Evaluate(func.Arguments[0], row);
-		var b = Evaluate(func.Arguments[1], row);
-		if (a is null || b is null) return null;
-		var haystack = a.ToString()!;
-		var needle = (string)b;
-		return haystack.Contains(needle, StringComparison.OrdinalIgnoreCase);
-	}
-
 	private object? EvalConcat(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		var parts = func.Arguments.Select(a => Evaluate(a, row)).ToList();
@@ -2831,32 +2819,6 @@ internal class ExpressionEvaluator
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/date_functions#last_day
 	//   LAST_DAY(date_expression[, date_part])
-	//   Returns the last day of the period that contains the date.
-	//   Default date_part is MONTH. Supported: YEAR, QUARTER, MONTH, WEEK, ISOWEEK, ISOYEAR.
-	private object? EvalLastDay(FunctionCallExpr func, Dictionary<string, object?> row)
-	{
-		var val = Evaluate(func.Arguments[0], row);
-		if (val is null) return null;
-		var dt = val is DateTime d ? d : DateTime.Parse(Convert.ToString(val)!);
-
-		var part = "MONTH";
-		if (func.Arguments.Count > 1)
-		{
-			var partVal = Evaluate(func.Arguments[1], row);
-			part = Convert.ToString(partVal)!.ToUpperInvariant();
-		}
-
-		return part switch
-		{
-			"YEAR" => new DateTime(dt.Year, 12, 31),
-			"QUARTER" => new DateTime(dt.Year, ((dt.Month - 1) / 3 + 1) * 3, 1).AddMonths(1).AddDays(-1),
-			"MONTH" => new DateTime(dt.Year, dt.Month, DateTime.DaysInMonth(dt.Year, dt.Month)),
-			"WEEK" => dt.AddDays(6 - (int)dt.DayOfWeek),
-			"ISOWEEK" => dt.AddDays(7 - ((int)dt.DayOfWeek == 0 ? 7 : (int)dt.DayOfWeek)),
-			_ => throw new InvalidOperationException($"LAST_DAY does not support the {part} date part")
-		};
-	}
-
 	private object? EvalFormatTimestamp(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		var fmt = Convert.ToString(Evaluate(func.Arguments[0], row));
@@ -3462,25 +3424,6 @@ internal class ExpressionEvaluator
 		return result;
 	}
 
-	private object? EvalArrayAggregate(FunctionCallExpr func, Dictionary<string, object?> row, string op)
-	{
-		if (func.Arguments.Count != 1)
-			throw new InvalidOperationException($"{func.Name} requires exactly 1 argument.");
-		var val = Evaluate(func.Arguments[0], row);
-		if (val == null) return null;
-		if (val is not System.Collections.IList list) throw new InvalidOperationException($"{func.Name}: non-array argument.");
-		double sum = 0;
-		int count = 0;
-		foreach (var item in list)
-		{
-			if (item == null) continue;
-			sum += Convert.ToDouble(item);
-			count++;
-		}
-		if (count == 0) return null;
-		return op == "AVG" ? sum / count : (object)(long)sum;
-	}
-
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#array_slice
 	//   "Returns an array that is a subsequence of the input array."
 	private object? EvalArraySlice(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -3594,45 +3537,6 @@ internal class ExpressionEvaluator
 		{
 			for (var d = startDate; d >= endDate; d = StepDate(d))
 				result.Add(d);
-		}
-		return result;
-	}
-
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#generate_timestamp_array
-	//   "Generates an array of timestamps in a range."
-	private object? EvalGenerateTimestampArray(FunctionCallExpr func, Dictionary<string, object?> row)
-	{
-		if (func.Arguments.Count < 3)
-			throw new InvalidOperationException("GENERATE_TIMESTAMP_ARRAY requires at least 3 arguments: start, end, interval.");
-		var startVal = Evaluate(func.Arguments[0], row);
-		var endVal = Evaluate(func.Arguments[1], row);
-		var stepVal = Evaluate(func.Arguments[2], row);
-		if (startVal == null || endVal == null) return null;
-		var startTs = ConvertToDateTime(startVal);
-		var endTs = ConvertToDateTime(endVal);
-		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#generate_timestamp_array
-		//   Step is an INTERVAL supporting MICROSECOND through DAY.
-		long stepNanos = 3_600_000_000_000L; // default 1 hour
-		if (stepVal is SpannerInterval interval)
-		{
-			stepNanos = interval.Nanos + interval.Days * 86_400_000_000_000L;
-		}
-		else if (stepVal != null)
-		{
-			stepNanos = (long)(Convert.ToDouble(stepVal) * 3_600_000_000_000.0);
-		}
-		if (stepNanos == 0) throw new InvalidOperationException("GENERATE_TIMESTAMP_ARRAY: step cannot be 0.");
-		var stepTicks = stepNanos / 100; // 1 tick = 100 ns
-		var result = new List<object?>();
-		if (stepTicks > 0)
-		{
-			for (var t = startTs; t <= endTs; t = t.AddTicks(stepTicks))
-				result.Add(t);
-		}
-		else
-		{
-			for (var t = startTs; t >= endTs; t = t.AddTicks(stepTicks))
-				result.Add(t);
 		}
 		return result;
 	}

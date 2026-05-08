@@ -24,14 +24,18 @@ public class JsonAndSubqueryIntegrationTests : IntegrationTestBase
 		return reader.IsDBNull(0) ? null : reader.GetValue(0);
 	}
 
-	// Go emulator: TO_JSON_STRING is not supported on non-JSON types (StatusCode=Unimplemented).
-	[Theory]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
-	[InlineData("TO_JSON_STRING(CAST(NULL AS INT64))", "null")]
-	[InlineData("TO_JSON_STRING(CAST(NULL AS STRING))", "null")]
-	[InlineData("TO_JSON_STRING(CAST(NULL AS BOOL))", "null")]
-	public async Task ToJsonString_Null(string expr, string expected) =>
-		(await Eval(expr)).Should().Be(expected);
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json_string
+	//   TO_JSON_STRING(json_expr) only accepts JSON type input.
+	//   SQL NULL input returns SQL NULL.
+	[Fact]
+	public async Task ToJsonString_JsonNull_ReturnsNull() =>
+		(await Eval("TO_JSON_STRING(CAST(NULL AS JSON))")).Should().BeNull();
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json_string
+	//   JSON 'null' is a non-NULL JSON value representing JSON null → returns "null" string.
+	[Fact]
+	public async Task ToJsonString_JsonNullLiteral_ReturnsNullString() =>
+		(await Eval("TO_JSON_STRING(JSON 'null')")).Should().Be("null");
 
 	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 	// JSON_VALUE (requires JSON type support)

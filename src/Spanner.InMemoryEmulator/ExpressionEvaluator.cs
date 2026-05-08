@@ -394,28 +394,14 @@ internal class ExpressionEvaluator
 			//   LIKE ALL — true if value matches all patterns in the list.
 			"LIKE_ANY" => EvalLikeQuantified(func, row, any: true),
 			"LIKE_ALL" => EvalLikeQuantified(func, row, any: false),
-			// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
-			//   LEFT and RIGHT do not exist in GCP Spanner. Use SUBSTR instead.
-			"LEFT" => throw new NotSupportedException($"Unsupported built-in function: {func.Name}."),
-			"RIGHT" => throw new NotSupportedException($"Unsupported built-in function: {func.Name}."),
+
 			"BYTE_LENGTH" => EvalByteLength(func, row),
 			"TO_HEX" => EvalToHex(func, row),
 			"FROM_HEX" => EvalFromHex(func, row),
-			// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
-			//   ASCII does not exist in GCP Spanner. Use TO_CODE_POINTS instead.
-			"ASCII" => throw new NotSupportedException($"Unsupported built-in function: {func.Name.ToLowerInvariant()}."),
-			//   CHR does not exist in GCP Spanner. Use CODE_POINTS_TO_STRING instead.
-			"CHR" => throw new NotSupportedException($"Unsupported built-in function: {func.Name.ToLowerInvariant()}."),
+
 			"CODE_POINTS_TO_STRING" => EvalChr(func, row),
 			"SOUNDEX" => EvalStringFunc1(func, row, EvalSoundex),
-			// CONTAINS_SUBSTR and UNICODE do not exist in GCP Spanner.
-			"CONTAINS_SUBSTR" => throw new InvalidOperationException($"Function not found: {func.Name}"),
-			"UNICODE" => throw new InvalidOperationException($"Function not found: {func.Name}"),
-			// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
-			//   INITCAP, TRANSLATE, INSTR do not exist in GCP Spanner.
-			"INITCAP" => throw new InvalidOperationException($"Function not found: {func.Name}"),
-			"TRANSLATE" => throw new InvalidOperationException($"Function not found: {func.Name}"),
-			"INSTR" => throw new InvalidOperationException($"Function not found: {func.Name}"),
+
 
 			// Math functions
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions
@@ -454,10 +440,7 @@ internal class ExpressionEvaluator
 				v => v <= 0, "LOG10 of non-positive number"),
 			"IS_NAN" => EvalIsNan(func, row),
 			"IS_INF" => EvalIsInf(func, row),
-			// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
-			//   RAND and RANGE_BUCKET do not exist in GCP Spanner.
-			"RAND" => throw new NotSupportedException($"Unsupported built-in function: {func.Name.ToLowerInvariant()}."),
-			"RANGE_BUCKET" => throw new NotSupportedException($"Unsupported built-in function: {func.Name.ToLowerInvariant()}."),
+
 
 			// Date/Time
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions
@@ -3024,24 +3007,22 @@ internal class ExpressionEvaluator
 
 		bool isToJsonString = func.Name.Equals("TO_JSON_STRING", StringComparison.OrdinalIgnoreCase);
 
-		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json_string
-		//   TO_JSON_STRING takes a SQL value of any type and returns a JSON-formatted STRING.
-		//   Returns "null" for SQL NULL.
-		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json
-		//   TO_JSON takes a SQL value and returns a JSON value. Returns SQL NULL for SQL NULL.
-		if (v == null) return isToJsonString ? "null" : null;
+		// SQL NULL → SQL NULL for both TO_JSON and TO_JSON_STRING
+		if (v == null) return null;
 
 		if (isToJsonString)
 		{
-			if (v is JsonElement je) return je.GetRawText();
-			if (v is string s) return JsonSerializer.Serialize(s); // produces "\"hello\""
-			if (v is long l) return l.ToString();
-			if (v is bool b) return b ? "true" : "false";
-			if (v is double d) return JsonSerializer.Serialize(d);
-			return JsonSerializer.Serialize(v);
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json_string
+			//   TO_JSON_STRING(json_expr) — only accepts JSON type input.
+			//   Converts a JSON value to a SQL JSON-formatted STRING value.
+			if (v is not JsonElement je)
+				throw new InvalidOperationException(
+					"No matching signature for function TO_JSON_STRING. Argument type: non-JSON.");
+			return je.GetRawText();
 		}
 
-		// TO_JSON: return a JsonElement
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json
+		//   TO_JSON(sql_value) — accepts any SQL data type and returns a JSON value.
 		if (v is JsonElement alreadyJson) return alreadyJson;
 		var json = JsonSerializer.Serialize(v);
 		return JsonSerializer.Deserialize<JsonElement>(json);
@@ -3245,7 +3226,13 @@ internal class ExpressionEvaluator
 		var elem = NavigateJsonPath(json, path!);
 		if (elem is JsonElement je && je.ValueKind == JsonValueKind.Array)
 		{
-			return je.EnumerateArray().Select(e => (object?)e.GetRawText()).ToList();
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_query_array
+			//   json_string_expr → ARRAY<JSON-formatted STRING>
+			//   json_expr (JSON type) → ARRAY<JSON>
+			bool inputIsJson = json is JsonElement;
+			return je.EnumerateArray()
+				.Select(e => inputIsJson ? (object?)e.Clone() : e.GetRawText())
+				.ToList();
 		}
 		return null;
 	}

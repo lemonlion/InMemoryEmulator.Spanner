@@ -293,30 +293,42 @@ public class JsonFunctionCoreIntegrationTests : IntegrationTestBase
 	}
 
 	// ─── TO_JSON / TO_JSON_STRING ───
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json_string
+	//   TO_JSON_STRING(json_expr) only accepts JSON type input.
 
 	[Theory]
-	[InlineData("TO_JSON_STRING(42)", "42")]
-	[InlineData("TO_JSON_STRING('hello')", "\"hello\"")]
-	[InlineData("TO_JSON_STRING(true)", "true")]
-	[InlineData("TO_JSON_STRING(false)", "false")]
+	[InlineData("TO_JSON_STRING(TO_JSON(42))", "42")]
+	[InlineData("TO_JSON_STRING(TO_JSON('hello'))", "\"hello\"")]
+	[InlineData("TO_JSON_STRING(TO_JSON(true))", "true")]
+	[InlineData("TO_JSON_STRING(TO_JSON(false))", "false")]
 	[Trait(TestTraits.Category, "JsonFunction")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ToJsonString_Scalars(string expr, string expected)
+	public async Task ToJsonString_ViaToJson(string expr, string expected)
 	{
 		var result = await Eval(expr);
 		result.Should().Be(expected);
 	}
 
+	[Theory]
+	[InlineData("TO_JSON_STRING(42)")]
+	[InlineData("TO_JSON_STRING('hello')")]
+	[InlineData("TO_JSON_STRING(true)")]
+	[InlineData("TO_JSON_STRING(false)")]
+	[Trait(TestTraits.Category, "JsonFunction")]
+	public async Task ToJsonString_NonJsonType_Throws(string expr)
+	{
+		var act = () => Eval(expr);
+		await act.Should().ThrowAsync<Exception>();
+	}
+
 	[Fact]
 	[Trait(TestTraits.Category, "JsonFunction")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ToJsonString_Null()
 	{
 		var result = await Eval("TO_JSON_STRING(NULL)");
-		// Should return "null" or actual NULL
-		// Ref: Cloud Spanner returns the string "null" for NULL input to TO_JSON_STRING
-		(result == null || result.Equals("null")).Should().BeTrue();
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json_string
+		//   SQL NULL input → SQL NULL output
+		result.Should().BeNull();
 	}
 
 	// ─── BOOL() from JSON ───

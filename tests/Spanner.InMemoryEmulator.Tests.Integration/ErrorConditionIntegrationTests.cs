@@ -447,23 +447,18 @@ public class ErrorConditionIntegrationTests : IntegrationTestBase
 
 	// ═══════════════════════════════════════════════════════════════
 	// TO_JSON_STRING on non-JSON types — GCP Spanner rejects
-	// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
-	//   TO_JSON_STRING only accepts JSON-typed values.
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json_string
+	//   TO_JSON_STRING(json_expr) — only accepts JSON type input.
 	// ═══════════════════════════════════════════════════════════════
 
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#to_json_string
-	//   TO_JSON_STRING accepts any SQL data type and converts to a JSON-formatted STRING.
-	//   Previously, tests expected this to throw — but it's valid SQL.
-
 	[Theory]
-	[InlineData("SELECT TO_JSON_STRING(1) AS R", "1")]
-	[InlineData("SELECT TO_JSON_STRING('hello') AS R", "\"hello\"")]
-	[InlineData("SELECT TO_JSON_STRING(TRUE) AS R", "true")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ToJsonString_ScalarTypes_ReturnsJsonString(string sql, string expected)
+	[InlineData("SELECT TO_JSON_STRING(1) AS R")]
+	[InlineData("SELECT TO_JSON_STRING('hello') AS R")]
+	[InlineData("SELECT TO_JSON_STRING(TRUE) AS R")]
+	public async Task ToJsonString_NonJsonType_Throws(string sql)
 	{
-		var rows = await QueryAsync(sql);
-		((string)rows[0]["R"]!).Should().Be(expected);
+		var act = () => QueryAsync(sql);
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	// ═══════════════════════════════════════════════════════════════

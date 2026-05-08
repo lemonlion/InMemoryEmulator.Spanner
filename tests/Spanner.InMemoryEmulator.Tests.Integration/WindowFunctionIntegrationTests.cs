@@ -8,8 +8,9 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 /// <summary>
 /// Integration tests for SQL window/numbering functions.
 /// These functions (ROW_NUMBER, RANK, DENSE_RANK, NTILE, PERCENT_RANK, CUME_DIST)
-/// are standard SQL analytic functions supported by the Go emulator (via ZetaSQL)
-/// but NOT by real Google Cloud Spanner (which only supports IS_FIRST).
+/// are standard SQL analytic functions supported by Cloud Spanner and this emulator.
+/// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions
+/// The Go emulator does NOT support window functions.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 public class WindowFunctionIntegrationTests : IntegrationTestBase

@@ -993,23 +993,23 @@ internal class QueryExecutor
 			"PERCENT_RANK" or "CUME_DIST" => TypeCode.Float64,
 
 			// String functions returning INT64
-			"LENGTH" or "CHAR_LENGTH" or "CHARACTER_LENGTH" or "STRPOS" or "INSTR"
-				or "BYTE_LENGTH" or "ASCII" or "UNICODE" => TypeCode.Int64,
+			"LENGTH" or "CHAR_LENGTH" or "CHARACTER_LENGTH" or "STRPOS"
+				or "BYTE_LENGTH" => TypeCode.Int64,
 
 			// String functions returning STRING
 			"LOWER" or "UPPER" or "LCASE" or "UCASE" or "TRIM" or "LTRIM" or "RTRIM"
 				or "CONCAT" or "SUBSTR" or "SUBSTRING" or "REPLACE" or "REVERSE"
-				or "LPAD" or "RPAD" or "REPEAT" or "FORMAT" or "LEFT" or "RIGHT"
-				or "REGEXP_EXTRACT" or "REGEXP_REPLACE" or "INITCAP" or "TRANSLATE"
-				or "TO_HEX" or "CHR" or "CODE_POINTS_TO_STRING" or "SOUNDEX"
+				or "LPAD" or "RPAD" or "REPEAT" or "FORMAT"
+				or "REGEXP_EXTRACT" or "REGEXP_REPLACE"
+				or "TO_HEX" or "CODE_POINTS_TO_STRING" or "SOUNDEX"
 				or "SPLIT" => TypeCode.String,
 
 			// String functions returning BOOL
-			"STARTS_WITH" or "ENDS_WITH" or "REGEXP_CONTAINS" or "CONTAINS_SUBSTR" => TypeCode.Bool,
+			"STARTS_WITH" or "ENDS_WITH" or "REGEXP_CONTAINS" => TypeCode.Bool,
 
 			// Math functions returning FLOAT64
 			"CEIL" or "CEILING" or "FLOOR" or "TRUNC" or "SQRT" or "POW" or "POWER"
-				or "EXP" or "LN" or "LOG" or "LOG10" or "RAND" => TypeCode.Float64,
+				or "EXP" or "LN" or "LOG" or "LOG10" => TypeCode.Float64,
 
 			// Vector distance functions return FLOAT64
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#cosine_distance
@@ -1018,7 +1018,7 @@ internal class QueryExecutor
 				=> TypeCode.Float64,
 
 			// Math functions returning INT64
-			"DIV" or "RANGE_BUCKET" => TypeCode.Int64,
+			"DIV" => TypeCode.Int64,
 
 			// Math functions returning BOOL
 			"IS_NAN" or "IS_INF" => TypeCode.Bool,

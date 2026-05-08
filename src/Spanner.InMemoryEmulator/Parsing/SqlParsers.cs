@@ -456,12 +456,15 @@ internal static class SqlParsers
 		select (SqlExpression)new FunctionCallExpr("TIMESTAMP", new List<SqlExpression>
 			{ new LiteralExpr(str.ToStringValue()[1..^1].Replace("''", "'")) });
 
-	// JSON 'value' — typed JSON literal
+	// JSON 'value' — typed JSON literal (equivalent to PARSE_JSON('value'))
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#json_literals
 	private static TokenListParser<GoogleSqlToken, SqlExpression> JsonTypedLiteral { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.JsonType)
 		from str in Token.EqualTo(GoogleSqlToken.StringLiteral)
-		select (SqlExpression)new LiteralExpr(str.ToStringValue()[1..^1].Replace("''", "'"));
+		select (SqlExpression)new FunctionCallExpr("PARSE_JSON", new List<SqlExpression>
+		{
+			new LiteralExpr(str.ToStringValue()[1..^1].Replace("''", "'"))
+		});
 
 	// NUMERIC 'value' — typed numeric literal (equivalent to CAST('value' AS NUMERIC))
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#numeric_literals

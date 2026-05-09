@@ -66,13 +66,16 @@ public abstract class IntegrationTestBase
 		if (statementsToExecute.Count == 0)
 			return;
 
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.admin.database.v1#updatedatabaseddlrequest
+		//   Batch all DDL statements into a single UpdateDatabaseDdl RPC call.
+		//   This is significantly faster than individual calls, especially on Cloud Spanner
+		//   where each UpdateDatabaseDdl is a long-running operation.
 		using var connection = Fixture.CreateConnection();
 		await connection.OpenAsync();
-		foreach (var stmt in statementsToExecute)
-		{
-			var cmd = connection.CreateDdlCommand(stmt);
-			await cmd.ExecuteNonQueryAsync();
-		}
+		var cmd = connection.CreateDdlCommand(
+			statementsToExecute[0],
+			statementsToExecute.Skip(1).ToArray());
+		await cmd.ExecuteNonQueryAsync();
 	}
 
 	/// <summary>

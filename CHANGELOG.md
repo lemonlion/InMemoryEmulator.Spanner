@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.86] - 2026-05-09
+
+### Fixed
+- **Full-text search Cloud Spanner parity**: Restructured all FTS integration tests to work with real Cloud Spanner:
+  - Added `CREATE SEARCH INDEX` to all FTS table setup methods (SEARCH/SCORE require indexed TOKENLIST columns)
+  - Converted inline `SELECT SEARCH(...)` tests to use `DEBUG_TOKENLIST` or table-based WHERE clauses (SEARCH/SEARCH_SUBSTRING/SEARCH_NGRAMS are WHERE-only on real Spanner)
+  - Fixed `TOKENLIST_CONCAT` to use array syntax `TOKENLIST_CONCAT([a, b])` matching real Spanner's `ARRAY<TOKENLIST>` parameter
+  - Fixed `TOKENIZE_JSON` tests to use `JSON '...'` typed literal instead of plain STRING
+  - Fixed bare `NULL` arguments to use `CAST(NULL AS STRING)` for proper type coercion
+  - Fixed `SNIPPET(NULL, ...)` to use `SNIPPET(CAST(NULL AS STRING), ...)`
+  - Restructured `SCORE_NGRAMS` tests to use table columns (requires column reference, not inline expression)
+  - Added `WHERE SEARCH(...)` to `Score_HigherForMoreRelevantDocument` (SCORE requires SEARCH in same query)
+  - Made all FTS data inserts idempotent with try/catch
+
 ## [1.0.81] - 2026-07-07
 
 ### Fixed

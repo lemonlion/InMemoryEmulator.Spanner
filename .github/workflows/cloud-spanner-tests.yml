@@ -8,7 +8,7 @@ on:
 
 env:
   DOTNET_VERSION: '8.0.x'
-  SHARD_COUNT: 4
+  SHARD_COUNT: 5
 
 jobs:
   test-cloud-spanner:
@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4]
     env:
       SPANNER_TEST_TARGET: CloudSpanner
       GCP_PROJECT_ID: spanner-emulator-ci

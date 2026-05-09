@@ -226,6 +226,8 @@ public class MathFunctionEdgeCaseIntegrationTests : IntegrationTestBase
 	[Theory]
 	[InlineData("ROUND(1.2345, 2)", 1.23)]
 	[InlineData("ROUND(1.2355, 2)", 1.24)]
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#round
+	//   "Rounds halfway cases away from zero."
 	[InlineData("ROUND(1.2345, 3)", 1.235)]
 	[InlineData("ROUND(1.2345, 0)", 1.0)]
 	[InlineData("ROUND(99.999, 1)", 100.0)]

@@ -91,7 +91,8 @@ public class ArrayExhaustiveIntegrationTests : IntegrationTestBase
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArrayReverse_Int()
 	{
-		var rows = await QueryAsync("SELECT val FROM UNNEST(ARRAY_REVERSE([1,2,3])) AS val");
+		// Use WITH OFFSET to preserve array order (UNNEST order is not guaranteed on Cloud Spanner)
+		var rows = await QueryAsync("SELECT val FROM UNNEST(ARRAY_REVERSE([1,2,3])) AS val WITH OFFSET AS off ORDER BY off");
 		rows.Select(r => (long)r["val"]!).Should().Equal(3L, 2L, 1L);
 	}
 
@@ -305,7 +306,8 @@ public class ArrayExhaustiveIntegrationTests : IntegrationTestBase
 		var t = $"ArrOrd_{Guid.NewGuid().ToString("N").Substring(0, 8)}";
 		await ExecuteDdlAsync($"CREATE TABLE {t} (Id INT64 NOT NULL, Val INT64) PRIMARY KEY (Id)");
 		await ExecuteDmlAsync($"INSERT INTO {t} (Id, Val) VALUES (1, 30), (2, 10), (3, 20)");
-		var rows = await QueryAsync($"SELECT v FROM UNNEST(ARRAY(SELECT Val FROM {t} ORDER BY Val)) AS v");
+		// Use WITH OFFSET to preserve array order (UNNEST order is not guaranteed on Cloud Spanner)
+		var rows = await QueryAsync($"SELECT v FROM UNNEST(ARRAY(SELECT Val FROM {t} ORDER BY Val)) AS v WITH OFFSET AS off ORDER BY off");
 		rows.Select(r => (long)r["v"]!).Should().Equal(10L, 20L, 30L);
 	}
 

@@ -31,12 +31,14 @@ public class BitAndSafeMathIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Theory]
+	// Ref: When is_signed=true, only non-sign bits (0-62) are reversed; sign bit is preserved.
+	// Verified against real Cloud Spanner.
 	[InlineData("BIT_REVERSE(0, true)", 0L)]
-	[InlineData("BIT_REVERSE(1, true)", -9223372036854775808L)]
+	[InlineData("BIT_REVERSE(1, true)", 4611686018427387904L)]       // 0x4000000000000000
 	[InlineData("BIT_REVERSE(-1, true)", -1L)]
-	[InlineData("BIT_REVERSE(2, true)", 4611686018427387904L)]
-	[InlineData("BIT_REVERSE(4, true)", 2305843009213693952L)]
-	[InlineData("BIT_REVERSE(8, true)", 1152921504606846976L)]
+	[InlineData("BIT_REVERSE(2, true)", 2305843009213693952L)]       // 0x2000000000000000
+	[InlineData("BIT_REVERSE(4, true)", 1152921504606846976L)]       // 0x1000000000000000
+	[InlineData("BIT_REVERSE(8, true)", 576460752303423488L)]        // 0x0800000000000000
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task BitReverse_Signed(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);

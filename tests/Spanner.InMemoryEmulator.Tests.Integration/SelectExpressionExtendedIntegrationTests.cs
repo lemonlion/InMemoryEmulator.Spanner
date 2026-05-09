@@ -175,7 +175,9 @@ public class SelectExpressionExtendedIntegrationTests : IntegrationTestBase
     [InlineData("100 % 7", 2L)]
     [InlineData("-7 % 3", -1L)]
     [Trait(TestTraits.Category, "SelectExpressionExtended")]
-    [Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+    // Cloud Spanner does NOT support the % operator — use MOD() function instead.
+    // Verified against real Cloud Spanner.
+    [Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
     public async Task Arithmetic_Modulo(string expr, long expected)
     {
         // Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
@@ -697,7 +699,10 @@ public class SelectExpressionExtendedIntegrationTests : IntegrationTestBase
     [InlineData("''''''", "''")]
     [InlineData("'a''b''c'", "a'b'c")]
     [Trait(TestTraits.Category, "SelectExpressionExtended")]
-    [Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+    // Cloud Spanner does NOT support '' as an escape for single quotes inside strings.
+    // It treats adjacent quotes as concatenated string literals which requires whitespace.
+    // Verified against real Cloud Spanner.
+    [Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
     public async Task StringEscape_SingleQuotes(string expr, string expected)
     {
         (await Eval(expr))!.ToString().Should().Be(expected);

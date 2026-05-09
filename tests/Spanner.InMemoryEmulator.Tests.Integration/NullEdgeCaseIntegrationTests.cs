@@ -429,12 +429,13 @@ public class NullEdgeCaseIntegrationTests : IntegrationTestBase
 	[InlineData("CAST(NULL AS STRING) LIKE 'hello'")]
 	[InlineData("'hello' LIKE CAST(NULL AS STRING)")]
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
-	//   "SELECT NULL LIKE 'a%'; -- Produces an error"
+	//   Literal NULL produces an error, but typed NULL (from CAST) returns NULL.
+	//   Verified against real Cloud Spanner.
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Like_WithNull_ReturnsNull(string expr)
 	{
-		var act = () => Eval(expr);
-		await act.Should().ThrowAsync<Exception>();
+		var result = await Eval(expr);
+		result.Should().BeNull();
 	}
 
 	// ═══════════════════════════════════════════════════════════════

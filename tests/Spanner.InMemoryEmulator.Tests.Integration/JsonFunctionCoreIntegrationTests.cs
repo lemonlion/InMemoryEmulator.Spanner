@@ -422,10 +422,13 @@ public class JsonFunctionCoreIntegrationTests : IntegrationTestBase
 	//   "JSON_EXTRACT is equivalent to JSON_QUERY"
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_extract_scalar
 	//   "JSON_EXTRACT_SCALAR is equivalent to JSON_VALUE"
+	// Legacy JSON extraction functions — removed from Cloud Spanner.
+	// Use JSON_QUERY, JSON_VALUE, JSON_QUERY_ARRAY instead.
+	// Verified against real Cloud Spanner (returns "Unsupported built-in function").
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task JsonExtract_EquivalentToJsonQuery()
 	{
 		var result = await Eval("JSON_EXTRACT(PARSE_JSON('{\"a\":{\"b\":1}}'), '$.a')");
@@ -433,7 +436,7 @@ public class JsonFunctionCoreIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task JsonExtractScalar_EquivalentToJsonValue()
 	{
 		var result = await Eval("JSON_EXTRACT_SCALAR(PARSE_JSON('{\"name\":\"Alice\"}'), '$.name')");
@@ -441,7 +444,7 @@ public class JsonFunctionCoreIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task JsonExtractScalar_ReturnsNumber()
 	{
 		var result = await Eval("JSON_EXTRACT_SCALAR(PARSE_JSON('{\"age\":30}'), '$.age')");
@@ -449,7 +452,7 @@ public class JsonFunctionCoreIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task JsonExtractArray_EquivalentToJsonQueryArray()
 	{
 		var result = await Eval("ARRAY_LENGTH(JSON_EXTRACT_ARRAY(PARSE_JSON('[1,2,3]'), '$'))");
@@ -457,7 +460,7 @@ public class JsonFunctionCoreIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task JsonExtract_NullInput_ReturnsNull()
 	{
 		var result = await Eval("JSON_EXTRACT(CAST(NULL AS JSON), '$.a')");

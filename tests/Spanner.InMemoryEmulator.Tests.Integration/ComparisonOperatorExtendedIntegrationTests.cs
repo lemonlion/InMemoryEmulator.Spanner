@@ -1105,12 +1105,13 @@ public class ComparisonOperatorExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("'hello' LIKE CAST(NULL AS STRING)")]
 	[Trait(TestTraits.Category, "ComparisonOperatorExtended")]
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
-	//   "SELECT NULL LIKE 'a%'; -- Produces an error"
+	//   Literal NULL produces an error, but typed NULL (from CAST) returns NULL.
+	//   Verified against real Cloud Spanner.
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task NullComparisons_Like_ReturnNull(string expr)
 	{
-		var act = () => Eval(expr);
-		await act.Should().ThrowAsync<Exception>();
+		var result = await Eval(expr);
+		result.Should().BeNull();
 	}
 
 	// ═══════════════════════════════════════════════════════════════
@@ -1360,7 +1361,7 @@ public class ComparisonOperatorExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "ComparisonOperatorExtended")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task Array_Equality_SameElements_ReturnsTrue()
 	{
 		var result = await Eval("[1, 2, 3] = [1, 2, 3]");
@@ -1369,7 +1370,7 @@ public class ComparisonOperatorExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "ComparisonOperatorExtended")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task Array_Equality_DifferentElements_ReturnsFalse()
 	{
 		var result = await Eval("[1, 2, 3] = [1, 2, 4]");
@@ -1378,7 +1379,7 @@ public class ComparisonOperatorExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "ComparisonOperatorExtended")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task Array_Equality_DifferentLength_ReturnsFalse()
 	{
 		var result = await Eval("[1, 2] = [1, 2, 3]");

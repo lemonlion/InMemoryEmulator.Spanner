@@ -1844,8 +1844,9 @@ public class AggregateFunctionExtendedIntegrationTests : IntegrationTestBase
 	public async Task Combined_Aggregate_Arithmetic()
 	{
 		await EnsureTable();
-		var rows = await QueryAsync($"SELECT MAX(Val) - MIN(Val) AS Range FROM {T}");
-		((long)rows[0]["Range"]!).Should().Be(40L);
+		// RANGE is a reserved keyword in Cloud Spanner — use R instead
+		var rows = await QueryAsync($"SELECT MAX(Val) - MIN(Val) AS R FROM {T}");
+		((long)rows[0]["R"]!).Should().Be(40L);
 	}
 
 	[Fact]

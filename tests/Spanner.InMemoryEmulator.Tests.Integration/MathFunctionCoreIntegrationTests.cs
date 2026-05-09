@@ -494,11 +494,10 @@ public class MathFunctionCoreIntegrationTests : IntegrationTestBase
 	[InlineData("1 + 2", 3L)]
 	[InlineData("10 - 3", 7L)]
 	[InlineData("4 * 5", 20L)]
-	[InlineData("10 % 3", 1L)]
+	[InlineData("MOD(10, 3)", 1L)]
 	[InlineData("2 + 3 * 4", 14L)]
 	[InlineData("(2 + 3) * 4", 20L)]
 	[Trait(TestTraits.Category, "MathFunction")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArithmeticOperators_Precedence(string expr, long expected)
 	{
 		var result = await Eval(expr);
@@ -537,7 +536,7 @@ public class MathFunctionCoreIntegrationTests : IntegrationTestBase
 
 	[Theory]
 	[InlineData("BIT_REVERSE(0, true)", 0L)]
-	[InlineData("BIT_REVERSE(1, true)", -9223372036854775808L)]
+	[InlineData("BIT_REVERSE(1, true)", 4611686018427387904L)]      // 0x4000000000000000 — sign bit preserved
 	[Trait(TestTraits.Category, "MathFunction")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task BitReverse_Cases(string expr, long expected)

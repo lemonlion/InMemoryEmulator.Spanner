@@ -202,7 +202,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task Like_EscapedPercent_MatchesLiteralPercent()
 	{
 		var t = await FreshTable("LikeEsc");
@@ -217,7 +217,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task Like_EscapedUnderscore_MatchesLiteralUnderscore()
 	{
 		var t = await FreshTable("LikeEsc");
@@ -518,25 +518,26 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 	// ════════════════════════════════════════════════════════════════
 	// 8. FORMAT with NULL arguments
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#format_string
-	//   "NULL values are formatted as the string 'NULL'"
+	//   If any argument is NULL, the entire FORMAT result is NULL.
+	//   Verified against real Cloud Spanner.
 	// ════════════════════════════════════════════════════════════════
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Format_NullIntArg_ProducesNullString()
+	public async Task Format_NullIntArg_ProducesNull()
 	{
 		var rows = await QueryAsync("SELECT FORMAT('%d', CAST(NULL AS INT64)) AS R");
-		rows[0]["R"].Should().Be("NULL");
+		rows[0]["R"].Should().BeNull();
 	}
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Format_NullFloatArg_ProducesNullString()
+	public async Task Format_NullFloatArg_ProducesNull()
 	{
 		var rows = await QueryAsync("SELECT FORMAT('%f', CAST(NULL AS FLOAT64)) AS R");
-		rows[0]["R"].Should().Be("NULL");
+		rows[0]["R"].Should().BeNull();
 	}
 
 	// ════════════════════════════════════════════════════════════════
@@ -686,7 +687,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task OrderBy_NullsLast_AscPutsNullsAtEnd()
 	{
 		var t = await FreshTable("nullord");
@@ -699,7 +700,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task OrderBy_NullsFirst_DescPutsNullsAtStart()
 	{
 		var t = await FreshTable("nullord");
@@ -771,11 +772,12 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task SafeDivide_InfinityDividedByInfinity_ReturnsNull()
+	public async Task SafeDivide_InfinityDividedByInfinity_ReturnsNaN()
 	{
-		// Inf/Inf is indeterminate (would produce NaN) — that's an error
+		// Inf/Inf is indeterminate — produces NaN (a valid IEEE result, not an error).
+		// Verified against real Cloud Spanner.
 		var result = await Eval("SAFE_DIVIDE(CAST('+inf' AS FLOAT64), CAST('+inf' AS FLOAT64))");
-		result.Should().BeNull();
+		result.Should().BeOfType<double>().Which.Should().Be(double.NaN);
 	}
 
 	[Fact]
@@ -798,7 +800,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task FirstValue_IgnoreNulls_SkipsNullRows()
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/navigation_functions#first_value
@@ -816,7 +818,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task LastValue_IgnoreNulls_SkipsNullRows()
 	{
 		var t = await FreshTable("lvin");
@@ -897,21 +899,23 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task SafeAdd_InfinityPlusNegInfinity_ReturnsNull()
+	public async Task SafeAdd_InfinityPlusNegInfinity_ReturnsNaN()
 	{
-		// Inf + (-Inf) = NaN (indeterminate form) → SAFE_ returns NULL
+		// Inf + (-Inf) = NaN (indeterminate form) — valid IEEE result.
+		// Verified against real Cloud Spanner.
 		var result = await Eval("SAFE_ADD(CAST('+inf' AS FLOAT64), CAST('-inf' AS FLOAT64))");
-		result.Should().BeNull();
+		result.Should().BeOfType<double>().Which.Should().Be(double.NaN);
 	}
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task SafeMultiply_InfinityTimesZero_ReturnsNull()
+	public async Task SafeMultiply_InfinityTimesZero_ReturnsNaN()
 	{
-		// Inf * 0 = NaN (indeterminate form) → SAFE_ returns NULL
+		// Inf * 0 = NaN (indeterminate form) — valid IEEE result.
+		// Verified against real Cloud Spanner.
 		var result = await Eval("SAFE_MULTIPLY(CAST('+inf' AS FLOAT64), 0.0)");
-		result.Should().BeNull();
+		result.Should().BeOfType<double>().Which.Should().Be(double.NaN);
 	}
 
 	// ════════════════════════════════════════════════════════════════
@@ -1693,7 +1697,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task ArrayAgg_WithOrderByNullsFirst_NullsComesFirst()
 	{
 		await ExecuteDdlAsync("CREATE TABLE ECB_AggNulls (Id INT64 NOT NULL, Val STRING(10)) PRIMARY KEY (Id)");
@@ -1715,7 +1719,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task StringAgg_WithOrderByNullsLast_NullsExcluded()
 	{
 		// STRING_AGG ignores NULLs by default, but NULLS LAST should still parse

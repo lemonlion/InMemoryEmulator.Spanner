@@ -236,7 +236,10 @@ internal class ExpressionEvaluator
 	private object? EvalUnary(UnaryExpr unary, Dictionary<string, object?> row)
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#logical_operators
-		//   NOT NULL evaluates to NULL per SQL three-valued logic.
+		//   "Operands of NOT cannot be literal NULL" — verified against real Cloud Spanner.
+		//   Runtime nulls (e.g. from a column or CAST) follow three-valued logic → NULL.
+		if (unary.Op == UnaryOp.Not && unary.Operand is LiteralExpr { Value: null })
+			throw new InvalidOperationException("Operands of NOT cannot be literal NULL");
 		var operand = Evaluate(unary.Operand, row);
 		return unary.Op switch
 		{
@@ -1182,7 +1185,9 @@ internal class ExpressionEvaluator
 		{
 			double d2 => Math.Round(d2, digits, MidpointRounding.AwayFromZero),
 			float fv => (double)Math.Round((double)fv, digits, MidpointRounding.AwayFromZero),
-			decimal dec => (double)Math.Round(dec, digits, MidpointRounding.AwayFromZero),
+			// Ref: NUMERIC uses banker's rounding (ToEven) — verified against real Cloud Spanner.
+			// ROUND(1.2345, 3) → 1.234, not 1.235.
+			decimal dec => (double)Math.Round(dec, digits, MidpointRounding.ToEven),
 			long l => (double)l,
 			_ => throw new InvalidOperationException($"Cannot round {val.GetType().Name}")
 		};
@@ -1208,7 +1213,15 @@ internal class ExpressionEvaluator
 	private object? EvalCast(CastExpr cast, Dictionary<string, object?> row)
 	{
 		var value = Evaluate(cast.Value, row);
-		if (value is null) return null;
+		if (value is null)
+		{
+			// Ref: Verified against real Cloud Spanner:
+			//   CAST(NULL AS JSON) produces JSON null (a valid JSON value), not SQL NULL.
+			//   TO_JSON_STRING(CAST(NULL AS JSON)) returns the string "null".
+			if (cast.TargetType == TypeCode.Json)
+				return JsonSerializer.Deserialize<JsonElement>("null");
+			return null;
+		}
 
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
 		// SAFE_CAST returns NULL on conversion failure instead of throwing.
@@ -1230,6 +1243,10 @@ internal class ExpressionEvaluator
 						: (long)Math.Round(f, MidpointRounding.AwayFromZero))
 					: value is string s && s.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
 						? Convert.ToInt64(s[2..], 16)
+						// Ref: NUMERIC (decimal) uses banker's rounding (ToEven) — verified against real Cloud Spanner.
+						// CAST(CAST('0.5' AS NUMERIC) AS INT64) → 0, CAST(CAST('2.5' AS NUMERIC) AS INT64) → 2.
+						: value is decimal dec
+						? (long)Math.Round(dec, 0, MidpointRounding.ToEven)
 						: Convert.ToInt64(value),
 				TypeCode.Float64 => ConvertToFloat64(value),
 				TypeCode.Float32 => ConvertToFloat32(value),
@@ -1456,9 +1473,11 @@ internal class ExpressionEvaluator
 	{
 		var value = Evaluate(inUnnest.Value, row);
 		var array = Evaluate(inUnnest.ArrayExpr, row);
-		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#in_operators
-		//   NULL array → NULL, NULL value → NULL (three-valued logic).
-		if (array == null || value == null) return null;
+		// Ref: verified against real Cloud Spanner:
+		//   NULL array behaves as empty set → false for IN, true for NOT IN.
+		//   NULL value → NULL (three-valued logic).
+		if (array == null) return inUnnest.IsNegated;
+		if (value == null) return null;
 
 		bool found = false;
 		bool hasNull = false;
@@ -1845,17 +1864,18 @@ internal class ExpressionEvaluator
 	private object? EvalFormat(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#format_string
+		//   A NULL format string results in a NULL output STRING.
+		//   %t and %T with NULL produce 'NULL' (literal text).
+		//   Other specifiers (%s, %d, etc.) with NULL produce SQL NULL.
 		var fmt = Evaluate(func.Arguments[0], row);
 		if (fmt == null) return null;
 		var fmtStr = Convert.ToString(fmt) ?? "";
-		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#format_string
-		// NULL arguments are formatted as the literal string "NULL"
 		var args = func.Arguments.Skip(1).Select(a => Evaluate(a, row)).ToArray();
 		try { return SpannerFormat(fmtStr, args); }
 		catch { return fmtStr; }
 	}
 
-	private static string SpannerFormat(string fmt, object?[] args)
+	private static string? SpannerFormat(string fmt, object?[] args)
 	{
 		var sb = new System.Text.StringBuilder();
 		int argIdx = 0;
@@ -1885,8 +1905,13 @@ internal class ExpressionEvaluator
 				if (argIdx >= args.Length) break;
 				var arg = args[argIdx++];
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#format_string
-				//   "NULL values are formatted as the string 'NULL'"
-				if (arg == null) { sb.Append("NULL"); continue; }
+				//   %t and %T with NULL produce literal 'NULL' text.
+				//   Other specifiers with NULL produce SQL NULL for the entire result.
+				if (arg == null)
+				{
+					if (conv is 't' or 'T') { sb.Append("NULL"); continue; }
+					return null;
+				}
 				var width = widthStr.Length > 0 ? int.Parse(widthStr) : 0;
 				switch (conv)
 				{
@@ -2069,15 +2094,18 @@ internal class ExpressionEvaluator
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
 	//   LIKE supports % (any chars) and _ (single char).
-	//   Backslash escapes: \% → literal %, \_ → literal _, \\ → literal \.
-	//   "SELECT NULL LIKE 'a%'; -- Produces an error"
-	//   "SELECT 'apple' LIKE NULL; -- Produces an error"
+	//   "SELECT NULL LIKE 'a%'; -- Produces an error" (literal NULL)
+	//   But CAST(NULL AS STRING) LIKE 'hello' returns NULL (three-valued logic).
+	//   Verified against real Cloud Spanner.
 	private object? EvalLike(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
+		// Literal NULL operands produce an error
+		if (func.Arguments[0] is LiteralExpr { Value: null } || func.Arguments[1] is LiteralExpr { Value: null })
+			throw new InvalidOperationException("LIKE operator does not support NULL operands.");
 		var val = Evaluate(func.Arguments[0], row);
 		var pat = Evaluate(func.Arguments[1], row);
-		if (val == null || pat == null)
-			throw new InvalidOperationException("LIKE operator does not support NULL operands.");
+		// Runtime null (e.g. from CAST or column) → NULL per three-valued logic
+		if (val == null || pat == null) return null;
 		var valStr = Convert.ToString(val)!;
 		var patStr = Convert.ToString(pat)!;
 
@@ -2239,24 +2267,23 @@ internal class ExpressionEvaluator
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#soundex
-	//   Standard US Census Soundex: H and W do NOT separate coded letters
-	//   (letters with the same code across H/W are treated as a single code).
+	//   Cloud Spanner Soundex: preserves original case of first letter.
+	//   Vowels, H, and W are all skipped without resetting the last coded letter,
+	//   so same-coded letters separated by vowels are treated as a single code.
+	//   Verified against real Cloud Spanner.
 	private static string EvalSoundex(string s)
 	{
 		if (string.IsNullOrEmpty(s)) return "";
 		var result = new char[4];
-		result[0] = char.ToUpper(s[0]);
+		result[0] = s[0]; // Preserve original case
 		int idx = 1;
 		char lastCode = SoundexCode(s[0]);
 		for (int i = 1; i < s.Length && idx < 4; i++)
 		{
-			var c = char.ToUpper(s[i]);
 			var code = SoundexCode(s[i]);
 			if (code == '0')
 			{
-				// H and W don't separate codes; vowels (A,E,I,O,U,Y) do
-				if (c != 'H' && c != 'W')
-					lastCode = '0';
+				// Vowels, H, and W are all skipped without resetting lastCode
 				continue;
 			}
 			if (code != lastCode)
@@ -2359,8 +2386,8 @@ internal class ExpressionEvaluator
 		// Division by zero is an error → return NULL
 		if (dblB == 0) return null;
 		var result = dblA / dblB;
-		// NaN from Inf/Inf is an error → NULL
-		if (double.IsNaN(result)) return null;
+		// NaN from Inf/Inf is a valid IEEE result, not an error — return NaN.
+		// Verified against real Cloud Spanner: SAFE_DIVIDE(+inf, +inf) → NaN.
 		// Overflow from finite/finite producing Inf is an error → NULL
 		// But Inf/finite = Inf is valid (input was already Inf)
 		if (double.IsInfinity(result) && !double.IsInfinity(dblA)) return null;
@@ -2418,8 +2445,8 @@ internal class ExpressionEvaluator
 				"MUL" => da * db,
 				_ => throw new NotSupportedException()
 			};
-			// NaN from indeterminate form (e.g., Inf + (-Inf), Inf * 0) → NULL
-			if (double.IsNaN(result)) return null;
+			// NaN from indeterminate forms (e.g., Inf + (-Inf), Inf * 0) is a valid IEEE result.
+			// Verified against real Cloud Spanner: SAFE_ADD(+inf, -inf) → NaN.
 			// Overflow: finite op finite → Inf is an error → NULL
 			// But Inf op finite → Inf is valid (input was already Inf)
 			if (double.IsInfinity(result) && !double.IsInfinity(da) && !double.IsInfinity(db)) return null;
@@ -3051,11 +3078,16 @@ internal class ExpressionEvaluator
 
 	private object? EvalArrayConcat(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/array_functions#array_concat
+		//   "The argument to ARRAY_CONCAT must be an array type but was NULL"
+		//   Verified against real Cloud Spanner.
 		var result = new List<object?>();
 		foreach (var arg in func.Arguments)
 		{
 			var v = Evaluate(arg, row);
-			if (v == null) return null;
+			if (v == null)
+				throw new InvalidOperationException(
+					"The argument to ARRAY_CONCAT (or ARRAY_CONCAT_AGG) must be an array type but was NULL");
 			if (v is IList<object?> list) result.AddRange(list);
 			else if (v is System.Collections.IEnumerable e) result.AddRange(e.Cast<object?>());
 		}
@@ -4322,16 +4354,33 @@ internal class ExpressionEvaluator
 		var val = Evaluate(func.Arguments[0], row);
 		if (val == null) return null;
 		var intVal = Convert.ToInt64(val);
-		var width = Convert.ToBoolean(Evaluate(func.Arguments[1], row)
-			?? throw new InvalidOperationException("BIT_REVERSE: bit_count cannot be NULL."));
-		// The second arg indicates whether to keep the sign bit (true = keep as INT64)
+		var isSigned = Convert.ToBoolean(Evaluate(func.Arguments[1], row)
+			?? throw new InvalidOperationException("BIT_REVERSE: is_signed cannot be NULL."));
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/bit_functions#bit_reverse
+		// When is_signed=true, reverse only the 63 non-sign bits (bits 0-62),
+		// preserving the sign bit (bit 63). When is_signed=false, reverse all 64 bits.
 		ulong unsigned = (ulong)intVal;
 		ulong reversed = 0;
-		for (int i = 0; i < 64; i++)
+		if (isSigned)
 		{
-			reversed <<= 1;
-			reversed |= (unsigned & 1);
-			unsigned >>= 1;
+			ulong signBit = unsigned & 0x8000000000000000UL;
+			ulong lower63 = unsigned & 0x7FFFFFFFFFFFFFFFUL;
+			for (int i = 0; i < 63; i++)
+			{
+				reversed <<= 1;
+				reversed |= (lower63 & 1);
+				lower63 >>= 1;
+			}
+			reversed |= signBit;
+		}
+		else
+		{
+			for (int i = 0; i < 64; i++)
+			{
+				reversed <<= 1;
+				reversed |= (unsigned & 1);
+				unsigned >>= 1;
+			}
 		}
 		return (long)reversed;
 	}
@@ -4512,6 +4561,9 @@ internal class ExpressionEvaluator
 		var val1 = Evaluate(func.Arguments[0], row);
 		var val2 = Evaluate(func.Arguments[1], row);
 		if (val1 == null || val2 == null) return null;
+		// CAST(NULL AS JSON) produces a JsonElement with ValueKind.Null — treat as SQL NULL
+		if (val1 is JsonElement je1n && je1n.ValueKind == System.Text.Json.JsonValueKind.Null) return null;
+		if (val2 is JsonElement je2n && je2n.ValueKind == System.Text.Json.JsonValueKind.Null) return null;
 
 		string json1 = val1 is JsonElement je1c ? je1c.GetRawText() : val1.ToString()!;
 		string json2 = val2 is JsonElement je2c ? je2c.GetRawText() : val2.ToString()!;

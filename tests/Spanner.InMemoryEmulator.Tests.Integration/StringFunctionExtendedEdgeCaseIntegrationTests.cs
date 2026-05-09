@@ -475,10 +475,11 @@ public class StringFunctionExtendedEdgeCaseIntegrationTests : IntegrationTestBas
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Format_NullArg_ReturnsNULLString()
+	public async Task Format_NullArg_ReturnsNull()
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#format_string
-		//   "NULL values produce 'NULL'"
-		(await Eval("FORMAT('%s', NULL)")).Should().Be("NULL");
+		//   "The function generally produces a NULL value if a NULL argument is present."
+		//   Only %t and %T produce literal 'NULL' text for NULL args.
+		(await Eval("FORMAT('%s', NULL)")).Should().BeNull();
 	}
 }

@@ -278,16 +278,19 @@ public class ArrayFunctionEdgeCaseIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ArrayConcat_NullArray_ReturnsNull()
+	public async Task ArrayConcat_NullArray_ThrowsError()
 	{
-		(await Eval("ARRAY_CONCAT(NULL, [1])")).Should().BeNull();
+		// Ref: Cloud Spanner: "The argument to ARRAY_CONCAT must be an array type but was NULL"
+		var act = () => Eval("ARRAY_CONCAT(NULL, [1])");
+		await act.Should().ThrowAsync<Exception>();
 	}
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ArrayConcat_SecondNull_ReturnsNull()
+	public async Task ArrayConcat_SecondNull_ThrowsError()
 	{
-		(await Eval("ARRAY_CONCAT([1], NULL)")).Should().BeNull();
+		var act = () => Eval("ARRAY_CONCAT([1], NULL)");
+		await act.Should().ThrowAsync<Exception>();
 	}
 
 	// ═══════════════════════════════════════════════════════════════

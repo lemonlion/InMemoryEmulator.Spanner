@@ -32,46 +32,46 @@ public class NewFunctionIntegrationTests : IntegrationTestBase
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task SHA256_ReturnsBytes()
 	{
-		var rows = await QueryAsync("SELECT SHA256(b'abc') AS hash");
+		var rows = await QueryAsync("SELECT SHA256(b'abc') AS h");
 		rows.Should().ContainSingle();
-		rows[0]["hash"].Should().BeOfType<byte[]>();
-		((byte[])rows[0]["hash"]!).Should().HaveCount(32);
+		rows[0]["h"].Should().BeOfType<byte[]>();
+		((byte[])rows[0]["h"]!).Should().HaveCount(32);
 	}
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task SHA512_ReturnsBytes()
 	{
-		var rows = await QueryAsync("SELECT SHA512(b'test') AS hash");
+		var rows = await QueryAsync("SELECT SHA512(b'test') AS h");
 		rows.Should().ContainSingle();
-		((byte[])rows[0]["hash"]!).Should().HaveCount(64);
+		((byte[])rows[0]["h"]!).Should().HaveCount(64);
 	}
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task SHA1_ReturnsBytes()
 	{
-		var rows = await QueryAsync("SELECT SHA1(b'hello') AS hash");
+		var rows = await QueryAsync("SELECT SHA1(b'hello') AS h");
 		rows.Should().ContainSingle();
-		((byte[])rows[0]["hash"]!).Should().HaveCount(20);
+		((byte[])rows[0]["h"]!).Should().HaveCount(20);
 	}
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task MD5_ReturnsBytes()
 	{
-		var rows = await QueryAsync("SELECT MD5(b'hello') AS hash");
+		var rows = await QueryAsync("SELECT MD5(b'hello') AS h");
 		rows.Should().ContainSingle();
-		((byte[])rows[0]["hash"]!).Should().HaveCount(16);
+		((byte[])rows[0]["h"]!).Should().HaveCount(16);
 	}
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task SHA256_NullReturnsNull()
 	{
-		var rows = await QueryAsync("SELECT SHA256(NULL) AS hash");
+		var rows = await QueryAsync("SELECT SHA256(NULL) AS h");
 		rows.Should().ContainSingle();
-		rows[0]["hash"].Should().BeNull();
+		rows[0]["h"].Should().BeNull();
 	}
 
 	[Fact]
@@ -213,7 +213,7 @@ public class NewFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task REGEXP_INSTR_ReturnsPosition()
 	{
 		var rows = await QueryAsync("SELECT REGEXP_INSTR('abcdef', 'cd') AS pos");
@@ -222,7 +222,7 @@ public class NewFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task REGEXP_INSTR_NoMatch_ReturnsZero()
 	{
 		var rows = await QueryAsync("SELECT REGEXP_INSTR('abcdef', 'xyz') AS pos");

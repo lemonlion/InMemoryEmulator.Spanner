@@ -317,10 +317,10 @@ public class ComparisonOperatorEdgeCaseIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task InUnnest_NullArray_ReturnsNull()
+	public async Task InUnnest_NullArray_ReturnsFalse()
 	{
-		// Ref: NULL array → NULL result
-		(await Eval("1 IN UNNEST(CAST(NULL AS ARRAY<INT64>))")).Should().BeNull();
+		// Ref: Verified against real Cloud Spanner — NULL array behaves as empty set.
+		(await Eval("1 IN UNNEST(CAST(NULL AS ARRAY<INT64>))")).Should().Be(false);
 	}
 
 	[Fact]

@@ -183,13 +183,23 @@ public class ConditionalExhaustiveIntegrationTests : IntegrationTestBase
 	[InlineData("TRUE AND NULL")]
 	[InlineData("NULL OR NULL")]
 	[InlineData("NULL AND NULL")]
-	[InlineData("NOT NULL")]
 	[Trait(TestTraits.Category, "ConditionalExhaustive")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task NullBooleanLogic_ReturnsNull(string expr)
 	{
 		var result = await Eval(expr);
 		result.Should().BeNull();
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "ConditionalExhaustive")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	public async Task NotNull_ThrowsError()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#logical_operators
+		//   "Operands of NOT cannot be literal NULL" — verified against real Cloud Spanner.
+		var act = () => Eval("NOT NULL");
+		await act.Should().ThrowAsync<Exception>();
 	}
 
 	[Theory]

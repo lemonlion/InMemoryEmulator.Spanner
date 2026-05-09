@@ -98,7 +98,8 @@ public class ArrayFunctionCoreIntegrationTests : IntegrationTestBase
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArrayReverse_ReversesElements()
 	{
-		var rows = await QueryAsync("SELECT v FROM UNNEST(ARRAY_REVERSE([1,2,3])) AS v");
+		// Use WITH OFFSET to preserve array order (UNNEST order is not guaranteed on Cloud Spanner)
+		var rows = await QueryAsync("SELECT v FROM UNNEST(ARRAY_REVERSE([1,2,3])) AS v WITH OFFSET AS off ORDER BY off");
 		rows.Select(r => (long)r["v"]!).Should().Equal(3L, 2L, 1L);
 	}
 

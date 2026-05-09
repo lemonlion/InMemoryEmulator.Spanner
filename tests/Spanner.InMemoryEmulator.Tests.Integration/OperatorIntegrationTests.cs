@@ -951,18 +951,20 @@ public class OperatorIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Like_NullValue_ThrowsError()
+	public async Task Like_NullValue_ReturnsNull()
 	{
-		var act = () => Eval("CAST(NULL AS STRING) LIKE 'a%'");
-		await act.Should().ThrowAsync<Exception>();
+		// Ref: CAST(NULL AS STRING) is a runtime null, not a literal NULL.
+		// Cloud Spanner returns NULL for LIKE with runtime NULL operands.
+		var result = await Eval("CAST(NULL AS STRING) LIKE 'a%'");
+		result.Should().BeNull();
 	}
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Like_NullPattern_ThrowsError()
+	public async Task Like_NullPattern_ReturnsNull()
 	{
-		var act = () => Eval("'apple' LIKE CAST(NULL AS STRING)");
-		await act.Should().ThrowAsync<Exception>();
+		var result = await Eval("'apple' LIKE CAST(NULL AS STRING)");
+		result.Should().BeNull();
 	}
 
 	// ═══════════════════════════════════════════════════════════════

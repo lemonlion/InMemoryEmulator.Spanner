@@ -391,9 +391,9 @@ internal class QueryExecutor
 		}
 
 		// 5. Window functions — pre-compute window function results into rows
-		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls
-		//   Window functions are computed after WHERE/GROUP BY/HAVING but before ORDER BY.
-		//   Also include window functions referenced in QUALIFY clause.
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#is_first
+		//   Only IS_FIRST is supported by Cloud Spanner. Other window functions
+		//   (ROW_NUMBER, RANK, etc.) are BigQuery-only.
 		var windowColumns = select.Columns.ToList();
 		if (select.Qualify != null)
 		{
@@ -974,12 +974,11 @@ internal class QueryExecutor
 		}
 
 		// Navigation window functions — return type of their first argument
-		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/navigation_functions
-		if (name is "LAG" or "LEAD" or "FIRST_VALUE" or "LAST_VALUE" or "NTH_VALUE"
-			&& func.Arguments.Count > 0)
-		{
-			return InferType(func.Arguments[0], table);
-		}
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#is_first
+		//   IS_FIRST returns BOOL.
+		//   Other window functions (LAG, LEAD, etc.) are not supported.
+		if (name == "IS_FIRST")
+			return TypeCode.Bool;
 
 		return name switch
 		{
@@ -988,14 +987,6 @@ internal class QueryExecutor
 			"LOGICAL_AND" or "LOGICAL_OR" => TypeCode.Bool,
 			"STRING_AGG" => TypeCode.String,
 			"ARRAY_AGG" => TypeCode.Array,
-
-			// Window functions returning INT64
-			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions
-			"ROW_NUMBER" or "RANK" or "DENSE_RANK" or "NTILE" => TypeCode.Int64,
-
-			// Window functions returning FLOAT64
-			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions
-			"PERCENT_RANK" or "CUME_DIST" => TypeCode.Float64,
 
 			// String functions returning INT64
 			"LENGTH" or "CHAR_LENGTH" or "CHARACTER_LENGTH" or "STRPOS"
@@ -1162,11 +1153,12 @@ internal class QueryExecutor
 		_ => false
 	};
 
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions
-	//   Supported numbering / window functions:
-	//   IS_FIRST(k) — GCP Spanner native
-	//   ROW_NUMBER, RANK, DENSE_RANK, NTILE, PERCENT_RANK, CUME_DIST — standard SQL
-	//   (supported by Go emulator via ZetaSQL; not supported by real GCP Spanner)
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#is_first
+	//   Cloud Spanner only supports IS_FIRST as a window function.
+	//   ROW_NUMBER, RANK, DENSE_RANK, NTILE, PERCENT_RANK, CUME_DIST, LAG, LEAD,
+	//   FIRST_VALUE, LAST_VALUE, NTH_VALUE, and aggregate OVER() are BigQuery-only
+	//   and are NOT supported by Cloud Spanner.
+	//   Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/functions-all
 	private List<Dictionary<string, object?>> EvaluateWindowFunctions(
 		List<SelectColumn> columns,
 		List<Dictionary<string, object?>> rows,
@@ -1186,6 +1178,10 @@ internal class QueryExecutor
 				_ => ""
 			};
 
+			// Only IS_FIRST is supported by Cloud Spanner
+			if (funcName != "IS_FIRST")
+				throw new NotSupportedException($"Unsupported built-in function: {funcName}.");
+
 			var partitions = PartitionRows(rows, win.PartitionBy, evaluator);
 			var resultAlias = col.Alias ?? InferColumnNameStatic(col.Expr);
 
@@ -1193,476 +1189,21 @@ internal class QueryExecutor
 			{
 				var sorted = SortRows(partition, win.OrderBy, evaluator);
 
-				switch (funcName)
-				{
-					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#is_first
-					//   IS_FIRST(k) returns TRUE if the current row is among the first k rows
-					//   in its partition, ordered by the ORDER BY clause.
-					case "IS_FIRST":
-					{
-						var isFirstFunc = (FunctionCallExpr)win.Function;
-						if (isFirstFunc.Arguments.Count != 1)
-							throw new InvalidOperationException("IS_FIRST requires exactly 1 argument.");
-						var kVal = evaluator.Evaluate(isFirstFunc.Arguments[0], rows.FirstOrDefault() ?? new Dictionary<string, object?>());
-						int k = Convert.ToInt32(kVal ?? throw new InvalidOperationException("IS_FIRST: argument cannot be NULL."));
-						if (k < 0) throw new InvalidOperationException("IS_FIRST: argument must be non-negative.");
-						for (int i = 0; i < sorted.Count; i++)
-							sorted[i][resultAlias] = i < k;
-						break;
-					}
-
-					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#row_number
-					//   ROW_NUMBER() returns a sequential integer starting at 1.
-					//   Note: Not supported by real GCP Spanner — Go emulator parity via ZetaSQL.
-					case "ROW_NUMBER":
-						for (int i = 0; i < sorted.Count; i++)
-							sorted[i][resultAlias] = (long)(i + 1);
-						break;
-
-					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#rank
-					//   RANK() returns the rank with gaps for ties.
-					//   Note: Not supported by real GCP Spanner — Go emulator parity via ZetaSQL.
-					case "RANK":
-					{
-						for (int i = 0; i < sorted.Count; i++)
-						{
-							if (i == 0)
-							{
-								sorted[i][resultAlias] = 1L;
-							}
-							else
-							{
-								bool tie = win.OrderBy != null && win.OrderBy.All(ob =>
-								{
-									var prev = evaluator.Evaluate(ob.Expr, sorted[i - 1]);
-									var curr = evaluator.Evaluate(ob.Expr, sorted[i]);
-									return CompareNullable(prev, curr) == 0;
-								});
-								sorted[i][resultAlias] = tie ? (long)sorted[i - 1][resultAlias]! : (long)(i + 1);
-							}
-						}
-						break;
-					}
-
-					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#dense_rank
-					//   DENSE_RANK() returns the rank without gaps for ties.
-					//   Note: Not supported by real GCP Spanner — Go emulator parity via ZetaSQL.
-					case "DENSE_RANK":
-					{
-						long currentRank = 0;
-						for (int i = 0; i < sorted.Count; i++)
-						{
-							if (i == 0)
-							{
-								currentRank = 1;
-							}
-							else
-							{
-								bool tie = win.OrderBy != null && win.OrderBy.All(ob =>
-								{
-									var prev = evaluator.Evaluate(ob.Expr, sorted[i - 1]);
-									var curr = evaluator.Evaluate(ob.Expr, sorted[i]);
-									return CompareNullable(prev, curr) == 0;
-								});
-								if (!tie) currentRank++;
-							}
-							sorted[i][resultAlias] = currentRank;
-						}
-						break;
-					}
-
-					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#ntile
-					//   NTILE(num_buckets) divides rows into roughly equal buckets.
-					//   Note: Not supported by real GCP Spanner — Go emulator parity via ZetaSQL.
-					case "NTILE":
-					{
-						var ntileFunc = (FunctionCallExpr)win.Function;
-						if (ntileFunc.Arguments.Count != 1)
-							throw new InvalidOperationException("NTILE requires exactly 1 argument.");
-						var nVal = evaluator.Evaluate(ntileFunc.Arguments[0], rows.FirstOrDefault() ?? new Dictionary<string, object?>());
-						int numBuckets = Convert.ToInt32(nVal ?? throw new InvalidOperationException("NTILE: argument cannot be NULL."));
-						if (numBuckets <= 0) throw new InvalidOperationException("NTILE: argument must be positive.");
-						int total = sorted.Count;
-						int baseSize = total / numBuckets;
-						int extra = total % numBuckets;
-						int idx = 0;
-						for (int bucket = 1; bucket <= numBuckets && idx < total; bucket++)
-						{
-							int bucketSize = baseSize + (bucket <= extra ? 1 : 0);
-							for (int j = 0; j < bucketSize && idx < total; j++, idx++)
-								sorted[idx][resultAlias] = (long)bucket;
-						}
-						break;
-					}
-
-					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#percent_rank
-					//   PERCENT_RANK() = (rank - 1) / (partition_size - 1). Returns 0 for single-row partitions.
-					//   Note: Not supported by real GCP Spanner — Go emulator parity via ZetaSQL.
-					case "PERCENT_RANK":
-					{
-						// First compute RANK values
-						var ranks = new long[sorted.Count];
-						for (int i = 0; i < sorted.Count; i++)
-						{
-							if (i == 0) { ranks[i] = 1; continue; }
-							bool tie = win.OrderBy != null && win.OrderBy.All(ob =>
-							{
-								var prev = evaluator.Evaluate(ob.Expr, sorted[i - 1]);
-								var curr = evaluator.Evaluate(ob.Expr, sorted[i]);
-								return CompareNullable(prev, curr) == 0;
-							});
-							ranks[i] = tie ? ranks[i - 1] : (long)(i + 1);
-						}
-						int n = sorted.Count;
-						for (int i = 0; i < n; i++)
-							sorted[i][resultAlias] = n <= 1 ? 0.0 : (double)(ranks[i] - 1) / (n - 1);
-						break;
-					}
-
-					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#cume_dist
-					//   CUME_DIST() = count(rows with value <= current) / partition_size.
-					//   Note: Not supported by real GCP Spanner — Go emulator parity via ZetaSQL.
-					case "CUME_DIST":
-					{
-						int n = sorted.Count;
-						for (int i = 0; i < n; i++)
-						{
-							// Count how many rows have ORDER BY values <= this row's values
-							// All rows with the same ORDER BY values get the same cume_dist
-							int countLeq = 0;
-							for (int j = 0; j < n; j++)
-							{
-								bool leq = win.OrderBy == null || win.OrderBy.All(ob =>
-								{
-									var vj = evaluator.Evaluate(ob.Expr, sorted[j]);
-									var vi = evaluator.Evaluate(ob.Expr, sorted[i]);
-									int cmp = CompareNullable(vj, vi);
-									return ob.Order == SortOrder.Desc ? cmp >= 0 : cmp <= 0;
-								});
-								if (leq) countLeq++;
-							}
-							sorted[i][resultAlias] = (double)countLeq / n;
-						}
-						break;
-					}
-
-					default:
-					// Check if it's an aggregate function being used as a window function
-					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate-function-calls
-					//   Aggregate functions can be used as analytic (window) functions with an OVER clause.
-					if (funcName is "SUM" or "AVG" or "MIN" or "MAX" or "COUNT" or "$COUNT_STAR"
-						or "STRING_AGG" or "ARRAY_AGG" or "LOGICAL_AND" or "LOGICAL_OR" or "COUNTIF"
-						or "FIRST_VALUE" or "LAST_VALUE" or "LAG" or "LEAD" or "NTH_VALUE")
-					{
-						EvaluateAggregateOrNavWindowFunction(funcName, win, sorted, resultAlias, evaluator);
-					}
-					else
-					{
-						throw new NotSupportedException($"Unsupported built-in function: {funcName}.");
-					}
-					break;
-				}
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/numbering_functions#is_first
+				//   IS_FIRST(k) returns TRUE if the current row is among the first k rows
+				//   in its partition, ordered by the ORDER BY clause.
+				var isFirstFunc = (FunctionCallExpr)win.Function;
+				if (isFirstFunc.Arguments.Count != 1)
+					throw new InvalidOperationException("IS_FIRST requires exactly 1 argument.");
+				var kVal = evaluator.Evaluate(isFirstFunc.Arguments[0], rows.FirstOrDefault() ?? new Dictionary<string, object?>());
+				int k = Convert.ToInt32(kVal ?? throw new InvalidOperationException("IS_FIRST: argument cannot be NULL."));
+				if (k < 0) throw new InvalidOperationException("IS_FIRST: argument must be non-negative.");
+				for (int i = 0; i < sorted.Count; i++)
+					sorted[i][resultAlias] = i < k;
 			}
 		}
 
 		return rows;
-	}
-
-	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls
-	//   Aggregate functions (SUM, AVG, MIN, MAX, COUNT, etc.) and navigation
-	//   functions (LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE) can be used
-	//   as analytic (window) functions with an OVER clause.
-	private void EvaluateAggregateOrNavWindowFunction(
-		string funcName,
-		WindowExpr win,
-		List<Dictionary<string, object?>> sorted,
-		string resultAlias,
-		ExpressionEvaluator evaluator)
-	{
-		// Navigation functions operate on sorted rows directly (no frame)
-		if (funcName is "LAG" or "LEAD" or "FIRST_VALUE" or "LAST_VALUE" or "NTH_VALUE")
-		{
-			EvaluateNavigationWindowFunction(funcName, win, sorted, resultAlias, evaluator);
-			return;
-		}
-
-		var func = win.Function as FunctionCallExpr;
-		SqlExpression? argExpr = func?.Arguments.FirstOrDefault();
-
-		for (int i = 0; i < sorted.Count; i++)
-		{
-			var frameRows = GetFrameRows(win, sorted, i);
-
-			object? result = funcName switch
-			{
-				"SUM" => ComputeWindowSum(argExpr!, frameRows, evaluator),
-				"AVG" => ComputeWindowAvg(argExpr!, frameRows, evaluator),
-				"MIN" => ComputeWindowMinMax(argExpr!, frameRows, evaluator, isMin: true),
-				"MAX" => ComputeWindowMinMax(argExpr!, frameRows, evaluator, isMin: false),
-				"COUNT" => ComputeWindowCount(argExpr!, frameRows, evaluator),
-				"$COUNT_STAR" => (long)frameRows.Count,
-				"STRING_AGG" => ComputeWindowStringAgg(func!, frameRows, evaluator),
-				"COUNTIF" => ComputeWindowCountIf(argExpr!, frameRows, evaluator),
-				_ => throw new NotSupportedException($"Unsupported window aggregate: {funcName}")
-			};
-
-			sorted[i][resultAlias] = result;
-		}
-	}
-
-	private void EvaluateNavigationWindowFunction(
-		string funcName,
-		WindowExpr win,
-		List<Dictionary<string, object?>> sorted,
-		string resultAlias,
-		ExpressionEvaluator evaluator)
-	{
-		var func = win.Function as FunctionCallExpr;
-		var args = func?.Arguments ?? new List<SqlExpression>();
-		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/navigation_functions
-		//   "IGNORE NULLS: all NULL values of expr are excluded from the calculation."
-		bool ignoreNulls = func?.NullHandling == false;
-
-		for (int i = 0; i < sorted.Count; i++)
-		{
-			object? result = funcName switch
-			{
-				"LAG" => EvalLagLead(args, sorted, i, evaluator, isLag: true, ignoreNulls),
-				"LEAD" => EvalLagLead(args, sorted, i, evaluator, isLag: false, ignoreNulls),
-				"FIRST_VALUE" => EvalFirstLastValue(args, win, sorted, i, evaluator, isFirst: true, ignoreNulls),
-				"LAST_VALUE" => EvalFirstLastValue(args, win, sorted, i, evaluator, isFirst: false, ignoreNulls),
-				"NTH_VALUE" => EvalNthValue(args, win, sorted, i, evaluator, ignoreNulls),
-				_ => throw new NotSupportedException($"Unsupported navigation function: {funcName}")
-			};
-			sorted[i][resultAlias] = result;
-		}
-	}
-
-	private object? EvalLagLead(
-		List<SqlExpression> args,
-		List<Dictionary<string, object?>> sorted,
-		int currentIndex,
-		ExpressionEvaluator evaluator,
-		bool isLag,
-		bool ignoreNulls)
-	{
-		var valueExpr = args[0];
-		int offset = args.Count > 1
-			? Convert.ToInt32(evaluator.Evaluate(args[1], sorted[currentIndex]))
-			: 1;
-		object? defaultValue = args.Count > 2
-			? evaluator.Evaluate(args[2], sorted[currentIndex])
-			: null;
-
-		if (ignoreNulls)
-		{
-			// Skip rows where value is NULL, counting only non-null values
-			int found = 0;
-			int step = isLag ? -1 : 1;
-			for (int j = currentIndex + step; j >= 0 && j < sorted.Count; j += step)
-			{
-				var val = evaluator.Evaluate(valueExpr, sorted[j]);
-				if (val != null)
-				{
-					found++;
-					if (found == offset) return val;
-				}
-			}
-			return defaultValue;
-		}
-
-		int targetIndex = isLag ? currentIndex - offset : currentIndex + offset;
-		if (targetIndex < 0 || targetIndex >= sorted.Count)
-			return defaultValue;
-		return evaluator.Evaluate(valueExpr, sorted[targetIndex]);
-	}
-
-	private object? EvalFirstLastValue(
-		List<SqlExpression> args,
-		WindowExpr win,
-		List<Dictionary<string, object?>> sorted,
-		int currentIndex,
-		ExpressionEvaluator evaluator,
-		bool isFirst,
-		bool ignoreNulls)
-	{
-		var valueExpr = args[0];
-		var frameRows = GetFrameRows(win, sorted, currentIndex);
-		if (frameRows.Count == 0) return null;
-
-		if (ignoreNulls)
-		{
-			var sequence = isFirst ? frameRows : frameRows.AsEnumerable().Reverse();
-			foreach (var row in sequence)
-			{
-				var val = evaluator.Evaluate(valueExpr, row);
-				if (val != null) return val;
-			}
-			return null;
-		}
-
-		var targetRow = isFirst ? frameRows[0] : frameRows[^1];
-		return evaluator.Evaluate(valueExpr, targetRow);
-	}
-
-	private object? EvalNthValue(
-		List<SqlExpression> args,
-		WindowExpr win,
-		List<Dictionary<string, object?>> sorted,
-		int currentIndex,
-		ExpressionEvaluator evaluator,
-		bool ignoreNulls)
-	{
-		var valueExpr = args[0];
-		int n = Convert.ToInt32(evaluator.Evaluate(args[1], sorted[currentIndex]));
-		var frameRows = GetFrameRows(win, sorted, currentIndex);
-
-		if (ignoreNulls)
-		{
-			int found = 0;
-			foreach (var row in frameRows)
-			{
-				var val = evaluator.Evaluate(valueExpr, row);
-				if (val != null)
-				{
-					found++;
-					if (found == n) return val;
-				}
-			}
-			return null;
-		}
-
-		if (n < 1 || n > frameRows.Count) return null;
-		return evaluator.Evaluate(valueExpr, frameRows[n - 1]);
-	}
-
-	private List<Dictionary<string, object?>> GetFrameRows(
-		WindowExpr win,
-		List<Dictionary<string, object?>> sorted,
-		int currentIndex)
-	{
-		var frame = win.Frame;
-
-		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/window-function-calls#def_window_frame
-		//   Default frame when ORDER BY is present: RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-		//   Default frame when ORDER BY is absent: ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
-		if (frame == null)
-		{
-			if (win.OrderBy != null && win.OrderBy.Count > 0)
-			{
-				// Default: UNBOUNDED PRECEDING to CURRENT ROW
-				return sorted.GetRange(0, currentIndex + 1);
-			}
-			else
-			{
-				// No ORDER BY: whole partition
-				return sorted;
-			}
-		}
-
-		int start = ResolveFrameBound(frame.Start, currentIndex, sorted.Count, isStart: true);
-		int end = ResolveFrameBound(frame.End, currentIndex, sorted.Count, isStart: false);
-
-		start = Math.Max(0, start);
-		end = Math.Min(sorted.Count - 1, end);
-
-		if (start > end) return new List<Dictionary<string, object?>>();
-		return sorted.GetRange(start, end - start + 1);
-	}
-
-	private static int ResolveFrameBound(WindowFrame bound, int currentIndex, int count, bool isStart)
-	{
-		return bound.Type switch
-		{
-			FrameBoundType.UnboundedPreceding => 0,
-			FrameBoundType.UnboundedFollowing => count - 1,
-			FrameBoundType.CurrentRow => currentIndex,
-			FrameBoundType.OffsetPreceding => currentIndex - (int)bound.Offset,
-			FrameBoundType.OffsetFollowing => currentIndex + (int)bound.Offset,
-			_ => throw new NotSupportedException($"Unsupported frame bound type: {bound.Type}")
-		};
-	}
-
-	private static object? ComputeWindowSum(SqlExpression argExpr, List<Dictionary<string, object?>> frameRows, ExpressionEvaluator evaluator)
-	{
-		double? sum = null;
-		bool isInt = true;
-		long intSum = 0;
-		foreach (var r in frameRows)
-		{
-			var v = evaluator.Evaluate(argExpr, r);
-			if (v is null) continue;
-			sum ??= 0;
-			if (v is long lv) { intSum += lv; sum = sum.Value + lv; }
-			else { isInt = false; var d = Convert.ToDouble(v); sum = sum.Value + d; }
-		}
-		if (sum == null) return null;
-		return isInt ? (object)intSum : sum.Value;
-	}
-
-	private static object? ComputeWindowAvg(SqlExpression argExpr, List<Dictionary<string, object?>> frameRows, ExpressionEvaluator evaluator)
-	{
-		double sum = 0;
-		int count = 0;
-		foreach (var r in frameRows)
-		{
-			var v = evaluator.Evaluate(argExpr, r);
-			if (v is null) continue;
-			sum += Convert.ToDouble(v);
-			count++;
-		}
-		return count == 0 ? null : sum / count;
-	}
-
-	private static object? ComputeWindowMinMax(SqlExpression argExpr, List<Dictionary<string, object?>> frameRows, ExpressionEvaluator evaluator, bool isMin)
-	{
-		object? result = null;
-		foreach (var r in frameRows)
-		{
-			var v = evaluator.Evaluate(argExpr, r);
-			if (v is null) continue;
-			if (result is null) { result = v; continue; }
-			int cmp = Comparer<object>.Default.Compare(v, result);
-			if ((isMin && cmp < 0) || (!isMin && cmp > 0)) result = v;
-		}
-		return result;
-	}
-
-	private static object? ComputeWindowCount(SqlExpression argExpr, List<Dictionary<string, object?>> frameRows, ExpressionEvaluator evaluator)
-	{
-		long count = 0;
-		foreach (var r in frameRows)
-		{
-			var v = evaluator.Evaluate(argExpr, r);
-			if (v is not null) count++;
-		}
-		return count;
-	}
-
-	private static object? ComputeWindowStringAgg(FunctionCallExpr func, List<Dictionary<string, object?>> frameRows, ExpressionEvaluator evaluator)
-	{
-		var argExpr = func.Arguments[0];
-		string sep = func.Arguments.Count > 1
-			? evaluator.Evaluate(func.Arguments[1], frameRows.FirstOrDefault() ?? new())?.ToString() ?? ","
-			: ",";
-		var parts = new List<string>();
-		foreach (var r in frameRows)
-		{
-			var v = evaluator.Evaluate(argExpr, r);
-			if (v is not null) parts.Add(v.ToString()!);
-		}
-		return parts.Count == 0 ? null : string.Join(sep, parts);
-	}
-
-	private static object? ComputeWindowCountIf(SqlExpression argExpr, List<Dictionary<string, object?>> frameRows, ExpressionEvaluator evaluator)
-	{
-		long count = 0;
-		foreach (var r in frameRows)
-		{
-			var v = evaluator.Evaluate(argExpr, r);
-			if (v is true) count++;
-		}
-		return count;
 	}
 
 	private List<List<Dictionary<string, object?>>> PartitionRows(

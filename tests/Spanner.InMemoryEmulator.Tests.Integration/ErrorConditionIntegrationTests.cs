@@ -393,24 +393,28 @@ public class ErrorConditionIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 	// Window / Analytic functions — not supported in Cloud Spanner
 	// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
-	//   Cloud Spanner does not support LAG, LEAD, FIRST_VALUE, LAST_VALUE.
-	//   ROW_NUMBER, RANK, DENSE_RANK, and aggregate OVER() are now implemented.
+	//   Cloud Spanner does NOT support traditional window functions (ROW_NUMBER,
+	//   RANK, DENSE_RANK, LAG, LEAD, FIRST_VALUE, LAST_VALUE, etc.)
+	//   or aggregate OVER(). These are BigQuery-only.
+	//   Only IS_FIRST is a real Spanner window function.
 	// ═══════════════════════════════════════════════════════════════
-
-	//   LAG, LEAD, FIRST_VALUE, LAST_VALUE are now implemented as window functions.
 
 	[Theory]
 	[InlineData("SELECT LAG(Val) OVER (ORDER BY Id) AS L FROM ErrTest")]
 	[InlineData("SELECT LEAD(Val) OVER (ORDER BY Id) AS L FROM ErrTest")]
 	[InlineData("SELECT FIRST_VALUE(Val) OVER (ORDER BY Id) AS FV FROM ErrTest")]
 	[InlineData("SELECT LAST_VALUE(Val) OVER (ORDER BY Id) AS LV FROM ErrTest")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task WindowFunction_Succeeds(string sql)
+	[InlineData("SELECT ROW_NUMBER() OVER (ORDER BY Id) AS RN FROM ErrTest")]
+	[InlineData("SELECT RANK() OVER (ORDER BY Id) AS R FROM ErrTest")]
+	[InlineData("SELECT DENSE_RANK() OVER (ORDER BY Id) AS DR FROM ErrTest")]
+	[InlineData("SELECT NTILE(2) OVER (ORDER BY Id) AS N FROM ErrTest")]
+	[InlineData("SELECT SUM(Val) OVER () AS S FROM ErrTest")]
+	[InlineData("SELECT COUNT(*) OVER () AS C FROM ErrTest")]
+	public async Task WindowFunction_NotSupported_Throws(string sql)
 	{
 		await EnsureErrorTableAsync();
-		// Table is empty so result is empty — just verify it doesn't throw
-		var rows = await QueryAsync(sql);
-		rows.Should().BeEmpty(); // empty table → no rows
+		var act = () => QueryAsync(sql);
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	// ═══════════════════════════════════════════════════════════════

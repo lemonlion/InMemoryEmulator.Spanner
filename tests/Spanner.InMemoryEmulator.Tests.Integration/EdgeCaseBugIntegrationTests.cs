@@ -802,40 +802,6 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
-	public async Task FirstValue_IgnoreNulls_SkipsNullRows()
-	{
-		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/navigation_functions#first_value
-		//   "IGNORE NULLS: ... all NULL values of expr are excluded from the calculation."
-		var t = await FreshTable("fvin");
-		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "a", ["Val"] = (long?)null });
-		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 2L, ["Name"] = "b", ["Val"] = 10L });
-		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 3L, ["Name"] = "c", ["Val"] = 20L });
-		var rows = await QueryAsync($"SELECT Id, FIRST_VALUE(Val IGNORE NULLS) OVER (ORDER BY Id) AS FV FROM {t} ORDER BY Id");
-		// First non-null Val is 10 (Id=2). Before seeing it (Id=1), FIRST_VALUE IGNORE NULLS returns NULL.
-		rows[0]["FV"].Should().BeNull();
-		((long)rows[1]["FV"]!).Should().Be(10L);
-		((long)rows[2]["FV"]!).Should().Be(10L);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
-	public async Task LastValue_IgnoreNulls_SkipsNullRows()
-	{
-		var t = await FreshTable("lvin");
-		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "a", ["Val"] = 10L });
-		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 2L, ["Name"] = "b", ["Val"] = (long?)null });
-		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 3L, ["Name"] = "c", ["Val"] = 30L });
-		var rows = await QueryAsync($"SELECT Id, LAST_VALUE(Val IGNORE NULLS) OVER (ORDER BY Id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS LV FROM {t} ORDER BY Id");
-		// LAST_VALUE IGNORE NULLS with frame up to current row
-		((long)rows[0]["LV"]!).Should().Be(10L);
-		((long)rows[1]["LV"]!).Should().Be(10L); // skips null at Id=2
-		((long)rows[2]["LV"]!).Should().Be(30L);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Category, "EdgeCaseBugs")]
 	public async Task ArrayIncludes_NumericTypeCoercion_MatchesCorrectly()
 	{
 		// ARRAY_INCLUDES should use value comparison, not Object.Equals

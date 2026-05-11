@@ -357,7 +357,7 @@ public class MathCombinationIntegrationTests : IntegrationTestBase
 	[InlineData("10 - 2 * 3", 4L)]
 	[InlineData("(10 - 2) * 3", 24L)]
 	// Mixed expressions with division also return FLOAT64
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task IntArithmetic_Combinations(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 

@@ -78,7 +78,7 @@ public class ArrayFunctionIntegrationTests : IntegrationTestBase
 	[InlineData("ARRAY_TO_STRING(['a', NULL, 'c'], ',', 'N')", "a,N,c")]
 	[InlineData("ARRAY_TO_STRING(['a', NULL, 'c'], ',')", "a,c")]
 	[InlineData("ARRAY_TO_STRING([NULL, NULL], ',', 'X')", "X,X")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArrayToString_WithNulls(string expr, string expected)
 	{
 		(await Eval(expr)).Should().Be(expected);

@@ -200,7 +200,7 @@ public class DateTimeFunctionExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "DateTimeFunctionExtended")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task CurrentDate_ReturnsReasonableDate()
 	{
 		var result = (DateTime)(await Eval("CURRENT_DATE()"))!;

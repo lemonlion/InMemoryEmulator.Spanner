@@ -85,7 +85,7 @@ public class DenseScalarIntegrationTests : IntegrationTestBase
 	[InlineData("SIGN(ABS(-5))", 1L)]
 	[InlineData("GREATEST(ABS(-5), ABS(-3))", 5L)]
 	[InlineData("LEAST(ABS(-5), ABS(-3))", 3L)]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task IntegerExpressions(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 

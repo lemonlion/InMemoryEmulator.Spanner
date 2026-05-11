@@ -60,7 +60,7 @@ public class SchemaExtendedIntegrationTests : IntegrationTestBase
 		rows.Should().HaveCount(2);
 	}
 
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	[Fact]
 	public async Task CreateTable_CompositePrimaryKey()
 	{
@@ -424,7 +424,7 @@ public class SchemaExtendedIntegrationTests : IntegrationTestBase
 	// DDL with multiple statements
 	// ═══════════════════════════════════════════════════════════════
 
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	[Fact]
 	public async Task DdlBatch_MultipleStatements()
 	{

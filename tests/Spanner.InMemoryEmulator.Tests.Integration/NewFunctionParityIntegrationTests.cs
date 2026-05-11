@@ -86,7 +86,7 @@ public class NewFunctionParityIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task IsFirst_WithOrderBy_ReturnsCorrectBooleans()
 	{
 		var table = $"IsFirst_{Guid.NewGuid():N}";
@@ -104,7 +104,7 @@ public class NewFunctionParityIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task IsFirst_WithPartitionBy_ReturnsPerPartition()
 	{
 		var table = $"IsFirst2_{Guid.NewGuid():N}";

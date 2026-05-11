@@ -578,7 +578,7 @@ public class OperatorIntegrationTests : IntegrationTestBase
 	[InlineData("'it''s'", "it's")]
 	[InlineData("'123'", "123")]
 	[InlineData("'true'", "true")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task StringLiterals(string expr, string expected)
 	{
 		(await Eval(expr)).Should().Be(expected);

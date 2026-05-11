@@ -75,7 +75,7 @@ public class CompressionFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ZstdDecompressToString_EmptyString_RoundTrips()
 	{
 		var result = await Eval("ZSTD_DECOMPRESS_TO_STRING(ZSTD_COMPRESS(''))");
@@ -118,7 +118,7 @@ public class CompressionFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ZstdDecompressToBytes_EmptyBytes_RoundTrips()
 	{
 		var result = await Eval("ZSTD_DECOMPRESS_TO_BYTES(ZSTD_COMPRESS(b''))");

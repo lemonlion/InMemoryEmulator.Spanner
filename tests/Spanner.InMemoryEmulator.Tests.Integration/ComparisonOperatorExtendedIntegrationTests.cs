@@ -1361,7 +1361,7 @@ public class ComparisonOperatorExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "ComparisonOperatorExtended")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Array_Equality_SameElements_ReturnsTrue()
 	{
 		var result = await Eval("[1, 2, 3] = [1, 2, 3]");
@@ -1370,7 +1370,7 @@ public class ComparisonOperatorExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "ComparisonOperatorExtended")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Array_Equality_DifferentElements_ReturnsFalse()
 	{
 		var result = await Eval("[1, 2, 3] = [1, 2, 4]");
@@ -1379,7 +1379,7 @@ public class ComparisonOperatorExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "ComparisonOperatorExtended")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Array_Equality_DifferentLength_ReturnsFalse()
 	{
 		var result = await Eval("[1, 2] = [1, 2, 3]");

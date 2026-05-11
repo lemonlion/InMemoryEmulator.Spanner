@@ -114,7 +114,7 @@ public TransactionIntegrationTests(EmulatorSession session) : base(session) { }
 
 	// â”€â”€â”€ Mutations within transaction â”€â”€â”€
 
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	[Fact]
 	[Trait(TestTraits.Category, "Transaction")]
 	public async Task MutationInsert_WithinTransaction_CommitsOnSuccess()

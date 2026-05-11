@@ -415,7 +415,7 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task MultiRow_ExceptDistinct()
 	{
 		var rows = await QueryAsync("SELECT 1 AS V UNION ALL SELECT 2 UNION ALL SELECT 3 EXCEPT DISTINCT SELECT 2 AS V ORDER BY V");

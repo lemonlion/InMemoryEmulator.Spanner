@@ -202,7 +202,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Like_EscapedPercent_MatchesLiteralPercent()
 	{
 		var t = await FreshTable("LikeEsc");
@@ -217,7 +217,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Like_EscapedUnderscore_MatchesLiteralUnderscore()
 	{
 		var t = await FreshTable("LikeEsc");
@@ -689,7 +689,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task OrderBy_NullsLast_AscPutsNullsAtEnd()
 	{
 		var t = await FreshTable("nullord");
@@ -702,7 +702,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task OrderBy_NullsFirst_DescPutsNullsAtStart()
 	{
 		var t = await FreshTable("nullord");
@@ -1668,7 +1668,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ArrayAgg_WithOrderByNullsFirst_NullsComesFirst()
 	{
 		await ExecuteDdlAsync("CREATE TABLE ECB_AggNulls (Id INT64 NOT NULL, Val STRING(10)) PRIMARY KEY (Id)");
@@ -1690,7 +1690,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task StringAgg_WithOrderByNullsLast_NullsExcluded()
 	{
 		// STRING_AGG ignores NULLs by default, but NULLS LAST should still parse

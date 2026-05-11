@@ -530,7 +530,7 @@ public class StringFunctionCoreIntegrationTests : IntegrationTestBase
 	[InlineData("REGEXP_INSTR('hello123world', '[0-9]+')", 6L)]
 	[InlineData("REGEXP_INSTR('hello', '[0-9]+')", 0L)]
 	[Trait(TestTraits.Category, "StringFunction")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpInstr_ReturnsPosition(string expr, long expected)
 	{
 		var result = await Eval(expr);

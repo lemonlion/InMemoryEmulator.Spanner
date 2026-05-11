@@ -62,7 +62,7 @@ public SchemaIntrospectionIntegrationTests(EmulatorSession session) : base(sessi
 	// â”€â”€â”€ VIEWS â”€â”€â”€
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task View_QueryViaSdk()
 	{
 		await ExecuteDdlAsync("CREATE TABLE IS_ViewT (Id INT64 NOT NULL, Name STRING(MAX)) PRIMARY KEY (Id)");
@@ -81,7 +81,7 @@ public SchemaIntrospectionIntegrationTests(EmulatorSession session) : base(sessi
 	// â”€â”€â”€ SEQUENCES â”€â”€â”€
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Sequence_GetNextValueViaSdk()
 	{
 		await ExecuteDdlAsync("CREATE TABLE IS_SeqT (Id INT64 NOT NULL) PRIMARY KEY (Id)");

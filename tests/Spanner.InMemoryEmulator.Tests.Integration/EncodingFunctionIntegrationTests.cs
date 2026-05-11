@@ -340,12 +340,12 @@ public class EncodingFunctionIntegrationTests : IntegrationTestBase
 	[InlineData("REGEXP_INSTR('hello world', 'o')", 5L)]
 	[InlineData("REGEXP_INSTR('hello world', 'xyz')", 0L)]
 	[InlineData("REGEXP_INSTR('abc123', '[0-9]+')", 4L)]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpInstr_Values(string expr, long expected) =>
 		(await Eval(expr)).Should().Be(expected);
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpInstr_Null_IsNull()
 	{
 		var result = await Eval("REGEXP_INSTR(CAST(NULL AS STRING), 'test')");

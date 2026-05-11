@@ -27,9 +27,9 @@ public static class TestTraits
 	/// the in-memory emulator and real GCP Spanner.</summary>
 	public const string GoEmulatorUnsupported = "GoEmulatorUnsupported";
 
-	/// <summary>Trait value: test is skipped against Cloud Spanner free-trial instances due to
-	/// known limitations (e.g. window/analytic functions return "Unsupported built-in function").
-	/// These features are documented as supported in production Cloud Spanner but the free-trial
-	/// instance rejects them. Ref: https://cloud.google.com/spanner/docs/free-trial-instance</summary>
+	/// <summary>Trait value: test is skipped against Cloud Spanner due to known behavioral
+	/// differences (e.g. features that work in-memory and on Go emulator but not on Cloud).
+	/// Used sparingly — most incompatibilities are better handled by InMemoryOnly or
+	/// GoEmulatorUnsupported traits. Ref: https://cloud.google.com/spanner/docs/reference/rpc</summary>
 	public const string CloudSpannerUnsupported = "CloudSpannerUnsupported";
 }

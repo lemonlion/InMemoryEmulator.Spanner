@@ -213,7 +213,7 @@ public class NewFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task REGEXP_INSTR_ReturnsPosition()
 	{
 		var rows = await QueryAsync("SELECT REGEXP_INSTR('abcdef', 'cd') AS pos");
@@ -222,7 +222,7 @@ public class NewFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task REGEXP_INSTR_NoMatch_ReturnsZero()
 	{
 		var rows = await QueryAsync("SELECT REGEXP_INSTR('abcdef', 'xyz') AS pos");

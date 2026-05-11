@@ -465,7 +465,7 @@ public class DmlExtendedIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Unique_MultipleNulls_Allowed()
 	{
 		await EnsureUniqueTableAsync();

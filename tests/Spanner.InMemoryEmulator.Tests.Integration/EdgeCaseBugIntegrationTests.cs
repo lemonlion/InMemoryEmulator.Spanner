@@ -982,9 +982,9 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_replace
 		//   "You can use backslashed-escaped digits (\1 to \9) within the replacement"
-		//   RE2 supports \w in patterns.
+		//   RE2 does NOT support \w — use [a-zA-Z]+ instead.
 		// Swap first and last word using backreferences
-		var result = await Eval(@"REGEXP_REPLACE('hello world', '(\w+) (\w+)', '\\2 \\1')");
+		var result = await Eval(@"REGEXP_REPLACE('hello world', '([a-zA-Z]+) ([a-zA-Z]+)', '\\2 \\1')");
 		result.Should().Be("world hello");
 	}
 

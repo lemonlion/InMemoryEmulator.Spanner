@@ -226,11 +226,11 @@ internal static class GoogleSqlTokenizer
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#string_and_bytes_literals
-	//   "Quoted strings can contain escaped single quotes ('')."
+	//   Cloud Spanner uses backslash escapes (\' for single quotes) — NOT SQL-standard ''
+	//   Verified against real Cloud Spanner.
 	private static TextParser<string> StringLiteralToken { get; } =
 		from open in Character.EqualTo('\'')
-		from content in Span.EqualTo("''").Value('\'').Try()
-			.Or(Character.EqualTo('\\').Then(_ => Character.AnyChar))
+		from content in Character.EqualTo('\\').Then(_ => Character.AnyChar)
 			.Or(Character.Except('\''))
 			.Many()
 		from close in Character.EqualTo('\'')

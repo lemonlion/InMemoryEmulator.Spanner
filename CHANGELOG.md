@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.91] - 2026-07-21
+
+### Fixed
+- **RE2 regex parity**: Reject RE2-incompatible patterns in all REGEXP_* functions (REGEXP_CONTAINS, REGEXP_EXTRACT, REGEXP_REPLACE, REGEXP_EXTRACT_ALL, REGEXP_INSTR). Backreferences (`\1`–`\9`), lookaheads (`(?=`, `(?!`), lookbehinds (`(?<=`, `(?<!`), and atomic groups (`(?>`) in patterns now throw the same errors as Cloud Spanner. Backreferences in REGEXP_REPLACE *replacement* strings remain valid per Spanner docs.
+
+## [1.0.90] - 2026-07-21
+
+### Changed
+- **Test reclassification**: Reclassified 30 tests from `InMemoryOnly` to `GoEmulatorUnsupported` based on audit confirming they pass on real Cloud Spanner but not the Go-based emulator.
+
 ## [1.0.86] - 2026-05-09
 
 ### Fixed

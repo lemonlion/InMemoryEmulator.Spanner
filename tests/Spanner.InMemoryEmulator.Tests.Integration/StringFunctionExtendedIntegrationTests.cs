@@ -304,12 +304,12 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
-	public async Task RegexpReplace_Backreference_DotNetOnly()
+	public async Task RegexpReplace_BackreferenceInPattern_Rejected()
 	{
-		// Note: Backreferences (\1) are not supported in Cloud Spanner's RE2 engine.
-		var result = await Eval("REGEXP_REPLACE('aabbcc', '(.)\\\\1', 'X')");
-		result.Should().Be("XXX");
+		// RE2 does not support backreferences (\1) in patterns — only in replacement strings.
+		// Ref: https://github.com/google/re2/wiki/Syntax — "\1 backreference (NOT SUPPORTED)"
+		var act = async () => await Eval("REGEXP_REPLACE('aabbcc', '(.)\\\\1', 'X')");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	[Fact]

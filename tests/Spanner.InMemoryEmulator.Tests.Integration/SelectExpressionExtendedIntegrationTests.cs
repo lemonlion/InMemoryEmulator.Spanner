@@ -168,21 +168,16 @@ public class SelectExpressionExtendedIntegrationTests : IntegrationTestBase
     }
 
     [Theory]
-    [InlineData("7 % 3", 1L)]
-    [InlineData("10 % 5", 0L)]
-    [InlineData("10 % 3", 1L)]
-    [InlineData("15 % 4", 3L)]
-    [InlineData("100 % 7", 2L)]
-    [InlineData("-7 % 3", -1L)]
+    [InlineData("7 % 3")]
+    [InlineData("10 % 5")]
+    [InlineData("10 % 3")]
     [Trait(TestTraits.Category, "SelectExpressionExtended")]
     // Cloud Spanner does NOT support the % operator — use MOD() function instead.
     // Verified against real Cloud Spanner.
-    [Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
-    public async Task Arithmetic_Modulo(string expr, long expected)
+    public async Task Arithmetic_Modulo_NotSupported(string expr)
     {
-        // Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
-        // MOD operator (%) returns the remainder
-        ((long)(await Eval(expr))!).Should().Be(expected);
+        var act = async () => await Eval(expr);
+        await act.Should().ThrowAsync<SpannerException>();
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -692,20 +687,16 @@ public class SelectExpressionExtendedIntegrationTests : IntegrationTestBase
     // ═══════════════════════════════════════════════════════════════
 
     [Theory]
-    [InlineData("'it''s'", "it's")]
-    [InlineData("'can''t'", "can't")]
-    [InlineData("'she said ''hi'''", "she said 'hi'")]
-    [InlineData("''''", "'")]
-    [InlineData("''''''", "''")]
-    [InlineData("'a''b''c'", "a'b'c")]
+    [InlineData("'it''s'")]
+    [InlineData("'can''t'")]
+    [InlineData("''''")]
     [Trait(TestTraits.Category, "SelectExpressionExtended")]
     // Cloud Spanner does NOT support '' as an escape for single quotes inside strings.
-    // It treats adjacent quotes as concatenated string literals which requires whitespace.
-    // Verified against real Cloud Spanner.
-    [Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
-    public async Task StringEscape_SingleQuotes(string expr, string expected)
+    // Use backslash escape (\') instead. Verified against real Cloud Spanner.
+    public async Task StringEscape_SingleQuotes_NotSupported(string expr)
     {
-        (await Eval(expr))!.ToString().Should().Be(expected);
+        var act = async () => await Eval(expr);
+        await act.Should().ThrowAsync<SpannerException>();
     }
 
     [Theory]

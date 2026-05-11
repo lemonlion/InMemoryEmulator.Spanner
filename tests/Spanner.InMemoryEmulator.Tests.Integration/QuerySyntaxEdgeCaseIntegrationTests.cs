@@ -246,13 +246,13 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task ForUpdate_WithSubqueryFrom_IsRejected()
 	{
 		// Cloud Spanner requires physical table references for FOR UPDATE.
-		// Subqueries in FROM are not sufficient. This may differ between Cloud and emulator.
-		var result = await Eval("SELECT 42 AS x FROM (SELECT 1) AS t WHERE true FOR UPDATE");
-		result.Should().Be(42L);
+		// Subqueries in FROM are not sufficient.
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#for_update_clause
+		var act = async () => await Eval("SELECT 42 AS x FROM (SELECT 1) AS t WHERE true FOR UPDATE");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	[Fact]

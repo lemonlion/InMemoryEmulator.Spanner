@@ -427,43 +427,13 @@ public class JsonFunctionCoreIntegrationTests : IntegrationTestBase
 	// Verified against real Cloud Spanner (returns "Unsupported built-in function").
 	// ═══════════════════════════════════════════════════════════════
 
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
-	public async Task JsonExtract_EquivalentToJsonQuery()
+	[Theory]
+	[InlineData("JSON_EXTRACT(PARSE_JSON('{\"a\":{\"b\":1}}'), '$.a')")]
+	[InlineData("JSON_EXTRACT_SCALAR(PARSE_JSON('{\"name\":\"Alice\"}'), '$.name')")]
+	[InlineData("JSON_EXTRACT_ARRAY(PARSE_JSON('[1,2,3]'), '$')")]
+	public async Task JsonExtract_LegacyFunctions_NotSupported(string expr)
 	{
-		var result = await Eval("JSON_EXTRACT(PARSE_JSON('{\"a\":{\"b\":1}}'), '$.a')");
-		result.Should().Be("{\"b\":1}");
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
-	public async Task JsonExtractScalar_EquivalentToJsonValue()
-	{
-		var result = await Eval("JSON_EXTRACT_SCALAR(PARSE_JSON('{\"name\":\"Alice\"}'), '$.name')");
-		result.Should().Be("Alice");
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
-	public async Task JsonExtractScalar_ReturnsNumber()
-	{
-		var result = await Eval("JSON_EXTRACT_SCALAR(PARSE_JSON('{\"age\":30}'), '$.age')");
-		result.Should().Be("30");
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
-	public async Task JsonExtractArray_EquivalentToJsonQueryArray()
-	{
-		var result = await Eval("ARRAY_LENGTH(JSON_EXTRACT_ARRAY(PARSE_JSON('[1,2,3]'), '$'))");
-		result.Should().Be(3L);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
-	public async Task JsonExtract_NullInput_ReturnsNull()
-	{
-		var result = await Eval("JSON_EXTRACT(CAST(NULL AS JSON), '$.a')");
-		result.Should().BeNull();
+		var act = async () => await Eval(expr);
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 }

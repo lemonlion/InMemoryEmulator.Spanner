@@ -227,7 +227,11 @@ internal class ExpressionEvaluator
 			BinaryOp.Subtract => ArithmeticOp(lval, rval, '-'),
 			BinaryOp.Multiply => ArithmeticOp(lval, rval, '*'),
 			BinaryOp.Divide => ArithmeticOp(lval, rval, '/'),
-			BinaryOp.Modulo => ArithmeticOp(lval, rval, '%'),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#arithmetic_operators
+			//   Cloud Spanner does NOT support the % operator — use MOD() function instead.
+			//   Verified against real Cloud Spanner.
+			BinaryOp.Modulo => throw new NotSupportedException(
+				"The '%' operator is not supported. Use the MOD() function instead."),
 			BinaryOp.Concat => ConcatValues(lval, rval),
 			_ => throw new NotSupportedException($"Binary operator not supported: {bin.Op}")
 		};
@@ -506,15 +510,11 @@ internal class ExpressionEvaluator
 			"JSON_QUERY" => EvalJsonQuery(func, row),
 			"JSON_QUERY_ARRAY" => EvalJsonQueryArray(func, row),
 			"JSON_TYPE" => EvalJsonType(func, row),
-			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_extract
-			//   "JSON_EXTRACT is equivalent to the JSON_QUERY function"
-			"JSON_EXTRACT" => EvalJsonQuery(func, row),
-			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_extract_scalar
-			//   "JSON_EXTRACT_SCALAR is equivalent to the JSON_VALUE function"
-			"JSON_EXTRACT_SCALAR" => EvalJsonValue(func, row),
-			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/json_functions#json_extract_array
-			//   "JSON_EXTRACT_ARRAY is equivalent to the JSON_QUERY_ARRAY function"
-			"JSON_EXTRACT_ARRAY" => EvalJsonQueryArray(func, row),
+			// JSON_EXTRACT, JSON_EXTRACT_SCALAR, JSON_EXTRACT_ARRAY are not supported in Cloud Spanner.
+			// Verified against real Cloud Spanner — returns "Unsupported built-in function".
+			// Use JSON_QUERY, JSON_VALUE, JSON_QUERY_ARRAY instead.
+			"JSON_EXTRACT" or "JSON_EXTRACT_SCALAR" or "JSON_EXTRACT_ARRAY" =>
+				throw new NotSupportedException($"Unsupported built-in function: {func.Name}."),
 
 			// Hash functions
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/hash_functions
@@ -2064,11 +2064,53 @@ internal class ExpressionEvaluator
 		};
 	}
 
+	// Ref: https://github.com/google/re2/wiki/Syntax
+	//   RE2 does not support backreferences (\1), lookaheads (?=), lookbehinds (?<=),
+	//   possessive quantifiers (*+), or atomic groups (?>).
+	//   Cloud Spanner uses RE2; reject patterns that use unsupported features.
+	private static void ValidateRe2Pattern(string pattern)
+	{
+		// Check for backreferences: \1 through \9 (but not inside character classes or after \x, \0)
+		for (int i = 0; i < pattern.Length - 1; i++)
+		{
+			if (pattern[i] == '\\')
+			{
+				char next = pattern[i + 1];
+				if (next >= '1' && next <= '9')
+					throw new InvalidOperationException(
+						$"Cannot parse regular expression: invalid escape sequence: \\{next}");
+				i++; // skip the escaped char
+			}
+		}
+		// Check for lookaheads/lookbehinds/atomic groups
+		for (int i = 0; i < pattern.Length - 2; i++)
+		{
+			if (pattern[i] == '(' && pattern[i + 1] == '?')
+			{
+				char third = pattern[i + 2];
+				if (third == '=' || third == '!')
+					throw new InvalidOperationException(
+						"Cannot parse regular expression: invalid or unsupported Perl syntax: (?");
+				if (third == '<' && i + 3 < pattern.Length)
+				{
+					char fourth = pattern[i + 3];
+					if (fourth == '=' || fourth == '!')
+						throw new InvalidOperationException(
+							"Cannot parse regular expression: invalid or unsupported Perl syntax: (?<");
+				}
+				if (third == '>')
+					throw new InvalidOperationException(
+						"Cannot parse regular expression: invalid or unsupported Perl syntax: (?>");
+			}
+		}
+	}
+
 	private object? EvalRegexpContains(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		var s = Evaluate(func.Arguments[0], row);
 		var pattern = Evaluate(func.Arguments[1], row);
 		if (s == null || pattern == null) return null;
+		ValidateRe2Pattern(Convert.ToString(pattern)!);
 		return Regex.IsMatch(Convert.ToString(s)!, Convert.ToString(pattern)!);
 	}
 
@@ -2085,6 +2127,7 @@ internal class ExpressionEvaluator
 		var pattern = Evaluate(func.Arguments[1], row);
 		if (s == null || pattern == null) return null;
 		var patStr = Convert.ToString(pattern)!;
+		ValidateRe2Pattern(patStr);
 		var sourceStr = Convert.ToString(s)!;
 
 		var match = Regex.Match(sourceStr, patStr);
@@ -2180,6 +2223,7 @@ internal class ExpressionEvaluator
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_replace
 		//   "You can use backslashed-escaped digits (\1 to \9) within the replacement argument"
 		if (s == null || pattern == null || replacement == null) return null;
+		ValidateRe2Pattern(Convert.ToString(pattern)!);
 		// Convert Spanner backreference format (\1, \2) to .NET format ($1, $2)
 		var dotNetReplacement = Regex.Replace(Convert.ToString(replacement)!, @"\\(\d)", "$$$1");
 		return Regex.Replace(Convert.ToString(s)!, Convert.ToString(pattern)!, dotNetReplacement);
@@ -3699,6 +3743,7 @@ internal class ExpressionEvaluator
 		var val = Evaluate(func.Arguments[0], row);
 		var pattern = Evaluate(func.Arguments[1], row);
 		if (val == null || pattern == null) return null;
+		ValidateRe2Pattern(pattern.ToString()!);
 		var matches = Regex.Matches(val.ToString()!, pattern.ToString()!);
 		var result = new List<object?>();
 		foreach (Match m in matches)
@@ -3717,10 +3762,12 @@ internal class ExpressionEvaluator
 		var val = Evaluate(func.Arguments[0], row);
 		var pattern = Evaluate(func.Arguments[1], row);
 		if (val == null || pattern == null) return null;
+		var patStr = pattern.ToString()!;
+		ValidateRe2Pattern(patStr);
 		int startPos = func.Arguments.Count >= 3 ? Convert.ToInt32(Evaluate(func.Arguments[2], row)) : 1;
 		var str = val.ToString()!;
 		if (startPos < 1 || startPos > str.Length) return 0L;
-		var match = Regex.Match(str.Substring(startPos - 1), pattern.ToString()!);
+		var match = Regex.Match(str.Substring(startPos - 1), patStr);
 		return match.Success ? (long)(match.Index + startPos) : 0L;
 	}
 

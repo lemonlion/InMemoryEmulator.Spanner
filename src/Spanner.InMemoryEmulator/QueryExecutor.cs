@@ -26,8 +26,13 @@ internal class QueryExecutor
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#for_update_clause
 		//   FOR UPDATE requires a FROM clause referencing a table.
-		if (fullQuery.ForUpdate && fullQuery.Body.Select.From == null)
-			throw new InvalidOperationException("FOR UPDATE requires a FROM clause");
+		if (fullQuery.ForUpdate)
+		{
+			if (fullQuery.Body.Select.From == null)
+				throw new InvalidOperationException("FOR UPDATE requires a FROM clause");
+			if (fullQuery.Body.Select.From is SubqueryFromClause)
+				throw new InvalidOperationException("FOR UPDATE requires a physical table reference, not a subquery");
+		}
 
 		// Register CTEs as virtual tables for subquery resolution
 		Dictionary<string, QueryBody>? cteMap = null;

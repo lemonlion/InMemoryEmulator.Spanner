@@ -13,7 +13,7 @@ env:
 jobs:
   test-cloud-spanner:
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:

@@ -458,4 +458,23 @@ public class QueryExecutorTests
 
 		act.Should().Throw<InvalidOperationException>().WithMessage("*no rows*");
 	}
+
+	// ─── String literal escaping ───
+
+	[Theory]
+	[InlineData("SELECT 'it''s' AS R", "it's")]
+	[InlineData("SELECT 'he said ''hi''' AS R", "he said 'hi'")]
+	[InlineData("SELECT '''' AS R", "'")]
+	[InlineData("SELECT '''''' AS R", "''")]
+	[InlineData("SELECT '' AS R", "")]
+	public void Select_StringLiteral_DoubledQuoteEscape(string sql, string expected)
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#string_and_bytes_literals
+		//   Both '' (doubled quote) and \' (backslash escape) are valid in Cloud Spanner.
+		using var db = new InMemorySpannerDatabase();
+
+		var result = db.ExecuteScalar<string>(sql);
+
+		result.Should().Be(expected);
+	}
 }

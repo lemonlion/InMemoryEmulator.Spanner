@@ -684,19 +684,17 @@ public class SelectExpressionExtendedIntegrationTests : IntegrationTestBase
     // ═══════════════════════════════════════════════════════════════
     // 16. String escape sequences — single quotes in strings
     // Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#string_and_bytes_literals
+    //   "A single quote character in a string can be represented as '' or as \'."
     // ═══════════════════════════════════════════════════════════════
 
     [Theory]
-    [InlineData("'it''s'")]
-    [InlineData("'can''t'")]
-    [InlineData("''''")]
+    [InlineData("'it''s'", "it's")]
+    [InlineData("'can''t'", "can't")]
+    [InlineData("''''", "'")]
     [Trait(TestTraits.Category, "SelectExpressionExtended")]
-    // Cloud Spanner does NOT support '' as an escape for single quotes inside strings.
-    // Use backslash escape (\') instead. Verified against real Cloud Spanner.
-    public async Task StringEscape_SingleQuotes_NotSupported(string expr)
+    public async Task StringEscape_DoubledSingleQuotes(string expr, string expected)
     {
-        var act = async () => await Eval(expr);
-        await act.Should().ThrowAsync<SpannerException>();
+        (await Eval(expr))!.ToString().Should().Be(expected);
     }
 
     [Theory]

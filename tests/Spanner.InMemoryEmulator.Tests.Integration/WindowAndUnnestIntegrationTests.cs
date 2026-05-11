@@ -10,6 +10,8 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 /// Tests flow through the full gRPC pipeline: SpannerConnection â†’ gRPC â†’ FakeSpannerService.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
+[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+[Trait(TestTraits.Target, TestTraits.CloudSpannerUnsupported)]
 public class WindowAndUnnestIntegrationTests : IntegrationTestBase
 {
 private bool _initialized;

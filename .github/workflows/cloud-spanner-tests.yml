@@ -90,8 +90,8 @@ jobs:
 
           # Join with | for OR filter
           FILTER=$(IFS='|'; echo "${FILTER_PARTS[*]}")
-          # Combine with InMemoryOnly exclusion
-          echo "filter=(${FILTER})&Target!=InMemoryOnly" >> "$GITHUB_OUTPUT"
+          # Combine with InMemoryOnly and CloudSpannerUnsupported exclusions
+          echo "filter=(${FILTER})&Target!=InMemoryOnly&Target!=CloudSpannerUnsupported" >> "$GITHUB_OUTPUT"
 
       - name: Run integration tests (Cloud Spanner — shard ${{ matrix.shard }})
         run: |

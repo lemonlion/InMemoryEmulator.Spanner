@@ -11,6 +11,8 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 /// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#order_by_clause
 /// </summary>
 [Collection(IntegrationCollection.Name)]
+[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+[Trait(TestTraits.Target, TestTraits.CloudSpannerUnsupported)]
 public class WindowAndOrderIntegrationTests : IntegrationTestBase
 {
 	public WindowAndOrderIntegrationTests(EmulatorSession session) : base(session) { }

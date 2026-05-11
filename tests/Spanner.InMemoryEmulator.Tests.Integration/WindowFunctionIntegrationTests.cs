@@ -17,6 +17,8 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 /// The Go emulator does NOT support window functions.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
+[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+[Trait(TestTraits.Target, TestTraits.CloudSpannerUnsupported)]
 public class WindowFunctionIntegrationTests : IntegrationTestBase
 {
 	public WindowFunctionIntegrationTests(EmulatorSession session) : base(session) { }

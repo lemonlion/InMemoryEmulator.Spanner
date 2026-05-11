@@ -12,6 +12,7 @@ namespace Spanner.InMemoryEmulator.Tests.Integration;
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 [Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+[Trait(TestTraits.Target, TestTraits.CloudSpannerUnsupported)]
 public class WindowFunctionEdgeCaseIntegrationTests : IntegrationTestBase
 {
 	public WindowFunctionEdgeCaseIntegrationTests(EmulatorSession session) : base(session) { }

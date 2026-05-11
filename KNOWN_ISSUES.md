@@ -12,7 +12,21 @@ This file tracks known behavioral differences between the in-memory emulator and
 
 ## Cloud Spanner Free-Trial Instance Limitations
 
-The CI Cloud Spanner tests run against a **free-trial instance** (`ci-test-instance` in project `spanner-emulator-ci`). The free-trial instance has undocumented limitations that cause certain tests to fail even though the features are documented as supported by production Cloud Spanner.
+The CI Cloud Spanner tests run against a **free-trial instance** (`ci-test-instance` in project `spanner-emulator-ci`, created with `--instance-type=free-instance`). The free-trial instance has undocumented limitations that cause certain tests to fail even though the features are documented as supported by production Cloud Spanner.
+
+### Root Cause Analysis
+
+**The free-trial instance appears to be backed by the Go Spanner Emulator internally.**
+
+Evidence:
+1. The error message `"Unsupported built-in function: X"` with gRPC status `UNIMPLEMENTED` matches **exactly** the Go emulator's `error::UnsupportedFunction()` in [`common/errors.cc`](https://github.com/GoogleCloudPlatform/cloud-spanner-emulator/blob/master/common/errors.cc)
+2. Real Cloud Spanner uses different error formats (e.g., `"Function not found: X [at line:col]"` with `INVALID_ARGUMENT`)
+3. The failing functions (analytic/window functions, LEFT, RIGHT, CHR) are known Go emulator gaps
+4. Regular aggregates (SUM, AVG, COUNT without OVER) work — consistent with Go emulator capabilities
+5. 4591/5002 tests pass — consistent with Go emulator being highly capable for standard operations
+6. Free-trial docs state it's "for evaluation purposes" and "not meant for ongoing testing and development"
+
+Google likely uses the Go emulator infrastructure for free-trial instances to avoid the cost of provisioning real Spanner resources for free 90-day trials. This is undocumented behavior.
 
 ### Window/Analytic Functions
 
@@ -31,7 +45,7 @@ The free-trial docs state: "A Spanner free trial instance supports Standard edit
 
 **Workaround:** Tests are marked with `[Trait(TestTraits.Target, TestTraits.CloudSpannerUnsupported)]` and excluded from the Cloud Spanner CI workflow filter.
 
-**Resolution:** Upgrade to a paid Cloud Spanner instance or create a new free-trial instance (if the 90-day period expired).
+**Resolution:** Upgrade to a paid Cloud Spanner instance (minimum 100 processing units) to get access to the full production Spanner query engine.
 
 ### Functions Not in Cloud Spanner (BigQuery-only)
 

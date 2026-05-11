@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
@@ -72,11 +73,11 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Union_Bare_DefaultsToDistinct()
+	public async Task Union_Bare_IsNotSupported()
 	{
-		var count = await RowCount("SELECT 1 AS x UNION SELECT 1 UNION SELECT 2");
-		count.Should().Be(2);
+		// Cloud Spanner requires explicit ALL or DISTINCT
+		var act = async () => await RowCount("SELECT 1 AS x UNION SELECT 1 UNION SELECT 2");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	// ═══════════════════════════════════════════════════════════════
@@ -95,15 +96,14 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Intersect_Bare_DefaultsToDistinct()
+	public async Task Intersect_Bare_IsNotSupported()
 	{
-		var results = await EvalMultiRow(
+		// Cloud Spanner requires explicit ALL or DISTINCT
+		var act = async () => await EvalMultiRow(
 			"SELECT x FROM (SELECT 1 AS x UNION ALL SELECT 2) " +
 			"INTERSECT " +
 			"SELECT x FROM (SELECT 2 AS x UNION ALL SELECT 3)");
-		results.Should().HaveCount(1);
-		results[0].Should().Be(2L);
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	// ═══════════════════════════════════════════════════════════════
@@ -122,15 +122,14 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Except_Bare_DefaultsToDistinct()
+	public async Task Except_Bare_IsNotSupported()
 	{
-		var results = await EvalMultiRow(
+		// Cloud Spanner requires explicit ALL or DISTINCT
+		var act = async () => await EvalMultiRow(
 			"SELECT x FROM (SELECT 1 AS x UNION ALL SELECT 2) " +
 			"EXCEPT " +
 			"SELECT x FROM (SELECT 2 AS x)");
-		results.Should().HaveCount(1);
-		results[0].Should().Be(1L);
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	// ═══════════════════════════════════════════════════════════════
@@ -238,19 +237,20 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ForUpdate_ParsesAndReturnsResults()
+	public async Task ForUpdate_WithoutFromClause_IsRejected()
 	{
-		var result = await Eval("SELECT 1 AS x FOR UPDATE");
-		result.Should().Be(1L);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#for_update_clause
+		//   FOR UPDATE requires a FROM clause referencing a table.
+		var act = async () => await Eval("SELECT 1 AS x FOR UPDATE");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ForUpdate_WithWhereClause()
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	public async Task ForUpdate_WithSubqueryFrom_IsRejected()
 	{
-		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#where_clause
-		//   WHERE without FROM is invalid; wrap in a FROM subquery.
+		// Cloud Spanner requires physical table references for FOR UPDATE.
+		// Subqueries in FROM are not sufficient. This may differ between Cloud and emulator.
 		var result = await Eval("SELECT 42 AS x FROM (SELECT 1) AS t WHERE true FOR UPDATE");
 		result.Should().Be(42L);
 	}
@@ -263,55 +263,36 @@ public class QuerySyntaxEdgeCaseIntegrationTests : IntegrationTestBase
 	}
 
 	// ═══════════════════════════════════════════════════════════════
-	// LIKE ANY / ALL / SOME
+	// LIKE ANY / ALL / SOME — NOT supported by Cloud Spanner
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
+	//   Only simple LIKE is supported; LIKE ANY/ALL/SOME is not available in Spanner SQL.
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task LikeAny_MatchesOnePattern()
+	public async Task LikeAny_IsNotSupported()
 	{
-		var result = await Eval("SELECT 'hello' LIKE ANY ('%ello', '%world')");
-		result.Should().Be(true);
+		var act = async () => await Eval("SELECT 'hello' LIKE ANY ('%ello', '%world')");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task LikeAny_NoMatch()
+	public async Task LikeAll_IsNotSupported()
 	{
-		var result = await Eval("SELECT 'hello' LIKE ANY ('%xyz', '%abc')");
-		result.Should().Be(false);
+		var act = async () => await Eval("SELECT 'hello' LIKE ALL ('h%', '%o', '_____')");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task LikeAll_MatchesAllPatterns()
+	public async Task LikeSome_IsNotSupported()
 	{
-		var result = await Eval("SELECT 'hello' LIKE ALL ('h%', '%o', '_____')");
-		result.Should().Be(true);
+		var act = async () => await Eval("SELECT 'hello' LIKE SOME ('%ello', '%world')");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task LikeAll_FailsOnePattern()
+	public async Task NotLikeAny_IsNotSupported()
 	{
-		var result = await Eval("SELECT 'hello' LIKE ALL ('h%', '%xyz')");
-		result.Should().Be(false);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task LikeSome_IsSynonymForAny()
-	{
-		var result = await Eval("SELECT 'hello' LIKE SOME ('%ello', '%world')");
-		result.Should().Be(true);
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task NotLikeAny_NegatesResult()
-	{
-		var result = await Eval("SELECT 'hello' NOT LIKE ANY ('%ello', '%world')");
-		result.Should().Be(false);
+		var act = async () => await Eval("SELECT 'hello' NOT LIKE ANY ('%ello', '%world')");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 }

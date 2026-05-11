@@ -88,7 +88,9 @@ public class DateTimeCoreIntegrationTests : IntegrationTestBase
 		var result = await Eval("CURRENT_DATE()");
 		result.Should().BeOfType<DateTime>();
 		var dt = (DateTime)result!;
-		dt.Date.Should().Be(DateTime.UtcNow.Date);
+		// Allow ±1 day to account for timezone differences between emulator (UTC) and
+		// Cloud Spanner (America/Los_Angeles default).
+		(DateTime.UtcNow.Date - dt.Date).Duration().TotalDays.Should().BeLessOrEqualTo(1);
 	}
 
 	[Fact]
@@ -326,14 +328,16 @@ public class DateTimeCoreIntegrationTests : IntegrationTestBase
 
 	// ─── FORMAT_TIMESTAMP / PARSE_TIMESTAMP ───
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#format_timestamp
+	//   Default timezone is America/Los_Angeles when not specified.
 
 	[Fact]
 	[Trait(TestTraits.Category, "DateTime")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task FormatTimestamp_BasicCase()
 	{
+		// 2024-06-15 is PDT (-07): 10:30:45 UTC = 03:30:45 PDT
 		var result = await Eval("FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', TIMESTAMP('2024-06-15T10:30:45Z'))");
-		result.Should().Be("2024-06-15 10:30:45");
+		result.Should().Be("2024-06-15 03:30:45");
 	}
 
 	[Fact]
@@ -341,14 +345,15 @@ public class DateTimeCoreIntegrationTests : IntegrationTestBase
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ParseTimestamp_BasicCase()
 	{
+		// Parses in America/Los_Angeles (PDT -07 in June): 10:30:45 PDT → 17:30:45 UTC
 		var result = await Eval("PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', '2024-06-15 10:30:45')");
 		var dt = (DateTime)result!;
-		dt.Year.Should().Be(2024);
-		dt.Month.Should().Be(6);
-		dt.Day.Should().Be(15);
-		dt.Hour.Should().Be(10);
-		dt.Minute.Should().Be(30);
-		dt.Second.Should().Be(45);
+		dt.ToUniversalTime().Year.Should().Be(2024);
+		dt.ToUniversalTime().Month.Should().Be(6);
+		dt.ToUniversalTime().Day.Should().Be(15);
+		dt.ToUniversalTime().Hour.Should().Be(17);
+		dt.ToUniversalTime().Minute.Should().Be(30);
+		dt.ToUniversalTime().Second.Should().Be(45);
 	}
 
 	// ─── UNIX_SECONDS / UNIX_MILLIS / UNIX_MICROS ───

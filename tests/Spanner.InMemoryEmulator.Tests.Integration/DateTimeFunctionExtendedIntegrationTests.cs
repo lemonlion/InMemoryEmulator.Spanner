@@ -313,14 +313,16 @@ public class DateTimeFunctionExtendedIntegrationTests : IntegrationTestBase
 
 	[Theory]
 	[Trait(TestTraits.Category, "DateTimeFunctionExtended")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
-	[InlineData("FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', TIMESTAMP '2024-06-15T12:30:45Z')", "2024-06-15T12:30:45Z")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#format_timestamp
+	//   Default timezone is America/Los_Angeles (UTC-7 in June PDT, UTC-8 in Jan PST).
+	[InlineData("FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', TIMESTAMP '2024-06-15T12:30:45Z')", "2024-06-15T05:30:45Z")]
 	[InlineData("FORMAT_TIMESTAMP('%Y-%m-%d', TIMESTAMP '2024-06-15T12:30:45Z')", "2024-06-15")]
-	[InlineData("FORMAT_TIMESTAMP('%H:%M:%S', TIMESTAMP '2024-06-15T12:30:45Z')", "12:30:45")]
-	[InlineData("FORMAT_TIMESTAMP('%Y', TIMESTAMP '2024-01-01T00:00:00Z')", "2024")]
+	[InlineData("FORMAT_TIMESTAMP('%H:%M:%S', TIMESTAMP '2024-06-15T12:30:45Z')", "05:30:45")]
+	[InlineData("FORMAT_TIMESTAMP('%Y', TIMESTAMP '2024-01-01T00:00:00Z')", "2023")]
 	[InlineData("FORMAT_TIMESTAMP('%m', TIMESTAMP '2024-06-15T12:30:45Z')", "06")]
 	[InlineData("FORMAT_TIMESTAMP('%d', TIMESTAMP '2024-06-15T12:30:45Z')", "15")]
-	[InlineData("FORMAT_TIMESTAMP('%H', TIMESTAMP '2024-06-15T12:30:45Z')", "12")]
+	[InlineData("FORMAT_TIMESTAMP('%H', TIMESTAMP '2024-06-15T12:30:45Z')", "05")]
 	[InlineData("FORMAT_TIMESTAMP('%M', TIMESTAMP '2024-06-15T12:30:45Z')", "30")]
 	[InlineData("FORMAT_TIMESTAMP('%S', TIMESTAMP '2024-06-15T12:30:45Z')", "45")]
 	public async Task FormatTimestamp_ReturnsExpected(string expr, string expected) =>
@@ -333,11 +335,14 @@ public class DateTimeFunctionExtendedIntegrationTests : IntegrationTestBase
 
 	[Theory]
 	[Trait(TestTraits.Category, "DateTimeFunctionExtended")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
-	[InlineData("PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', '2024-06-15T12:30:45Z')", "2024-06-15T12:30:45Z")]
-	[InlineData("PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', '2024-01-01T00:00:00Z')", "2024-01-01T00:00:00Z")]
-	[InlineData("PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', '2024-12-31T23:59:59Z')", "2024-12-31T23:59:59Z")]
-	[InlineData("PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', '2024-06-15 12:30:45')", "2024-06-15T12:30:45Z")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#parse_timestamp
+	//   Default timezone is America/Los_Angeles. Literal Z in format is not a timezone indicator.
+	//   June = PDT (UTC-7), January/December = PST (UTC-8).
+	[InlineData("PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', '2024-06-15T12:30:45Z')", "2024-06-15T19:30:45Z")]
+	[InlineData("PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', '2024-01-01T00:00:00Z')", "2024-01-01T08:00:00Z")]
+	[InlineData("PARSE_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', '2024-12-31T23:59:59Z')", "2025-01-01T07:59:59Z")]
+	[InlineData("PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', '2024-06-15 12:30:45')", "2024-06-15T19:30:45Z")]
 	public async Task ParseTimestamp_ReturnsExpected(string expr, string expected)
 	{
 		var result = (DateTime)(await Eval(expr))!;

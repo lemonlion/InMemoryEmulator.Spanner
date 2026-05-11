@@ -266,9 +266,11 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task CastTimestamp_ToString_WholeSecondsOmitsFraction()
 	{
+		// 2024-01-15 12:34:56 UTC → 04:34:56-08 PST (no fractional seconds)
 		var rows = await QueryAsync("SELECT CAST(TIMESTAMP '2024-01-15T12:34:56Z' AS STRING) AS R");
 		var r = (string)rows[0]["R"]!;
-		r.Should().Contain("12:34:56");
+		r.Should().Contain("04:34:56");
+		r.Should().NotContain(".");
 	}
 
 	// ════════════════════════════════════════════════════════════════
@@ -1012,6 +1014,9 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpReplace_Backreference_WorksCorrectly()
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_replace
+		//   "You can use backslashed-escaped digits (\1 to \9) within the replacement"
+		//   RE2 supports \w in patterns.
 		// Swap first and last word using backreferences
 		var result = await Eval(@"REGEXP_REPLACE('hello world', '(\w+) (\w+)', '\\2 \\1')");
 		result.Should().Be("world hello");
@@ -1851,6 +1856,7 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task InformationSchema_SpannerStatistics_ReturnsEmptyResult()
 	{
 		// Ref: https://cloud.google.com/spanner/docs/information-schema#spanner_statistics

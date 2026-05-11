@@ -163,12 +163,15 @@ public class DateTimeExhaustiveIntegrationTests : IntegrationTestBase
 
 	// ─── TIMESTAMP_ADD ───
 	[Theory]
-	[InlineData("CAST(TIMESTAMP_ADD(TIMESTAMP '2024-01-01T00:00:00Z', INTERVAL 1 HOUR) AS STRING)", "2024-01-01T01:00:00")]
-	[InlineData("CAST(TIMESTAMP_ADD(TIMESTAMP '2024-01-01T00:00:00Z', INTERVAL 1 MINUTE) AS STRING)", "2024-01-01T00:01:00")]
-	[InlineData("CAST(TIMESTAMP_ADD(TIMESTAMP '2024-01-01T00:00:00Z', INTERVAL 1 SECOND) AS STRING)", "2024-01-01T00:00:01")]
-	[InlineData("CAST(TIMESTAMP_ADD(TIMESTAMP '2024-01-01T23:59:59Z', INTERVAL 1 SECOND) AS STRING)", "2024-01-02")]
-	[InlineData("CAST(TIMESTAMP_ADD(TIMESTAMP '2024-01-01T00:00:00Z', INTERVAL 24 HOUR) AS STRING)", "2024-01-02")]
-	[InlineData("CAST(TIMESTAMP_ADD(TIMESTAMP '2024-01-01T00:00:00Z', INTERVAL 1 DAY) AS STRING)", "2024-01-02")]
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_add
+	//   CAST(TIMESTAMP AS STRING) uses session default timezone America/Los_Angeles.
+	//   January = PST (UTC-8). 2024-01-01T00:00:00Z = 2023-12-31 16:00:00-08 in LA.
+	[InlineData("CAST(TIMESTAMP_ADD(TIMESTAMP '2024-01-01T00:00:00Z', INTERVAL 1 HOUR) AS STRING)", "2023-12-31 17:00:00-08")]
+	[InlineData("CAST(TIMESTAMP_ADD(TIMESTAMP '2024-01-01T00:00:00Z', INTERVAL 1 MINUTE) AS STRING)", "2023-12-31 16:01:00-08")]
+	[InlineData("CAST(TIMESTAMP_ADD(TIMESTAMP '2024-01-01T00:00:00Z', INTERVAL 1 SECOND) AS STRING)", "2023-12-31 16:00:01-08")]
+	[InlineData("CAST(TIMESTAMP_ADD(TIMESTAMP '2024-01-01T23:59:59Z', INTERVAL 1 SECOND) AS STRING)", "2024-01-01 16:00:00-08")]
+	[InlineData("CAST(TIMESTAMP_ADD(TIMESTAMP '2024-01-01T00:00:00Z', INTERVAL 24 HOUR) AS STRING)", "2024-01-01 16:00:00-08")]
+	[InlineData("CAST(TIMESTAMP_ADD(TIMESTAMP '2024-01-01T00:00:00Z', INTERVAL 1 DAY) AS STRING)", "2024-01-01 16:00:00-08")]
 	[Trait(TestTraits.Category, "DateTimeExhaustive")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task TimestampAdd(string expr, string expected)
@@ -179,9 +182,12 @@ public class DateTimeExhaustiveIntegrationTests : IntegrationTestBase
 
 	// ─── TIMESTAMP_SUB ───
 	[Theory]
-	[InlineData("CAST(TIMESTAMP_SUB(TIMESTAMP '2024-01-02T00:00:00Z', INTERVAL 1 DAY) AS STRING)", "2024-01-01")]
-	[InlineData("CAST(TIMESTAMP_SUB(TIMESTAMP '2024-01-01T01:00:00Z', INTERVAL 1 HOUR) AS STRING)", "2024-01-01")]
-	[InlineData("CAST(TIMESTAMP_SUB(TIMESTAMP '2024-01-01T00:01:00Z', INTERVAL 1 MINUTE) AS STRING)", "2024-01-01")]
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#timestamp_sub
+	//   CAST(TIMESTAMP AS STRING) uses session default timezone America/Los_Angeles.
+	//   January = PST (UTC-8). 2024-01-01T00:00:00Z = 2023-12-31 16:00:00-08 in LA.
+	[InlineData("CAST(TIMESTAMP_SUB(TIMESTAMP '2024-01-02T00:00:00Z', INTERVAL 1 DAY) AS STRING)", "2023-12-31 16:00:00-08")]
+	[InlineData("CAST(TIMESTAMP_SUB(TIMESTAMP '2024-01-01T01:00:00Z', INTERVAL 1 HOUR) AS STRING)", "2023-12-31 16:00:00-08")]
+	[InlineData("CAST(TIMESTAMP_SUB(TIMESTAMP '2024-01-01T00:01:00Z', INTERVAL 1 MINUTE) AS STRING)", "2023-12-31 16:00:00-08")]
 	[Trait(TestTraits.Category, "DateTimeExhaustive")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task TimestampSub(string expr, string expected)

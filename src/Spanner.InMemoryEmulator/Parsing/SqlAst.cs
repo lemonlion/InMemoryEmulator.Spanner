@@ -347,7 +347,10 @@ internal record FullQuery(
 	QueryBody Body,
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#recursive_keyword
 	//   "RECURSIVE enables references to CTEs from within their own definitions."
-	bool IsRecursive = false);
+	bool IsRecursive = false,
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#for_update_clause
+	//   FOR UPDATE requires a FROM clause referencing a table.
+	bool ForUpdate = false);
 
 internal record CteDefinition(string Name, QueryBody Query);
 

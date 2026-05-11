@@ -36,8 +36,8 @@ public class CoreFunctionTests
 	[Fact] public void Rpad() { using var db = CreateDb(); db.ExecuteQuery("SELECT RPAD('hi', 5, '0') AS R FROM T WHERE Id=1")[0]["R"].Should().Be("hi000"); }
 	[Fact] public void RegexpContains() { using var db = CreateDb(); db.ExecuteQuery("SELECT REGEXP_CONTAINS('hello123', '[0-9]+') AS R FROM T WHERE Id=1")[0]["R"].Should().Be(true); }
 	[Fact] public void RegexpExtract() { using var db = CreateDb(); db.ExecuteQuery("SELECT REGEXP_EXTRACT('hello123', '([0-9]+)') AS R FROM T WHERE Id=1")[0]["R"].Should().Be("123"); }
-	[Fact] public void RegexpExtract_WithPosition() { using var db = CreateDb(); db.ExecuteQuery("SELECT REGEXP_EXTRACT('abc 123 def 456', '[0-9]+', 8) AS R FROM T WHERE Id=1")[0]["R"].Should().Be("456"); }
-	[Fact] public void RegexpExtract_WithPositionAndOccurrence() { using var db = CreateDb(); db.ExecuteQuery("SELECT REGEXP_EXTRACT('abc 123 def 456', '[0-9]+', 1, 2) AS R FROM T WHERE Id=1")[0]["R"].Should().Be("456"); }
+	[Fact] public void RegexpExtract_WithPosition_Throws() { using var db = CreateDb(); var act = () => db.ExecuteQuery("SELECT REGEXP_EXTRACT('abc 123 def 456', '[0-9]+', 8) AS R FROM T WHERE Id=1"); act.Should().Throw<InvalidOperationException>(); }
+	[Fact] public void RegexpExtract_WithPositionAndOccurrence_Throws() { using var db = CreateDb(); var act = () => db.ExecuteQuery("SELECT REGEXP_EXTRACT('abc 123 def 456', '[0-9]+', 1, 2) AS R FROM T WHERE Id=1"); act.Should().Throw<InvalidOperationException>(); }
 	[Fact] public void RegexpReplace() { using var db = CreateDb(); db.ExecuteQuery("SELECT REGEXP_REPLACE('hello123', '[0-9]+', 'X') AS R FROM T WHERE Id=1")[0]["R"].Should().Be("helloX"); }
 
 	[Fact]

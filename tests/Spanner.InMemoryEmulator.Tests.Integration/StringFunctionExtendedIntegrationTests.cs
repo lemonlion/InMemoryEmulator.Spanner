@@ -184,51 +184,25 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 		result.Should().BeNull();
 	}
 
-	// ─── REGEXP_EXTRACT with position and occurrence ─────────────
+	// ─── REGEXP_EXTRACT — position/occurrence NOT supported ──────
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_extract
-	//   REGEXP_EXTRACT(value, regexp[, position[, occurrence]])
+	//   Cloud Spanner REGEXP_EXTRACT only accepts 2 arguments (value, regexp).
+	//   position/occurrence parameters are NOT available.
 
-	[Theory]
-	[InlineData("REGEXP_EXTRACT('abc 123 def 456', '[0-9]+', 1, 1)", "123")]
-	[InlineData("REGEXP_EXTRACT('abc 123 def 456', '[0-9]+', 1, 2)", "456")]
-	[InlineData("REGEXP_EXTRACT('abc 123 def 456', '[0-9]+', 5, 1)", "123")]
-	[InlineData("REGEXP_EXTRACT('abc 123 def 456', '[0-9]+', 5, 2)", "456")]
-	[InlineData("REGEXP_EXTRACT('abc 123 def 456', '[0-9]+', 8, 1)", "456")]
-	[InlineData("REGEXP_EXTRACT('abc 123 def 456', '[0-9]+', 8, 2)", null)]
-	[InlineData("REGEXP_EXTRACT('abc 123 def 456', '[0-9]+', 100)", null)]
-	[InlineData("REGEXP_EXTRACT('hello world hello', '[a-z]+', 1, 2)", "world")]
-	[InlineData("REGEXP_EXTRACT('hello world hello', '[a-z]+', 1, 3)", "hello")]
-	[InlineData("REGEXP_EXTRACT('hello world hello', '([a-z]+)', 1, 2)", "world")]
-	[InlineData("REGEXP_EXTRACT('aabbb', 'a(b+)', 1, 1)", "bbb")]
-	[InlineData("REGEXP_EXTRACT('abc 123 def 456', '[0-9]+', 1)", "123")]
-	[InlineData("REGEXP_EXTRACT('abc 123 def 456', '[0-9]+', 8)", "456")]
+	[Fact]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task RegexpExtract_PositionAndOccurrence(string expr, string? expected)
+	public async Task RegexpExtract_ThirdArgument_IsNotSupported()
 	{
-		var result = await Eval(expr);
-		if (expected == null)
-			result.Should().BeNull();
-		else
-			result.Should().Be(expected);
+		var act = async () => await Eval("REGEXP_EXTRACT('abc 123 def 456', '[0-9]+', 1)");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	[Fact]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task RegexpExtract_NullPosition_ReturnsNull()
+	public async Task RegexpExtract_FourthArgument_IsNotSupported()
 	{
-		var result = await Eval("REGEXP_EXTRACT('abc123', '[0-9]+', CAST(NULL AS INT64))");
-		result.Should().BeNull();
-	}
-
-	[Fact]
-	[Trait(TestTraits.Category, "StringFunctionExtended")]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task RegexpExtract_NullOccurrence_ReturnsNull()
-	{
-		var result = await Eval("REGEXP_EXTRACT('abc123', '[0-9]+', 1, CAST(NULL AS INT64))");
-		result.Should().BeNull();
+		var act = async () => await Eval("REGEXP_EXTRACT('abc 123 def 456', '[0-9]+', 1, 2)");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 
@@ -320,13 +294,22 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("REGEXP_REPLACE('', '[a-z]', 'X')", "")]
 	[InlineData("REGEXP_REPLACE('test123test456', '[0-9]+', '#')", "test#test#")]
 	[InlineData("REGEXP_REPLACE('a1b2c3', '[0-9]', '')", "abc")]
-	[InlineData("REGEXP_REPLACE('aabbcc', '(.)\\1', 'X')", "XXX")]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpReplace_Extended(string expr, string expected)
 	{
 		var result = await Eval(expr);
 		result.Should().Be(expected);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "StringFunctionExtended")]
+	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	public async Task RegexpReplace_Backreference_DotNetOnly()
+	{
+		// Note: Backreferences (\1) are not supported in Cloud Spanner's RE2 engine.
+		var result = await Eval("REGEXP_REPLACE('aabbcc', '(.)\\\\1', 'X')");
+		result.Should().Be("XXX");
 	}
 
 	[Fact]
@@ -637,13 +620,22 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("FORMAT('%t', false)", "false")]
 	[InlineData("FORMAT('%t', 'hello')", "hello")]
 	[InlineData("FORMAT('%t', DATE '2024-01-15')", "2024-01-15")]
-	[InlineData("FORMAT('%t', TIMESTAMP '2024-01-15T10:30:00Z')", "2024-01-15T10:30:00Z")]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Format_PercentT_CanonicalRepresentation(string expr, string expected)
 	{
 		var result = await Eval(expr);
 		result.Should().Be(expected);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "StringFunctionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	public async Task Format_PercentT_Timestamp_CanonicalRepresentation()
+	{
+		// Ref: %t for TIMESTAMP outputs in UTC: "YYYY-MM-DD HH:MM:SS+00"
+		var result = await Eval("FORMAT('%t', TIMESTAMP '2024-01-15T10:30:00Z')");
+		result.Should().Be("2024-01-15 10:30:00+00");
 	}
 
 	[Fact]
@@ -666,17 +658,26 @@ public class StringFunctionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("FORMAT('%T', 42)", "42")]
 	[InlineData("FORMAT('%T', -1)", "-1")]
 	[InlineData("FORMAT('%T', 3.14)", "3.14")]
-	[InlineData("FORMAT('%T', true)", "TRUE")]
-	[InlineData("FORMAT('%T', false)", "FALSE")]
+	[InlineData("FORMAT('%T', true)", "true")]
+	[InlineData("FORMAT('%T', false)", "false")]
 	[InlineData("FORMAT('%T', 'hello')", "\"hello\"")]
 	[InlineData("FORMAT('%T', DATE '2024-01-15')", "DATE \"2024-01-15\"")]
-	[InlineData("FORMAT('%T', TIMESTAMP '2024-01-15T10:30:00Z')", "TIMESTAMP \"2024-01-15T10:30:00Z\"")]
 	[Trait(TestTraits.Category, "StringFunctionExtended")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Format_PercentUpperT_SqlLiteralRepresentation(string expr, string expected)
 	{
 		var result = await Eval(expr);
 		result.Should().Be(expected);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "StringFunctionExtended")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	public async Task Format_PercentUpperT_Timestamp_SqlLiteralRepresentation()
+	{
+		// Ref: %T for TIMESTAMP outputs: TIMESTAMP "YYYY-MM-DD HH:MM:SS+00"
+		var result = await Eval("FORMAT('%T', TIMESTAMP '2024-01-15T10:30:00Z')");
+		result.Should().Be("TIMESTAMP \"2024-01-15 10:30:00+00\"");
 	}
 
 	[Fact]

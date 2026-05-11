@@ -393,10 +393,9 @@ internal class ExpressionEvaluator
 			//   % matches any number of characters; _ matches a single character.
 			"LIKE" => EvalLike(func, row),
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
-			//   LIKE ANY/SOME — true if value matches any pattern in the list.
-			//   LIKE ALL — true if value matches all patterns in the list.
-			"LIKE_ANY" => EvalLikeQuantified(func, row, any: true),
-			"LIKE_ALL" => EvalLikeQuantified(func, row, any: false),
+			//   Cloud Spanner does NOT support LIKE ANY/ALL/SOME syntax.
+			"LIKE_ANY" => throw new InvalidOperationException("LIKE ANY is not supported"),
+			"LIKE_ALL" => throw new InvalidOperationException("LIKE ALL is not supported"),
 
 			"BYTE_LENGTH" => EvalByteLength(func, row),
 			"TO_HEX" => EvalToHex(func, row),
@@ -1185,9 +1184,9 @@ internal class ExpressionEvaluator
 		{
 			double d2 => Math.Round(d2, digits, MidpointRounding.AwayFromZero),
 			float fv => (double)Math.Round((double)fv, digits, MidpointRounding.AwayFromZero),
-			// Ref: NUMERIC uses banker's rounding (ToEven) — verified against real Cloud Spanner.
-			// ROUND(1.2345, 3) → 1.234, not 1.235.
-			decimal dec => (double)Math.Round(dec, digits, MidpointRounding.ToEven),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#round
+			//   "Rounds halfway cases away from zero." — same for NUMERIC type.
+			decimal dec => (double)Math.Round(dec, digits, MidpointRounding.AwayFromZero),
 			long l => (double)l,
 			_ => throw new InvalidOperationException($"Cannot round {val.GetType().Name}")
 		};
@@ -1243,10 +1242,10 @@ internal class ExpressionEvaluator
 						: (long)Math.Round(f, MidpointRounding.AwayFromZero))
 					: value is string s && s.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
 						? Convert.ToInt64(s[2..], 16)
-						// Ref: NUMERIC (decimal) uses banker's rounding (ToEven) — verified against real Cloud Spanner.
-						// CAST(CAST('0.5' AS NUMERIC) AS INT64) → 0, CAST(CAST('2.5' AS NUMERIC) AS INT64) → 2.
+						// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
+						//   "Rounds halfway cases away from zero." — applies to both FLOAT64 and NUMERIC→INT64.
 						: value is decimal dec
-						? (long)Math.Round(dec, 0, MidpointRounding.ToEven)
+						? (long)Math.Round(dec, 0, MidpointRounding.AwayFromZero)
 						: Convert.ToInt64(value),
 				TypeCode.Float64 => ConvertToFloat64(value),
 				TypeCode.Float32 => ConvertToFloat32(value),
@@ -1255,9 +1254,10 @@ internal class ExpressionEvaluator
 				{
 					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
 					//   CAST(bool AS STRING) returns lowercase "true" / "false"
-					//   CAST(timestamp AS STRING) preserves sub-second precision
+					//   CAST(timestamp AS STRING) uses session timezone (default: America/Los_Angeles)
 					bool bv => bv ? "true" : "false",
-					DateTime dt => dt.Date == dt ? dt.ToString("yyyy-MM-dd") : FormatTimestampCanonical(dt),
+					DateTime dt when dt.Kind == DateTimeKind.Unspecified => dt.ToString("yyyy-MM-dd"),
+					DateTime dt => FormatTimestampInDefaultTz(dt),
 					// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
 					//   CAST(FLOAT64 AS STRING): inf/-inf/nan are returned as "inf"/"-inf"/"nan"
 					double dv when double.IsPositiveInfinity(dv) => "inf",
@@ -1273,9 +1273,21 @@ internal class ExpressionEvaluator
 				},
 				TypeCode.Numeric => Convert.ToDecimal(value),
 				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
-				TypeCode.Date => value is DateTime dt2 ? dt2.Date
+				//   CAST(TIMESTAMP AS DATE) uses session timezone (default: America/Los_Angeles)
+				//   DateTimeKind.Utc means it's a timestamp; Unspecified with midnight means it's a date.
+				TypeCode.Date => value is DateTime dt2
+					? (dt2.Kind == DateTimeKind.Utc
+						? TimeZoneInfo.ConvertTimeFromUtc(dt2, DefaultTimeZone).Date
+						: dt2.Date)
 					: DateTime.Parse(Convert.ToString(value)!, System.Globalization.CultureInfo.InvariantCulture).Date,
-				TypeCode.Timestamp => value is DateTime dt3 ? dt3
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
+				//   CAST(DATE AS TIMESTAMP) interprets midnight in session timezone (America/Los_Angeles)
+				//   DateTimeKind.Unspecified means it's a date value.
+				TypeCode.Timestamp => value is DateTime dt3
+					? (dt3.Kind == DateTimeKind.Unspecified
+						? TimeZoneInfo.ConvertTimeToUtc(
+							DateTime.SpecifyKind(dt3.Date, DateTimeKind.Unspecified), DefaultTimeZone)
+						: dt3)
 					: DateTime.Parse(Convert.ToString(value)!, System.Globalization.CultureInfo.InvariantCulture,
 						System.Globalization.DateTimeStyles.AdjustToUniversal),
 				TypeCode.Bytes => value is byte[] b ? b : System.Text.Encoding.UTF8.GetBytes(Convert.ToString(value)!),
@@ -1988,16 +2000,38 @@ internal class ExpressionEvaluator
 		};
 	}
 
-	// Formats a DateTime as a Spanner timestamp string, trimming only sub-second fractional zeros.
+	// Formats a DateTime as a Spanner timestamp string (UTC), trimming only sub-second fractional zeros.
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#format_string
+	//   %t for TIMESTAMP: "2011-02-03 04:05:06+00" (space separator, +00 suffix)
 	private static string FormatTimestampCanonical(DateTime dt)
 	{
-		var s = dt.ToString("yyyy-MM-ddTHH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
+		var s = dt.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
 		if (dt.Ticks % TimeSpan.TicksPerSecond != 0)
 		{
 			var frac = dt.ToString(".FFFFFF", System.Globalization.CultureInfo.InvariantCulture).TrimEnd('0');
 			s += frac;
 		}
-		return s + "Z";
+		return s + "+00";
+	}
+
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
+	//   CAST(TIMESTAMP AS STRING) formats in the session timezone (default: America/Los_Angeles).
+	//   Output format: "YYYY-MM-DD HH:MM:SS[.FFFFFF]±HH"
+	private static string FormatTimestampInDefaultTz(DateTime dt)
+	{
+		var utc = DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+		var local = TimeZoneInfo.ConvertTimeFromUtc(utc, DefaultTimeZone);
+		var offset = DefaultTimeZone.GetUtcOffset(utc);
+		var s = local.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
+		if (local.Ticks % TimeSpan.TicksPerSecond != 0)
+		{
+			var frac = local.ToString(".FFFFFF", System.Globalization.CultureInfo.InvariantCulture).TrimEnd('0');
+			s += frac;
+		}
+		var sign = offset < TimeSpan.Zero ? "-" : "+";
+		var absOffset = offset < TimeSpan.Zero ? -offset : offset;
+		s += sign + absOffset.Hours.ToString("00");
+		return s;
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#format_string
@@ -2007,7 +2041,9 @@ internal class ExpressionEvaluator
 		if (value == null) return "NULL";
 		return value switch
 		{
-			bool b => b ? "TRUE" : "FALSE",
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#format_string
+			//   %T for BOOL returns lowercase "true"/"false" on real Cloud Spanner.
+			bool b => b ? "true" : "false",
 			long l => l.ToString(),
 			int i => i.ToString(),
 			double d when double.IsPositiveInfinity(d) => "CAST('inf' AS FLOAT64)",
@@ -2021,7 +2057,7 @@ internal class ExpressionEvaluator
 			decimal m => m.ToString(System.Globalization.CultureInfo.InvariantCulture),
 			string s => "\"" + s.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"",
 			DateTime dt when dt.Date == dt => "DATE \"" + dt.ToString("yyyy-MM-dd") + "\"",
-			DateTime dt => "TIMESTAMP \"" + FormatTimestampCanonical(dt).TrimEnd('Z') + "Z\"",
+			DateTime dt => "TIMESTAMP \"" + FormatTimestampCanonical(dt) + "\"",
 			byte[] bytes => "b\"" + Convert.ToBase64String(bytes) + "\"",
 			IList<object?> arr => "[" + string.Join(", ", arr.Select(FormatValueSqlLiteral)) + "]",
 			_ => value.ToString() ?? ""
@@ -2038,56 +2074,26 @@ internal class ExpressionEvaluator
 
 	private object? EvalRegexpExtract(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_extract
+		//   REGEXP_EXTRACT(value, regexp) — only 2 arguments in Cloud Spanner.
+		//   position/occurrence parameters are NOT supported.
+		if (func.Arguments.Count > 2)
+			throw new InvalidOperationException(
+				"No matching signature for function REGEXP_EXTRACT for argument types: STRING, STRING, INT64");
+
 		var s = Evaluate(func.Arguments[0], row);
 		var pattern = Evaluate(func.Arguments[1], row);
 		if (s == null || pattern == null) return null;
 		var patStr = Convert.ToString(pattern)!;
 		var sourceStr = Convert.ToString(s)!;
 
-		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_extract
-		//   REGEXP_EXTRACT(value, regexp[, position[, occurrence]])
-		//   position: 1-based starting position (default 1)
-		//   occurrence: 1-based occurrence index (default 1)
-		int position = 1;
-		int occurrence = 1;
-		if (func.Arguments.Count >= 3)
-		{
-			var posVal = Evaluate(func.Arguments[2], row);
-			if (posVal == null) return null;
-			position = Convert.ToInt32(posVal);
-			if (position < 1)
-				throw new InvalidOperationException(
-					"REGEXP_EXTRACT: position must be a positive integer");
-		}
-		if (func.Arguments.Count >= 4)
-		{
-			var occVal = Evaluate(func.Arguments[3], row);
-			if (occVal == null) return null;
-			occurrence = Convert.ToInt32(occVal);
-			if (occurrence < 1)
-				throw new InvalidOperationException(
-					"REGEXP_EXTRACT: occurrence must be a positive integer");
-		}
-
-		// Apply position offset: search from (position-1) in the source string
-		int startIndex = position - 1;
-		if (startIndex >= sourceStr.Length) return null;
-		var searchStr = sourceStr.Substring(startIndex);
-
-		var match = Regex.Match(searchStr, patStr);
+		var match = Regex.Match(sourceStr, patStr);
 		// At most one capturing group is allowed
 		var capturingGroups = match.Groups.Count - 1; // Groups[0] is the full match
 		if (capturingGroups > 1)
 			throw new InvalidOperationException(
 				"REGEXP_EXTRACT: pattern has more than one capturing group");
 		if (!match.Success) return null;
-
-		// Find the Nth occurrence
-		for (int i = 1; i < occurrence; i++)
-		{
-			match = match.NextMatch();
-			if (!match.Success) return null;
-		}
 
 		return capturingGroups == 1 ? match.Groups[1].Value : match.Value;
 	}
@@ -2837,13 +2843,26 @@ internal class ExpressionEvaluator
 		var dt = ts is DateTime d ? d : DateTime.Parse(Convert.ToString(ts)!);
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#format_timestamp
 		//   FORMAT_TIMESTAMP(format_string, timestamp[, time_zone])
-		if (func.Arguments.Count > 2)
+		//   When time_zone is omitted, the session default (America/Los_Angeles) is used.
+		//   Only apply timezone conversion for TIMESTAMP values (Kind == Utc), not DATE values.
+		if (dt.Kind == DateTimeKind.Utc)
 		{
-			var tzStr = Convert.ToString(Evaluate(func.Arguments[2], row));
-			if (!string.IsNullOrEmpty(tzStr))
+			if (func.Arguments.Count > 2)
 			{
-				var tz = TimeZoneInfo.FindSystemTimeZoneById(tzStr);
-				dt = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(dt, DateTimeKind.Utc), tz);
+				var tzStr = Convert.ToString(Evaluate(func.Arguments[2], row));
+				if (!string.IsNullOrEmpty(tzStr))
+				{
+					var tz = TimeZoneInfo.FindSystemTimeZoneById(tzStr);
+					dt = TimeZoneInfo.ConvertTimeFromUtc(dt, tz);
+				}
+				else
+				{
+					dt = TimeZoneInfo.ConvertTimeFromUtc(dt, DefaultTimeZone);
+				}
+			}
+			else
+			{
+				dt = TimeZoneInfo.ConvertTimeFromUtc(dt, DefaultTimeZone);
 			}
 		}
 		return dt.ToString(ConvertSpannerDateFormat(fmt ?? ""), System.Globalization.CultureInfo.InvariantCulture);
@@ -2859,18 +2878,18 @@ internal class ExpressionEvaluator
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#parse_timestamp
 		//   PARSE_TIMESTAMP(format_string, timestamp_string[, time_zone])
 		//   If no timezone in format/string, the 3rd parameter specifies which timezone to assume.
+		//   Default timezone is America/Los_Angeles.
+		TimeZoneInfo tz = DefaultTimeZone;
 		if (func.Arguments.Count > 2)
 		{
 			var tzStr = Convert.ToString(Evaluate(func.Arguments[2], row));
 			if (!string.IsNullOrEmpty(tzStr))
 			{
-				var tz = TimeZoneInfo.FindSystemTimeZoneById(tzStr);
-				var local = DateTime.ParseExact(str, ConvertSpannerDateFormat(fmt), System.Globalization.CultureInfo.InvariantCulture);
-				return TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(local, DateTimeKind.Unspecified), tz);
+				tz = TimeZoneInfo.FindSystemTimeZoneById(tzStr);
 			}
 		}
-		return DateTime.ParseExact(str, ConvertSpannerDateFormat(fmt), System.Globalization.CultureInfo.InvariantCulture,
-			System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal);
+		var local = DateTime.ParseExact(str, ConvertSpannerDateFormat(fmt), System.Globalization.CultureInfo.InvariantCulture);
+		return TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(local, DateTimeKind.Unspecified), tz);
 	}
 
 	private object? EvalFormatDate(FunctionCallExpr func, Dictionary<string, object?> row)
@@ -2908,6 +2927,8 @@ internal class ExpressionEvaluator
 			.Replace("%u", "d") // ISO weekday (1=Monday) — approximate
 			.Replace("%V", "ww") // ISO week — approximate with .NET
 			.Replace("%n", "\n").Replace("%t", "\t")
+			// Escape remaining literal T and Z — .NET ParseExact treats bare Z as timezone indicator.
+			.Replace("T", "'T'").Replace("Z", "'Z'")
 			.Replace("\x00", "%"); // Restore literal %
 	}
 
@@ -3769,7 +3790,14 @@ internal class ExpressionEvaluator
 			throw new InvalidOperationException($"{func.Name} requires exactly 1 argument.");
 		var val = Evaluate(func.Arguments[0], row);
 		if (val == null) return null;
-		return fn(Convert.ToDouble(val));
+		var input = Convert.ToDouble(val);
+		var result = fn(input);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions
+		//   NaN/Inf inputs propagate through (e.g. SIN(NaN)→NaN, SINH(Inf)→Inf).
+		//   Out-of-domain finite inputs (e.g. ACOS(2), ATANH(2)) produce OUT_OF_RANGE errors.
+		if ((double.IsNaN(result) || double.IsInfinity(result)) && !double.IsNaN(input) && !double.IsInfinity(input))
+			throw new OverflowException($"Floating point error in function: {func.Name}({input})");
+		return result;
 	}
 
 	private object? EvalTrig2(FunctionCallExpr func, Dictionary<string, object?> row, Func<double, double, double> fn)

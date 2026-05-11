@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
@@ -990,43 +991,23 @@ public class OperatorIntegrationTests : IntegrationTestBase
 	}
 
 	// ═══════════════════════════════════════════════════════════════
-	// LIKE ANY/ALL with NULL patterns
+	// LIKE ANY/ALL — NOT supported by Cloud Spanner
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
+	//   Only simple LIKE is supported; LIKE ANY/ALL/SOME is not available in Spanner SQL.
 	// ═══════════════════════════════════════════════════════════════
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task LikeAny_WithNullPattern_MatchesOtherPattern()
+	public async Task LikeAny_WithNullPattern_IsNotSupported()
 	{
-		// 'hello' matches '%' even though NULL is in pattern list
-		var result = await Eval("'hello' LIKE ANY ('%', CAST(NULL AS STRING))");
-		result.Should().Be(true);
+		var act = async () => await Eval("'hello' LIKE ANY ('%', CAST(NULL AS STRING))");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task LikeAny_OnlyNullPatterns_ReturnsNull()
+	public async Task LikeAll_WithNullPattern_IsNotSupported()
 	{
-		var result = await Eval("'hello' LIKE ANY (CAST(NULL AS STRING))");
-		result.Should().BeNull();
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task LikeAll_WithNullPattern_ReturnsNull()
-	{
-		// Even though 'hello' matches '%', NULL pattern makes ALL return NULL
-		var result = await Eval("'hello' LIKE ALL ('%', CAST(NULL AS STRING))");
-		result.Should().BeNull();
-	}
-
-	[Fact]
-	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task LikeAll_NonMatchBeforeNull_ReturnsFalse()
-	{
-		// 'hello' doesn't match 'xyz', so ALL short-circuits to FALSE regardless of NULL
-		var result = await Eval("'hello' LIKE ALL ('xyz', CAST(NULL AS STRING))");
-		result.Should().Be(false);
+		var act = async () => await Eval("'hello' LIKE ALL ('%', CAST(NULL AS STRING))");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	// ═══════════════════════════════════════════════════════════════

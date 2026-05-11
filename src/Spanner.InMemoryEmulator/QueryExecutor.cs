@@ -24,6 +24,11 @@ internal class QueryExecutor
 	/// </summary>
 	public ResultSet Execute(FullQuery fullQuery, IDictionary<string, object?>? parameters)
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#for_update_clause
+		//   FOR UPDATE requires a FROM clause referencing a table.
+		if (fullQuery.ForUpdate && fullQuery.Body.Select.From == null)
+			throw new InvalidOperationException("FOR UPDATE requires a FROM clause");
+
 		// Register CTEs as virtual tables for subquery resolution
 		Dictionary<string, QueryBody>? cteMap = null;
 		if (fullQuery.Ctes is { Count: > 0 })

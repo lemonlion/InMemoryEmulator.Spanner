@@ -561,12 +561,14 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Theory]
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#format_timestamp
+	//   Default timezone is America/Los_Angeles (UTC-7 in June PDT).
 	[InlineData("FORMAT_TIMESTAMP('%Y-%m-%d', TIMESTAMP '2024-06-15T10:30:00Z')", "2024-06-15")]
-	[InlineData("FORMAT_TIMESTAMP('%H:%M:%S', TIMESTAMP '2024-06-15T10:30:45Z')", "10:30:45")]
+	[InlineData("FORMAT_TIMESTAMP('%H:%M:%S', TIMESTAMP '2024-06-15T10:30:45Z')", "03:30:45")]
 	[InlineData("FORMAT_TIMESTAMP('%Y', TIMESTAMP '2024-06-15T10:30:00Z')", "2024")]
 	[InlineData("FORMAT_TIMESTAMP('%m', TIMESTAMP '2024-06-15T10:30:00Z')", "06")]
 	[InlineData("FORMAT_TIMESTAMP('%d', TIMESTAMP '2024-06-15T10:30:00Z')", "15")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task FormatTimestamp_ReturnsExpected(string expr, string expected)
 		=> (await Eval(expr)).Should().Be(expected);
 
@@ -576,16 +578,20 @@ public class DateTimeFunctionIntegrationTests : IntegrationTestBase
 	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 	[Fact]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task ParseTimestamp_BasicFormat()
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#parse_timestamp
+		//   Default timezone is America/Los_Angeles. June = PDT (UTC-7).
+		//   10:30:45 PDT = 17:30:45 UTC
 		var result = (DateTime)(await Eval("PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', '2024-06-15 10:30:45')"))!;
-		result.Year.Should().Be(2024);
-		result.Month.Should().Be(6);
-		result.Day.Should().Be(15);
-		result.Hour.Should().Be(10);
-		result.Minute.Should().Be(30);
-		result.Second.Should().Be(45);
+		var utc = result.ToUniversalTime();
+		utc.Year.Should().Be(2024);
+		utc.Month.Should().Be(6);
+		utc.Day.Should().Be(15);
+		utc.Hour.Should().Be(17);
+		utc.Minute.Should().Be(30);
+		utc.Second.Should().Be(45);
 	}
 
 	// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

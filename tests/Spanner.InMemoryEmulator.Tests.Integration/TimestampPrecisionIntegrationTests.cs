@@ -169,24 +169,27 @@ public class TimestampPrecisionIntegrationTests : IntegrationTestBase
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task TimestampAdd_Day()
 	{
+		// 2024-01-02T00:00:00Z → LA PST: 2024-01-01 16:00:00-08
 		var result = await Eval("CAST(TIMESTAMP_ADD(TIMESTAMP '2024-01-01 00:00:00+00', INTERVAL 1 DAY) AS STRING)");
-		((string)result!).Should().Contain("2024-01-02");
+		((string)result!).Should().Contain("2024-01-01");
 	}
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task TimestampAdd_Hour()
 	{
+		// 2024-01-01T02:00:00Z → LA PST: 2023-12-31 18:00:00-08
 		var result = await Eval("CAST(TIMESTAMP_ADD(TIMESTAMP '2024-01-01 00:00:00+00', INTERVAL 2 HOUR) AS STRING)");
-		((string)result!).Should().Contain("02:00:00");
+		((string)result!).Should().Contain("18:00:00");
 	}
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task TimestampSub_Day()
 	{
+		// 2024-01-01T00:00:00Z → LA PST: 2023-12-31 16:00:00-08
 		var result = await Eval("CAST(TIMESTAMP_SUB(TIMESTAMP '2024-01-02 00:00:00+00', INTERVAL 1 DAY) AS STRING)");
-		((string)result!).Should().Contain("2024-01-01");
+		((string)result!).Should().Contain("2023-12-31");
 	}
 
 	// ═══════════════════════════════════════════════════════════════

@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Google.Cloud.Spanner.Data;
 using Spanner.InMemoryEmulator.Tests.Shared.Infrastructure;
 using Spanner.InMemoryEmulator.Tests.Shared.Traits;
 
@@ -184,19 +185,24 @@ public class TrigFunctionIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Asin_OutOfDomain_ReturnsNaN()
+	public async Task Asin_OutOfDomain_ThrowsOutOfRange()
 	{
-		// Ref: ASIN with |x| > 1 returns NaN
-		var result = (double)(await Eval("ASIN(2.0)"))!;
-		double.IsNaN(result).Should().BeTrue();
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#asin
+		//   Out-of-domain inputs produce OUT_OF_RANGE error on Cloud Spanner.
+		var act = () => Eval("ASIN(2.0)");
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.Message.Contains("valid range") || e.InnerException!.Message.Contains("Floating point error"));
 	}
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Asin_NegOutOfDomain_ReturnsNaN()
+	public async Task Asin_NegOutOfDomain_ThrowsOutOfRange()
 	{
-		var result = (double)(await Eval("ASIN(-1.5)"))!;
-		double.IsNaN(result).Should().BeTrue();
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#asin
+		//   Out-of-domain inputs produce OUT_OF_RANGE error on Cloud Spanner.
+		var act = () => Eval("ASIN(-1.5)");
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.Message.Contains("valid range") || e.InnerException!.Message.Contains("Floating point error"));
 	}
 
 	// ═══════════════════════════════════════════════════════════════
@@ -225,10 +231,13 @@ public class TrigFunctionIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Acos_OutOfDomain_ReturnsNaN()
+	public async Task Acos_OutOfDomain_ThrowsOutOfRange()
 	{
-		var result = (double)(await Eval("ACOS(2.0)"))!;
-		double.IsNaN(result).Should().BeTrue();
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#acos
+		//   Out-of-domain inputs produce OUT_OF_RANGE error on Cloud Spanner.
+		var act = () => Eval("ACOS(2.0)");
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.Message.Contains("valid range") || e.InnerException!.Message.Contains("Floating point error"));
 	}
 
 	// ═══════════════════════════════════════════════════════════════
@@ -467,11 +476,13 @@ public class TrigFunctionIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Acosh_LessThanOne_ReturnsNaN()
+	public async Task Acosh_LessThanOne_ThrowsOutOfRange()
 	{
-		// Ref: ACOSH(x) where x < 1 is outside the domain
-		var result = (double)(await Eval("ACOSH(0.5)"))!;
-		double.IsNaN(result).Should().BeTrue();
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#acosh
+		//   Out-of-domain inputs produce OUT_OF_RANGE error on Cloud Spanner.
+		var act = () => Eval("ACOSH(0.5)");
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.Message.Contains("valid range") || e.InnerException!.Message.Contains("Floating point error"));
 	}
 
 	// ═══════════════════════════════════════════════════════════════
@@ -492,26 +503,31 @@ public class TrigFunctionIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Atanh_One_IsInf()
+	public async Task Atanh_One_ThrowsOutOfRange()
 	{
-		var result = (double)(await Eval("ATANH(1.0)"))!;
-		double.IsPositiveInfinity(result).Should().BeTrue();
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions#atanh
+		//   ATANH(1) and ATANH(-1) produce OUT_OF_RANGE error on Cloud Spanner.
+		var act = () => Eval("ATANH(1.0)");
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.Message.Contains("valid range") || e.InnerException!.Message.Contains("Floating point error"));
 	}
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Atanh_MinusOne_IsNegInf()
+	public async Task Atanh_MinusOne_ThrowsOutOfRange()
 	{
-		var result = (double)(await Eval("ATANH(-1.0)"))!;
-		double.IsNegativeInfinity(result).Should().BeTrue();
+		var act = () => Eval("ATANH(-1.0)");
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.Message.Contains("valid range") || e.InnerException!.Message.Contains("Floating point error"));
 	}
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Atanh_OutOfDomain_ReturnsNaN()
+	public async Task Atanh_OutOfDomain_ThrowsOutOfRange()
 	{
-		var result = (double)(await Eval("ATANH(2.0)"))!;
-		double.IsNaN(result).Should().BeTrue();
+		var act = () => Eval("ATANH(2.0)");
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.Message.Contains("valid range") || e.InnerException!.Message.Contains("Floating point error"));
 	}
 
 	[Fact]
@@ -671,3 +687,4 @@ public class TrigFunctionIntegrationTests : IntegrationTestBase
 		result.Should().BeApproximately(Math.Atan2(3, 4), 1e-10);
 	}
 }
+

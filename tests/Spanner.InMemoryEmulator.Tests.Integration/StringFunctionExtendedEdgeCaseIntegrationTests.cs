@@ -305,7 +305,7 @@ public class StringFunctionExtendedEdgeCaseIntegrationTests : IntegrationTestBas
 	[Theory]
 	[InlineData("REGEXP_EXTRACT('abc123', '[0-9]+')", "123")]
 	[InlineData("REGEXP_EXTRACT('abc123def456', '[0-9]+')", "123")]
-	[InlineData("REGEXP_EXTRACT('hello world', '(\\w+)')", "hello")]
+	[InlineData("REGEXP_EXTRACT('hello world', '(\\\\w+)')", "hello")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task RegexpExtract_Values(string expr, string expected)
 	{

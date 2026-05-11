@@ -1182,23 +1182,15 @@ internal static class SqlParsers
 		select new CteDefinition(name, query);
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#set_operators
+	//   Cloud Spanner requires explicit ALL or DISTINCT — bare UNION/INTERSECT/EXCEPT is rejected.
 	private static TokenListParser<GoogleSqlToken, SetOperation> SetOperationItem { get; } =
 		from opType in
 			(from _ in Token.EqualTo(GoogleSqlToken.Union) from __ in Token.EqualTo(GoogleSqlToken.All) select SetOperationType.UnionAll).Try()
-			.Or(from _ in Token.EqualTo(GoogleSqlToken.Union) from __ in Token.EqualTo(GoogleSqlToken.Distinct) select SetOperationType.UnionDistinct).Try()
-			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#set_operators
-			//   "UNION: The default behavior is DISTINCT."
-			.Or(from _ in Token.EqualTo(GoogleSqlToken.Union) select SetOperationType.UnionDistinct)
+			.Or(from _ in Token.EqualTo(GoogleSqlToken.Union) from __ in Token.EqualTo(GoogleSqlToken.Distinct) select SetOperationType.UnionDistinct)
 			.Or(from _ in Token.EqualTo(GoogleSqlToken.Intersect) from __ in Token.EqualTo(GoogleSqlToken.All) select SetOperationType.IntersectAll).Try()
-			.Or(from _ in Token.EqualTo(GoogleSqlToken.Intersect) from __ in Token.EqualTo(GoogleSqlToken.Distinct) select SetOperationType.IntersectDistinct).Try()
-			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#set_operators
-			//   "INTERSECT: The default behavior is DISTINCT."
-			.Or(from _ in Token.EqualTo(GoogleSqlToken.Intersect) select SetOperationType.IntersectDistinct)
+			.Or(from _ in Token.EqualTo(GoogleSqlToken.Intersect) from __ in Token.EqualTo(GoogleSqlToken.Distinct) select SetOperationType.IntersectDistinct)
 			.Or(from _ in Token.EqualTo(GoogleSqlToken.Except) from __ in Token.EqualTo(GoogleSqlToken.All) select SetOperationType.ExceptAll).Try()
-			.Or(from _ in Token.EqualTo(GoogleSqlToken.Except) from __ in Token.EqualTo(GoogleSqlToken.Distinct) select SetOperationType.ExceptDistinct).Try()
-			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#set_operators
-			//   "EXCEPT: The default behavior is DISTINCT."
-			.Or(from _ in Token.EqualTo(GoogleSqlToken.Except) select SetOperationType.ExceptDistinct)
+			.Or(from _ in Token.EqualTo(GoogleSqlToken.Except) from __ in Token.EqualTo(GoogleSqlToken.Distinct) select SetOperationType.ExceptDistinct)
 		from right in SelectStatement
 		select new SetOperation(opType, right);
 
@@ -1218,10 +1210,10 @@ internal static class SqlParsers
 		).OptionalOrDefault((null, false))
 		from body in QueryBodyParser
 		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#for_update_clause
-		//   FOR UPDATE enables exclusive cell-level locks (no-op in emulator)
-		from _forUpdate in (from _f in Token.EqualTo(GoogleSqlToken.For) from _u in Token.EqualTo(GoogleSqlToken.Update) select true)
+		//   FOR UPDATE requires a FROM clause referencing a table.
+		from forUpdate in (from _f in Token.EqualTo(GoogleSqlToken.For) from _u in Token.EqualTo(GoogleSqlToken.Update) select true)
 			.OptionalOrDefault(false)
-		select new FullQuery(ctes.Item1, body, ctes.recursive);
+		select new FullQuery(ctes.Item1, body, ctes.recursive, forUpdate);
 
 	// ──────────────────────────────────────────
 	// DML Statements

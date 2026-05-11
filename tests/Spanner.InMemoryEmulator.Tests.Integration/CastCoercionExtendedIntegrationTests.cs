@@ -271,16 +271,16 @@ public class CastCoercionExtendedIntegrationTests : IntegrationTestBase
 	}
 
 	// ═══════════════════════════════════════════════════════════════
-	// 12. CAST TIMESTAMP → STRING
+	// 12. CAST TIMESTAMP → STRING (uses session timezone: America/Los_Angeles)
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
 	// ═══════════════════════════════════════════════════════════════
 
 	[Theory]
-	[InlineData("CAST(TIMESTAMP '2024-06-15T12:30:45Z' AS STRING)", "2024-06-15T12:30:45Z")]
-	[InlineData("CAST(TIMESTAMP '2024-02-29T23:59:59Z' AS STRING)", "2024-02-29T23:59:59Z")]
-	[InlineData("CAST(TIMESTAMP '2024-12-31T23:59:59Z' AS STRING)", "2024-12-31T23:59:59Z")]
-	[InlineData("CAST(TIMESTAMP '1999-12-31T23:59:59Z' AS STRING)", "1999-12-31T23:59:59Z")]
-	[InlineData("CAST(TIMESTAMP '2024-07-04T18:00:00Z' AS STRING)", "2024-07-04T18:00:00Z")]
+	[InlineData("CAST(TIMESTAMP '2024-06-15T12:30:45Z' AS STRING)", "2024-06-15 05:30:45-07")]
+	[InlineData("CAST(TIMESTAMP '2024-02-29T23:59:59Z' AS STRING)", "2024-02-29 15:59:59-08")]
+	[InlineData("CAST(TIMESTAMP '2024-12-31T23:59:59Z' AS STRING)", "2024-12-31 15:59:59-08")]
+	[InlineData("CAST(TIMESTAMP '1999-12-31T23:59:59Z' AS STRING)", "1999-12-31 15:59:59-08")]
+	[InlineData("CAST(TIMESTAMP '2024-07-04T18:00:00Z' AS STRING)", "2024-07-04 11:00:00-07")]
 	[Trait(TestTraits.Category, "CastCoercionExtended")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Cast_TimestampToString(string expr, string expected)
@@ -389,9 +389,9 @@ public class CastCoercionExtendedIntegrationTests : IntegrationTestBase
 	[InlineData("CAST(CAST('-42' AS NUMERIC) AS INT64)", -42L)]
 	[InlineData("CAST(CAST('100' AS NUMERIC) AS INT64)", 100L)]
 	[InlineData("CAST(CAST('1.5' AS NUMERIC) AS INT64)", 2L)]
-	[InlineData("CAST(CAST('2.5' AS NUMERIC) AS INT64)", 2L)]
+	[InlineData("CAST(CAST('2.5' AS NUMERIC) AS INT64)", 3L)]
 	[InlineData("CAST(CAST('3.5' AS NUMERIC) AS INT64)", 4L)]
-	[InlineData("CAST(CAST('0.5' AS NUMERIC) AS INT64)", 0L)]
+	[InlineData("CAST(CAST('0.5' AS NUMERIC) AS INT64)", 1L)]
 	[Trait(TestTraits.Category, "CastCoercionExtended")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Cast_NumericToInt64(string expr, long expected)
@@ -652,14 +652,14 @@ public class CastCoercionExtendedIntegrationTests : IntegrationTestBase
 	}
 
 	// ═══════════════════════════════════════════════════════════════
-	// 26. CAST DATE → TIMESTAMP (date at midnight UTC)
+	// 26. CAST DATE → TIMESTAMP (midnight in session timezone: America/Los_Angeles → UTC)
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
 	// ═══════════════════════════════════════════════════════════════
 
 	[Theory]
-	[InlineData("CAST(DATE '2024-01-01' AS TIMESTAMP)", "2024-01-01T00:00:00Z")]
-	[InlineData("CAST(DATE '1970-01-01' AS TIMESTAMP)", "1970-01-01T00:00:00Z")]
-	[InlineData("CAST(DATE '2024-12-31' AS TIMESTAMP)", "2024-12-31T00:00:00Z")]
+	[InlineData("CAST(DATE '2024-01-01' AS TIMESTAMP)", "2024-01-01T08:00:00Z")]
+	[InlineData("CAST(DATE '1970-01-01' AS TIMESTAMP)", "1970-01-01T08:00:00Z")]
+	[InlineData("CAST(DATE '2024-12-31' AS TIMESTAMP)", "2024-12-31T08:00:00Z")]
 	[Trait(TestTraits.Category, "CastCoercionExtended")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Cast_DateToTimestamp(string expr, string expectedStr)
@@ -670,14 +670,14 @@ public class CastCoercionExtendedIntegrationTests : IntegrationTestBase
 	}
 
 	// ═══════════════════════════════════════════════════════════════
-	// 27. CAST TIMESTAMP → DATE (extract date part)
+	// 27. CAST TIMESTAMP → DATE (extract date in session timezone: America/Los_Angeles)
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/conversion_functions#cast
 	// ═══════════════════════════════════════════════════════════════
 
 	[Theory]
 	[InlineData("CAST(TIMESTAMP '2024-01-01T12:30:00Z' AS DATE)", "2024-01-01")]
 	[InlineData("CAST(TIMESTAMP '2024-06-15T23:59:59Z' AS DATE)", "2024-06-15")]
-	[InlineData("CAST(TIMESTAMP '1970-01-01T00:00:00Z' AS DATE)", "1970-01-01")]
+	[InlineData("CAST(TIMESTAMP '1970-01-01T00:00:00Z' AS DATE)", "1969-12-31")]
 	[InlineData("CAST(TIMESTAMP '2024-12-31T18:00:00Z' AS DATE)", "2024-12-31")]
 	[Trait(TestTraits.Category, "CastCoercionExtended")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]

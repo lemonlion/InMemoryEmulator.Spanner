@@ -44,50 +44,40 @@ public class DateFunctionAndSetOpEdgeCaseIntegrationTests : IntegrationTestBase
 		result.Should().BeNull();
 	}
 
-	// ─── Bare UNION (without ALL/DISTINCT) defaults to UNION DISTINCT ───
+	// ─── Bare UNION (without ALL/DISTINCT) is rejected by Cloud Spanner ───
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#set_operators
-	//   "UNION: The result is the set of rows that are in either of the two query expressions.
-	//    The default behavior is DISTINCT."
+	//   Cloud Spanner requires explicit ALL or DISTINCT keyword with set operators.
 
 	[Fact]
 	[Trait(TestTraits.Category, "Query")]
-	// Cloud Spanner requires ALL or DISTINCT keyword with UNION. Verified.
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task Union_Bare_DefaultsToDistinct()
 	{
-		var rows = await Q("SELECT 1 AS x UNION SELECT 1 AS x");
-		rows.Should().HaveCount(1);
-		Convert.ToInt64(rows[0]["x"]).Should().Be(1);
+		var act = () => Q("SELECT 1 AS x UNION SELECT 1 AS x");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	[Fact]
 	[Trait(TestTraits.Category, "Query")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task Union_Bare_CombinesDifferentRows()
 	{
-		var rows = await Q("SELECT 1 AS x UNION SELECT 2 AS x");
-		rows.Should().HaveCount(2);
+		var act = () => Q("SELECT 1 AS x UNION SELECT 2 AS x");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	[Fact]
 	[Trait(TestTraits.Category, "Query")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task Except_Bare_DefaultsToDistinct()
 	{
-		var rows = await Q("SELECT 1 AS x UNION ALL SELECT 1 AS x EXCEPT SELECT 1 AS x");
-		rows.Should().HaveCount(0);
+		var act = () => Q("SELECT 1 AS x UNION ALL SELECT 1 AS x EXCEPT SELECT 1 AS x");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	[Fact]
 	[Trait(TestTraits.Category, "Query")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task Intersect_Bare_DefaultsToDistinct()
 	{
-		var rows = await Q("SELECT 1 AS x UNION ALL SELECT 2 AS x INTERSECT SELECT 1 AS x");
-		// INTERSECT has higher precedence: (SELECT 2) INTERSECT (SELECT 1) = empty
-		// Then UNION ALL empty = SELECT 1
-		rows.Should().HaveCount(1);
-		Convert.ToInt64(rows[0]["x"]).Should().Be(1);
+		var act = () => Q("SELECT 1 AS x UNION ALL SELECT 2 AS x INTERSECT SELECT 1 AS x");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	// ─── DATE_ADD/DATE_SUB with WEEK and QUARTER intervals ───

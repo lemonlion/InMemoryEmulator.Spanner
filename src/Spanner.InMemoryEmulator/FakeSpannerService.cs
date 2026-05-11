@@ -551,6 +551,10 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 					: StatusCode.InvalidArgument;
 				throw new RpcException(new Status(code, ex.Message));
 			}
+			catch (OverflowException ex)
+			{
+				throw new RpcException(new Status(StatusCode.OutOfRange, ex.Message));
+			}
 			catch (NotSupportedException ex)
 			{
 				throw new RpcException(new Status(StatusCode.Unimplemented, ex.Message));
@@ -655,6 +659,12 @@ public class FakeSpannerService : Google.Cloud.Spanner.V1.Spanner.SpannerBase
 					? StatusCode.FailedPrecondition
 					: StatusCode.InvalidArgument;
 				throw new RpcException(new Status(code, ex.Message));
+			}
+			catch (OverflowException ex)
+			{
+				// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/mathematical_functions
+				//   Out-of-domain math operations return OUT_OF_RANGE.
+				throw new RpcException(new Status(StatusCode.OutOfRange, ex.Message));
 			}
 			catch (NotSupportedException ex)
 			{

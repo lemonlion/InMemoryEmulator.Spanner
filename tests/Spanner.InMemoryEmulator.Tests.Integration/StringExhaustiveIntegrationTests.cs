@@ -271,14 +271,14 @@ public class StringExhaustiveIntegrationTests : IntegrationTestBase
 	}
 
 	// Ref: Cloud Spanner REGEXP_EXTRACT only accepts 2 args (value, regexp)
-	// The 3-arg form with capture group index is not supported.
+	// The 3-arg form with capture group index is not supported by Cloud Spanner.
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_extract
 	[Fact]
 	[Trait(TestTraits.Category, "StringExhaustive")]
-	[Trait(TestTraits.Target, TestTraits.InMemoryOnly)]
 	public async Task RegexpExtract_WithCaptureGroupIndex()
 	{
-		var result = await Eval("REGEXP_EXTRACT('test@example.com', '@(.+)', 1)");
-		result.Should().Be("example.com");
+		var act = () => Eval("REGEXP_EXTRACT('test@example.com', '@(.+)', 1)");
+		await act.Should().ThrowAsync<SpannerException>();
 	}
 
 	// ─── REGEXP_REPLACE ───

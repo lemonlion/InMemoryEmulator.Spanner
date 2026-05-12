@@ -7,7 +7,7 @@ set -euo pipefail
 export SPANNER_TEST_TARGET=Emulator
 export SPANNER_EMULATOR_HOST=localhost:19010
 
-DLL_PATH="/mnt/c/git/Spanner.InMemoryEmulator/tests/Spanner.InMemoryEmulator.Tests.Integration/bin/Debug/net8.0/Spanner.InMemoryEmulator.Tests.Integration.dll"
+DLL_PATH="/mnt/c/git/InMemoryEmulator.Spanner/tests/InMemoryEmulator.Spanner.Tests.Integration/bin/Debug/net8.0/InMemoryEmulator.Spanner.Tests.Integration.dll"
 
 FILTER="${1:-Target!=InMemoryOnly&Target!=GoEmulatorUnsupported}"
 

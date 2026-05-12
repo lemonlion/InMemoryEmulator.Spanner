@@ -30,12 +30,12 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path $PSScriptRoot -Parent
-$testDll = "tests/Spanner.InMemoryEmulator.Tests.Integration/bin/Debug/net8.0/Spanner.InMemoryEmulator.Tests.Integration.dll"
+$testDll = "tests/InMemoryEmulator.Spanner.Tests.Integration/bin/Debug/net8.0/InMemoryEmulator.Spanner.Tests.Integration.dll"
 $testDllFull = Join-Path $repoRoot $testDll
 
 # 1. Ensure the test DLL is built
 Write-Host "Building test project..." -ForegroundColor Cyan
-dotnet build "$repoRoot/tests/Spanner.InMemoryEmulator.Tests.Integration" -v q
+dotnet build "$repoRoot/tests/InMemoryEmulator.Spanner.Tests.Integration" -v q
 if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 
 # 2. Ensure emulator container is running

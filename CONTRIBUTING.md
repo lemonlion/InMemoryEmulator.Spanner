@@ -1,4 +1,4 @@
-# Contributing to Spanner.InMemoryEmulator
+# Contributing to InMemoryEmulator.Spanner
 
 Thank you for your interest in contributing!
 
@@ -19,7 +19,7 @@ Thank you for your interest in contributing!
 ## Building
 
 ```bash
-dotnet build Spanner.InMemoryEmulator.sln
+dotnet build InMemoryEmulator.Spanner.sln
 ```
 
 ## Running Tests
@@ -28,8 +28,8 @@ dotnet build Spanner.InMemoryEmulator.sln
 
 ```powershell
 $env:SPANNER_TEST_TARGET = "InMemory"
-dotnet test tests/Spanner.InMemoryEmulator.Tests.Unit/
-dotnet test tests/Spanner.InMemoryEmulator.Tests.Integration/
+dotnet test tests/InMemoryEmulator.Spanner.Tests.Unit/
+dotnet test tests/InMemoryEmulator.Spanner.Tests.Integration/
 ```
 
 ### Run tests against Docker emulator
@@ -39,7 +39,7 @@ dotnet test tests/Spanner.InMemoryEmulator.Tests.Integration/
 pwsh scripts/start-emulator.ps1
 # Run integration tests against it
 $env:SPANNER_TEST_TARGET = "Emulator"
-dotnet test tests/Spanner.InMemoryEmulator.Tests.Integration/ --filter "Target!=InMemoryOnly"
+dotnet test tests/InMemoryEmulator.Spanner.Tests.Integration/ --filter "Target!=InMemoryOnly"
 # Stop when done
 pwsh scripts/stop-emulator.ps1
 ```

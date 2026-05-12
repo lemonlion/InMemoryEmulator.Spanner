@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>InMemoryEmulator.Spanner</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Cloud.Spanner.Data" Version="5.*" />
+    <PackageReference Include="Google.Cloud.Spanner.V1" Version="5.*" />
+    <PackageReference Include="Google.Cloud.Spanner.Admin.Database.V1" Version="5.*" />
+    <PackageReference Include="Google.Cloud.Spanner.Admin.Instance.V1" Version="5.*" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.*" />
+    <PackageReference Include="Superpower" Version="3.*" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.*" />
+    <PackageReference Include="ZstdSharp.Port" Version="0.8.7" />
+  </ItemGroup>
+
+</Project>

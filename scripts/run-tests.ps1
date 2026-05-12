@@ -24,7 +24,7 @@ if ($Coverage) { $baseArgs += "--collect:XPlat Code Coverage" }
 # Unit tests (only in-memory)
 if ($Target -eq "InMemory") {
     Write-Host "=== Unit Tests ===" -ForegroundColor Cyan
-    dotnet @baseArgs tests/Spanner.InMemoryEmulator.Tests.Unit/
+    dotnet @baseArgs tests/InMemoryEmulator.Spanner.Tests.Unit/
 }
 
 # Integration tests
@@ -42,4 +42,4 @@ if ($Target -ne "InMemory") {
         $integrationArgs += "--filter", "Target!=InMemoryOnly"
     }
 }
-dotnet @integrationArgs tests/Spanner.InMemoryEmulator.Tests.Integration/
+dotnet @integrationArgs tests/InMemoryEmulator.Spanner.Tests.Integration/

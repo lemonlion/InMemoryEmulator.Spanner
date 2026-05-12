@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [1.0.94] - 2026-05-12
+
+### Changed
+- **Renamed project**: `Spanner.InMemoryEmulator` → `InMemoryEmulator.Spanner` across all namespaces, assemblies, project files, and directory structure.
+
 ## [1.0.93] - 2026-05-12
 
 ### Fixed

@@ -1,7 +1,7 @@
-# Spanner.InMemoryEmulator
+# InMemoryEmulator.Spanner
 
-[![NuGet](https://img.shields.io/nuget/v/Spanner.InMemoryEmulator.svg)](https://www.nuget.org/packages/Spanner.InMemoryEmulator)
-[![Build](https://github.com/lemonlion/Spanner.InMemoryEmulator/actions/workflows/build.yml/badge.svg)](https://github.com/lemonlion/Spanner.InMemoryEmulator/actions)
+[![NuGet](https://img.shields.io/nuget/v/InMemoryEmulator.Spanner.svg)](https://www.nuget.org/packages/InMemoryEmulator.Spanner)
+[![Build](https://github.com/lemonlion/InMemoryEmulator.Spanner/actions/workflows/build.yml/badge.svg)](https://github.com/lemonlion/InMemoryEmulator.Spanner/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 An in-process fake for the Google Cloud Spanner .NET SDK (`Google.Cloud.Spanner.Data`). Zero Docker, instant startup, full SDK fidelity.
@@ -11,7 +11,7 @@ An in-process fake for the Google Cloud Spanner .NET SDK (`Google.Cloud.Spanner.
 ### Install
 
 ```bash
-dotnet add package Spanner.InMemoryEmulator
+dotnet add package InMemoryEmulator.Spanner
 ```
 
 ### Layer 1: Direct API (simplest)
@@ -104,13 +104,13 @@ services.AddInMemorySpanner(options =>
 
 ## Documentation
 
-See the [wiki](https://github.com/lemonlion/Spanner.InMemoryEmulator/wiki) for full documentation including:
+See the [wiki](https://github.com/lemonlion/InMemoryEmulator.Spanner/wiki) for full documentation including:
 
-- [Getting Started](https://github.com/lemonlion/Spanner.InMemoryEmulator/wiki/Getting-Started)
-- [Choosing Your Approach](https://github.com/lemonlion/Spanner.InMemoryEmulator/wiki/Choosing-Your-Approach)
-- [SQL Queries](https://github.com/lemonlion/Spanner.InMemoryEmulator/wiki/SQL-Queries)
-- [Transactions](https://github.com/lemonlion/Spanner.InMemoryEmulator/wiki/Transactions)
-- [Known Limitations](https://github.com/lemonlion/Spanner.InMemoryEmulator/wiki/Known-Limitations)
+- [Getting Started](https://github.com/lemonlion/InMemoryEmulator.Spanner/wiki/Getting-Started)
+- [Choosing Your Approach](https://github.com/lemonlion/InMemoryEmulator.Spanner/wiki/Choosing-Your-Approach)
+- [SQL Queries](https://github.com/lemonlion/InMemoryEmulator.Spanner/wiki/SQL-Queries)
+- [Transactions](https://github.com/lemonlion/InMemoryEmulator.Spanner/wiki/Transactions)
+- [Known Limitations](https://github.com/lemonlion/InMemoryEmulator.Spanner/wiki/Known-Limitations)
 
 ## License
 

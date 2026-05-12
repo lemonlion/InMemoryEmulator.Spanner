@@ -72,7 +72,7 @@ jobs:
           # List all test classes, assign each to a shard by hash of class name.
           # This ensures stable distribution across runs.
           # Test names are: Namespace.ClassName.MethodName — extract ClassName
-          CLASSES=$(dotnet test tests/Spanner.InMemoryEmulator.Tests.Integration/ \
+          CLASSES=$(dotnet test tests/InMemoryEmulator.Spanner.Tests.Integration/ \
             --configuration Release --no-build --list-tests 2>/dev/null \
             | grep -oP '^\s+\S+' | sed 's/^\s*//' \
             | awk -F. '{print $(NF-1)}' | sort -u)
@@ -95,7 +95,7 @@ jobs:
 
       - name: Run integration tests (Cloud Spanner — shard ${{ matrix.shard }})
         run: |
-          dotnet test tests/Spanner.InMemoryEmulator.Tests.Integration/ \
+          dotnet test tests/InMemoryEmulator.Spanner.Tests.Integration/ \
             --configuration Release \
             --no-build \
             --logger "trx;LogFileName=cloud-spanner-shard-${{ matrix.shard }}.trx" \

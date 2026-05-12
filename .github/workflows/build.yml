@@ -31,12 +31,12 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - name: Run unit tests (in-memory)
         run: |
-          dotnet test tests/Spanner.InMemoryEmulator.Tests.Unit/ \
+          dotnet test tests/InMemoryEmulator.Spanner.Tests.Unit/ \
             --configuration Release \
             --logger "trx;LogFileName=unit.trx"
       - name: Run integration tests (in-memory)
         run: |
-          dotnet test tests/Spanner.InMemoryEmulator.Tests.Integration/ \
+          dotnet test tests/InMemoryEmulator.Spanner.Tests.Integration/ \
             --configuration Release \
             --logger "trx;LogFileName=integration.trx"
       - name: Test summary
@@ -89,7 +89,7 @@ jobs:
             -d '{"createStatement":"CREATE DATABASE `test-db`"}'
       - name: Run integration tests (emulator)
         run: |
-          dotnet test tests/Spanner.InMemoryEmulator.Tests.Integration/ \
+          dotnet test tests/InMemoryEmulator.Spanner.Tests.Integration/ \
             --configuration Release \
             --logger "trx;LogFileName=emulator.trx" \
             --filter "Target!=InMemoryOnly&Target!=GoEmulatorUnsupported"

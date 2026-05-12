@@ -1,10 +1,10 @@
   Determining projects to restore...
-  Restored c:\git\Spanner.InMemoryEmulator\tests\Spanner.InMemoryEmulator.Tests.Unit\Spanner.InMemoryEmulator.Tests.Unit.csproj (in 3.97 sec).
+  Restored c:\git\InMemoryEmulator.Spanner\tests\InMemoryEmulator.Spanner.Tests.Unit\InMemoryEmulator.Spanner.Tests.Unit.csproj (in 3.97 sec).
   2 of 3 projects are up-to-date for restore.
-  Spanner.InMemoryEmulator -> c:\git\Spanner.InMemoryEmulator\src\Spanner.InMemoryEmulator\bin\Debug\net8.0\Spanner.InMemoryEmulator.dll
-  Spanner.InMemoryEmulator.Tests.Shared -> c:\git\Spanner.InMemoryEmulator\tests\Spanner.InMemoryEmulator.Tests.Shared\bin\Debug\net8.0\Spanner.InMemoryEmulator.Tests.Shared.dll
-  Spanner.InMemoryEmulator.Tests.Unit -> c:\git\Spanner.InMemoryEmulator\tests\Spanner.InMemoryEmulator.Tests.Unit\bin\Debug\net8.0\Spanner.InMemoryEmulator.Tests.Unit.dll
-Test run for c:\git\Spanner.InMemoryEmulator\tests\Spanner.InMemoryEmulator.Tests.Unit\bin\Debug\net8.0\Spanner.InMemoryEmulator.Tests.Unit.dll (.NETCoreApp,Version=v8.0)
+  InMemoryEmulator.Spanner -> c:\git\InMemoryEmulator.Spanner\src\InMemoryEmulator.Spanner\bin\Debug\net8.0\InMemoryEmulator.Spanner.dll
+  InMemoryEmulator.Spanner.Tests.Shared -> c:\git\InMemoryEmulator.Spanner\tests\InMemoryEmulator.Spanner.Tests.Shared\bin\Debug\net8.0\InMemoryEmulator.Spanner.Tests.Shared.dll
+  InMemoryEmulator.Spanner.Tests.Unit -> c:\git\InMemoryEmulator.Spanner\tests\InMemoryEmulator.Spanner.Tests.Unit\bin\Debug\net8.0\InMemoryEmulator.Spanner.Tests.Unit.dll
+Test run for c:\git\InMemoryEmulator.Spanner\tests\InMemoryEmulator.Spanner.Tests.Unit\bin\Debug\net8.0\InMemoryEmulator.Spanner.Tests.Unit.dll (.NETCoreApp,Version=v8.0)
 A total of 1 test files matched the specified pattern.
 
-Passed!  - Failed:     0, Passed:   441, Skipped:     0, Total:   441, Duration: 2 s - Spanner.InMemoryEmulator.Tests.Unit.dll (net8.0)
+Passed!  - Failed:     0, Passed:   441, Skipped:     0, Total:   441, Duration: 2 s - InMemoryEmulator.Spanner.Tests.Unit.dll (net8.0)

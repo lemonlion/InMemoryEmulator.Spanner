@@ -1078,6 +1078,10 @@ internal class QueryExecutor
 				or "TOKENIZE_NUMBER" or "TOKENIZE_BOOL" or "TOKENIZE_JSON"
 				or "TOKENLIST_CONCAT" => TypeCode.Unspecified,
 
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/uuid_functions#new_uuid
+			//   "NEW_UUID() returns a UUID value."
+			"NEW_UUID" => (TypeCode)17,
+
 			_ => TypeCode.String
 		};
 	}

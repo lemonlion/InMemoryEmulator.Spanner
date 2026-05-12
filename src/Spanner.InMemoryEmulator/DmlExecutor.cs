@@ -159,7 +159,13 @@ internal class DmlExecutor
 						var existing = table.Rows[rowKey].Columns;
 
 						// Build a context row that includes both existing columns and EXCLUDED.col references
+						// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#on_conflict_do_update
+						//   "To reference existing row column values, prefix the column with the table name as the alias."
+						//   "For the insert row column values, prefix the column name with the EXCLUDED alias."
 						var contextRow = new Dictionary<string, object?>(existing, StringComparer.OrdinalIgnoreCase);
+						// Add table-qualified references for existing columns (e.g., CI_OC4.Score)
+						foreach (var kvp in existing)
+							contextRow[$"{insert.Table}.{kvp.Key}"] = kvp.Value;
 						// EXCLUDED references the attempted insert values
 						foreach (var kvp in rowValues)
 							contextRow[$"EXCLUDED.{kvp.Key}"] = kvp.Value;

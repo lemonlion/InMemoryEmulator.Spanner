@@ -238,6 +238,10 @@ public ConstraintIntegrationTests(EmulatorSession session) : base(session) { }
 	}
 
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/dml-syntax#on_conflict_do_update
+	//   "To reference existing row column values, prefix the column with the table name as the alias."
+	//   "expressions in a WHERE clause can also reference the existing row and the insert row...
+	//    It follows the same rules to alias the column with a table name or with EXCLUDED respectively
+	//    to prevent ambiguity."
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task OnConflict_DoUpdate_WithWhere_SkipsWhenConditionFalse()
@@ -248,7 +252,7 @@ public ConstraintIntegrationTests(EmulatorSession session) : base(session) { }
 
 		// UPDATE WHERE condition is false (existing Score > EXCLUDED.Score)
 		var count = await ExecuteDmlAsync(
-			"INSERT INTO CI_OC4 (Id, Name, Score) VALUES (1, 'Bob', 50) ON CONFLICT (Id) DO UPDATE SET Name = EXCLUDED.Name, Score = EXCLUDED.Score WHERE EXCLUDED.Score > Score");
+			"INSERT INTO CI_OC4 (Id, Name, Score) VALUES (1, 'Bob', 50) ON CONFLICT (Id) DO UPDATE SET Name = EXCLUDED.Name, Score = EXCLUDED.Score WHERE EXCLUDED.Score > CI_OC4.Score");
 		count.Should().Be(0);
 
 		// Verify row unchanged

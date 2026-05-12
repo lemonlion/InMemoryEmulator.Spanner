@@ -6,7 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [1.0.93] - 2026-05-12
 
+### Fixed
+- **NEW_UUID() return type**: `NEW_UUID()` now correctly returns UUID type (`TypeCode` 17) instead of STRING, matching Cloud Spanner behavior. The .NET SDK deserializes this as `System.Guid`.
+- **ON CONFLICT DO UPDATE table-qualified columns**: Added support for table-qualified column references (e.g., `TableName.Column`) in ON CONFLICT DO UPDATE SET/WHERE clauses, matching Cloud Spanner's requirement to disambiguate between existing row columns and EXCLUDED columns.
+- **Test fix**: Fixed `OnConflict_DoUpdate_WithWhere_SkipsWhenConditionFalse` test to use `CI_OC4.Score` instead of bare `Score` in the WHERE clause, which Cloud Spanner rejects as ambiguous.
 ## [1.0.92] - 2026-07-15
 
 ### Fixed

@@ -333,8 +333,11 @@ public class ComprehensiveCastIntegrationTests : IntegrationTestBase
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task NewUuid_Returns36CharString()
 	{
-		var result = (string)(await Eval("NEW_UUID()"))!;
-		result.Should().MatchRegex(@"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/uuid_functions#new_uuid
+		//   "NEW_UUID() returns a UUID value." — SDK deserializes UUID as System.Guid.
+		var result = await Eval("NEW_UUID()");
+		var uuidString = result is Guid g ? g.ToString() : (string)result!;
+		uuidString.Should().MatchRegex(@"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
 	}
 
 }

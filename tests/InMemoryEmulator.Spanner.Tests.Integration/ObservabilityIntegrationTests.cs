@@ -253,19 +253,25 @@ public class ObservabilityIntegrationTests
 	{
 		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.spanner.v1#google.spanner.v1.Spanner.BatchCreateSessions
 		//   Session creation is the first RPC call from the SDK.
-		//   Note: We don't ClearLogs because the SDK may reuse cached sessions
-		//   and not create new ones for this test.
+		//   Use the raw SpannerClient (gRPC-level) to directly call BatchCreateSessions,
+		//   bypassing the SDK session pool which may cache sessions across tests.
 
-		using var connection = _fixture.CreateConnection();
-		await connection.OpenAsync();
+		Service.ClearLogs();
 
-		using var cmd = connection.CreateSelectCommand("SELECT 1");
-		using var reader = await cmd.ExecuteReaderAsync();
-		while (await reader.ReadAsync()) { }
+		var clientBuilder = new Google.Cloud.Spanner.V1.SpannerClientBuilder
+		{
+			EmulatorDetection = Google.Api.Gax.EmulatorDetection.EmulatorOnly
+		};
+		var client = await clientBuilder.BuildAsync();
 
-		// The session creation should have been logged at some point during the server's lifetime
+		await client.BatchCreateSessionsAsync(new Google.Cloud.Spanner.V1.BatchCreateSessionsRequest
+		{
+			Database = "projects/test-project/instances/test-instance/databases/test-db",
+			SessionCount = 1
+		});
+
 		Service.RequestLog.Should().Contain(entry =>
-			entry.MethodName == "BatchCreateSessions" || entry.MethodName == "CreateSession");
+			entry.MethodName == "BatchCreateSessions");
 	}
 
 	[Fact]

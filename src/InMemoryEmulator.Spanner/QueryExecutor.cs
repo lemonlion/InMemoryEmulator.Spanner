@@ -648,6 +648,30 @@ internal class QueryExecutor
 			}
 		}
 
+		// Ref: https://cloud.google.com/spanner/docs/reference/rpc/google.rpc#code
+		//   INVALID_ARGUMENT: "Column not found" when referencing a non-existent column.
+		//   Validate column references against table schema even when table has no rows.
+		if (sourceTable != null)
+		{
+			foreach (var (expr, _) in expandedColumns)
+			{
+				if (expr is ColumnRefExpr validationRef && validationRef.Column != "*")
+				{
+					var exists = sourceTable.Columns.Any(c =>
+						string.Equals(c.Name, validationRef.Column, StringComparison.OrdinalIgnoreCase));
+					if (!exists)
+					{
+						// Also check if it's a known pseudo-function (CURRENT_TIMESTAMP, CURRENT_DATE)
+						if (!string.Equals(validationRef.Column, "CURRENT_TIMESTAMP", StringComparison.OrdinalIgnoreCase) &&
+							!string.Equals(validationRef.Column, "CURRENT_DATE", StringComparison.OrdinalIgnoreCase))
+						{
+							throw new InvalidOperationException($"Column '{validationRef.Column}' not found in table '{sourceTable.Name}'.");
+						}
+					}
+				}
+			}
+		}
+
 		// Build output column definitions
 		foreach (var (expr, name) in expandedColumns)
 		{

@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [1.0.95] - 2026-05-13
+
+### Fixed
+- **Non-existent column validation**: `SELECT NonExistentColumn FROM Table` now correctly throws an error even when the table has no rows. Previously, column validation only happened during row iteration.
+- **RequestLog_CapturesSessionCreation test**: Fixed flaky test by using raw gRPC `SpannerClient` to directly call `BatchCreateSessions`, avoiding SDK session pool caching issues.
+
+### Removed
+- **Doubled single-quote string escape (`''`)**: Removed non-standard support for `''` as an escape mechanism in string literals. Per the [Spanner lexical docs](https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#string_and_bytes_literals), only backslash escapes (`\'`) are valid for single quotes in GoogleSQL. The Go emulator correctly rejects this syntax.
+
 ## [1.0.94] - 2026-05-12
 
 ### Changed

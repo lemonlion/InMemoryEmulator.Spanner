@@ -684,18 +684,10 @@ public class SelectExpressionExtendedIntegrationTests : IntegrationTestBase
     // ═══════════════════════════════════════════════════════════════
     // 16. String escape sequences — single quotes in strings
     // Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#string_and_bytes_literals
-    //   "A single quote character in a string can be represented as '' or as \'."
+    //   Single quotes in strings must be escaped with \' (backslash).
+    //   Doubled quotes ('') are NOT valid Spanner syntax (that is a SQL-standard
+    //   convention not used by GoogleSQL).
     // ═══════════════════════════════════════════════════════════════
-
-    [Theory]
-    [InlineData("'it''s'", "it's")]
-    [InlineData("'can''t'", "can't")]
-    [InlineData("''''", "'")]
-    [Trait(TestTraits.Category, "SelectExpressionExtended")]
-    public async Task StringEscape_DoubledSingleQuotes(string expr, string expected)
-    {
-        (await Eval(expr))!.ToString().Should().Be(expected);
-    }
 
     [Theory]
     [InlineData("'tab\\there'", "tab\there")]

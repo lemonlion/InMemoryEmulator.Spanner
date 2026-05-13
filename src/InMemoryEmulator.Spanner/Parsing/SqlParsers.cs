@@ -71,8 +71,8 @@ internal static class SqlParsers
 		Token.EqualTo(GoogleSqlToken.StringLiteral).Select(t =>
 		{
 			var text = t.ToStringValue();
-			// Remove surrounding quotes and unescape ''
-			var unquoted = text[1..^1].Replace("''", "'");
+			// Remove surrounding quotes
+			var unquoted = text[1..^1];
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#string_and_bytes_literals
 			//   Backslash escape sequences are interpreted in string literals.
 			unquoted = UnescapeBackslashes(unquoted);
@@ -446,7 +446,7 @@ internal static class SqlParsers
 		from _ in Token.EqualTo(GoogleSqlToken.DateType)
 		from str in Token.EqualTo(GoogleSqlToken.StringLiteral)
 		select (SqlExpression)new FunctionCallExpr("DATE", new List<SqlExpression>
-			{ new LiteralExpr(str.ToStringValue()[1..^1].Replace("''", "'")) });
+			{ new LiteralExpr(str.ToStringValue()[1..^1]) });
 
 	// TIMESTAMP 'value' — typed timestamp literal
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#timestamp_literals
@@ -454,7 +454,7 @@ internal static class SqlParsers
 		from _ in Token.EqualTo(GoogleSqlToken.TimestampType)
 		from str in Token.EqualTo(GoogleSqlToken.StringLiteral)
 		select (SqlExpression)new FunctionCallExpr("TIMESTAMP", new List<SqlExpression>
-			{ new LiteralExpr(str.ToStringValue()[1..^1].Replace("''", "'")) });
+			{ new LiteralExpr(str.ToStringValue()[1..^1]) });
 
 	// JSON 'value' — typed JSON literal (equivalent to PARSE_JSON('value'))
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#json_literals
@@ -463,7 +463,7 @@ internal static class SqlParsers
 		from str in Token.EqualTo(GoogleSqlToken.StringLiteral)
 		select (SqlExpression)new FunctionCallExpr("PARSE_JSON", new List<SqlExpression>
 		{
-			new LiteralExpr(str.ToStringValue()[1..^1].Replace("''", "'"))
+			new LiteralExpr(str.ToStringValue()[1..^1])
 		});
 
 	// NUMERIC 'value' — typed numeric literal (equivalent to CAST('value' AS NUMERIC))
@@ -471,7 +471,7 @@ internal static class SqlParsers
 	private static TokenListParser<GoogleSqlToken, SqlExpression> NumericTypedLiteral { get; } =
 		from _ in Token.EqualTo(GoogleSqlToken.NumericType)
 		from str in Token.EqualTo(GoogleSqlToken.StringLiteral)
-		select (SqlExpression)new CastExpr(new LiteralExpr(str.ToStringValue()[1..^1].Replace("''", "'")), TypeCode.Numeric);
+		select (SqlExpression)new CastExpr(new LiteralExpr(str.ToStringValue()[1..^1]), TypeCode.Numeric);
 
 	// EXTRACT(part FROM expr)
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/timestamp_functions#extract

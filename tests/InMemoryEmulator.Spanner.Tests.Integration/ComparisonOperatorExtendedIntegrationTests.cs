@@ -1362,27 +1362,36 @@ public class ComparisonOperatorExtendedIntegrationTests : IntegrationTestBase
 	[Fact]
 	[Trait(TestTraits.Category, "ComparisonOperatorExtended")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Array_Equality_SameElements_ReturnsTrue()
+	public async Task Array_Equality_SameElements_ThrowsInvalidArgument()
 	{
-		var result = await Eval("[1, 2, 3] = [1, 2, 3]");
-		result.Should().Be(true);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#comparison_operators
+		//   Equality is not defined for ARRAY types in Cloud Spanner.
+		var act = () => Eval("[1, 2, 3] = [1, 2, 3]");
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.ToString().Contains("Equality is not defined for arguments of type ARRAY"));
 	}
 
 	[Fact]
 	[Trait(TestTraits.Category, "ComparisonOperatorExtended")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Array_Equality_DifferentElements_ReturnsFalse()
+	public async Task Array_Equality_DifferentElements_ThrowsInvalidArgument()
 	{
-		var result = await Eval("[1, 2, 3] = [1, 2, 4]");
-		result.Should().Be(false);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#comparison_operators
+		//   Equality is not defined for ARRAY types in Cloud Spanner.
+		var act = () => Eval("[1, 2, 3] = [1, 2, 4]");
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.ToString().Contains("Equality is not defined for arguments of type ARRAY"));
 	}
 
 	[Fact]
 	[Trait(TestTraits.Category, "ComparisonOperatorExtended")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Array_Equality_DifferentLength_ReturnsFalse()
+	public async Task Array_Equality_DifferentLength_ThrowsInvalidArgument()
 	{
-		var result = await Eval("[1, 2] = [1, 2, 3]");
-		result.Should().Be(false);
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#comparison_operators
+		//   Equality is not defined for ARRAY types in Cloud Spanner.
+		var act = () => Eval("[1, 2] = [1, 2, 3]");
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.ToString().Contains("Equality is not defined for arguments of type ARRAY"));
 	}
 }

@@ -148,6 +148,19 @@ internal class QueryExecutor
 		// not to the last SELECT in the chain.
 		if (body.SetOps is { Count: > 0 })
 		{
+			// Ref: Observed behavior on real Cloud Spanner —
+			//   "Different set operations cannot be used in the same query without using
+			//    parentheses for grouping"
+			//   All set operations in a single query must be the same type.
+			var firstOpType = body.SetOps[0].Type;
+			foreach (var setOp in body.SetOps.Skip(1))
+			{
+				if (setOp.Type != firstOpType)
+					throw new InvalidOperationException(
+						"Syntax error: Different set operations cannot be used in the same query " +
+						"without using parentheses for grouping");
+			}
+
 			// Extract the trailing ORDER BY from the last right SELECT (it belongs to the full query)
 			var lastRight = body.SetOps[^1].Right;
 			var finalOrderBy = lastRight.OrderBy;
@@ -464,6 +477,28 @@ internal class QueryExecutor
 		// 7. DISTINCT
 		if (select.IsDistinct)
 		{
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#select_distinct
+			//   ARRAY columns cannot be used in SELECT DISTINCT.
+			//   Real Spanner returns: "Column <name> of type ARRAY cannot be used in SELECT DISTINCT"
+			foreach (var col in outputColumns)
+			{
+				if (col.SpannerType == Google.Cloud.Spanner.V1.TypeCode.Array)
+					throw new InvalidOperationException(
+						$"Column {col.Name} of type ARRAY cannot be used in SELECT DISTINCT");
+			}
+
+			// Also check at runtime for expressions that produce arrays
+			if (projectedRows.Count > 0)
+			{
+				var firstRow = projectedRows[0];
+				foreach (var col in outputColumns)
+				{
+					if (firstRow.TryGetValue(col.Name, out var v) && v is List<object?>)
+						throw new InvalidOperationException(
+							$"Column {col.Name} of type ARRAY cannot be used in SELECT DISTINCT");
+				}
+			}
+
 			projectedRows = DistinctRows(projectedRows, outputColumns);
 		}
 
@@ -1829,10 +1864,28 @@ internal class QueryExecutor
 		{
 			var ob = orderBy[i];
 			var idx = i;
+
+			// Ref: Observed behavior on real Cloud Spanner —
+			//   "Non default sort order of NULL values is not supported. Sort expressions in
+			//    `ORDER BY` clause should use `NULLS FIRST` option with ascending order and
+			//    `NULLS LAST` option with descending order."
+			//   Default: ASC → NULLS FIRST, DESC → NULLS LAST.
+			//   Non-default (ASC NULLS LAST, DESC NULLS FIRST) is rejected.
+			var isDesc = ob.Order != SortOrder.Asc;
+			if (ob.Nulls != NullsOrder.Default)
+			{
+				var isNonDefault = (isDesc && ob.Nulls == NullsOrder.First)
+					|| (!isDesc && ob.Nulls == NullsOrder.Last);
+				if (isNonDefault)
+					throw new InvalidOperationException(
+						"Non default sort order of NULL values is not supported. " +
+						"Sort expressions in `ORDER BY` clause should use `NULLS FIRST` option " +
+						"with ascending order and `NULLS LAST` option with descending order.");
+			}
+
 			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#order_by_clause
 			//   "NULL values: NULLs are the minimum possible value."
 			//   NULLS FIRST/LAST overrides the default placement.
-			var isDesc = ob.Order != SortOrder.Asc;
 			var comparer = ob.Nulls == NullsOrder.Default
 				? (IComparer<object?>)ValueComparer.Instance
 				: new NullsOrderComparer(ob.Nulls == NullsOrder.First, isDesc);

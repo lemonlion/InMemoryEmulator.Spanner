@@ -228,22 +228,49 @@ internal static class GoogleSqlTokenizer
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#string_and_bytes_literals
 	//   Cloud Spanner supports backslash escapes (\') for embedding a single quote.
 	//   Doubled quotes ('') are NOT supported — that is a SQL-standard convention not used by Spanner.
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#string_and_bytes_literals
+	//   Valid escape sequences: \\, \', \", \n, \t, \r, \0, \a, \b, \f, \v, \xNN, \uNNNN, \UNNNNNNNN
+	//   Invalid escape sequences (e.g. \%, \_) produce: "Illegal escape sequence: \<char>"
 	private static TextParser<string> StringLiteralToken { get; } =
 		from open in Character.EqualTo('\'')
-		from content in Character.EqualTo('\\').Then(_ => Character.AnyChar).Try()
-			.Or(Character.Except('\''))
-			.Many()
+		from content in ValidStringEscapeOrChar!.Many()
 		from close in Character.EqualTo('\'')
 		select new string(content);
+
+	/// <summary>Parses a valid escape sequence or a regular character within a string literal.</summary>
+	private static TextParser<char> ValidStringEscapeOrChar { get; } =
+		(from backslash in Character.EqualTo('\\')
+		 from ch in Character.AnyChar
+		 select ch switch
+		 {
+			 '\\' => '\\',
+			 '\'' => '\'',
+			 '"' => '"',
+			 'n' => '\n',
+			 't' => '\t',
+			 'r' => '\r',
+			 '0' => '\0',
+			 'a' => '\a',
+			 'b' => '\b',
+			 'f' => '\f',
+			 'v' => '\v',
+			 // \x, \u, \U are valid hex escapes — we accept the prefix char but don't fully parse
+			 // the multi-char sequence (hex digits follow and are consumed as regular chars).
+			 // This is a known simplification; full hex escape support is a separate concern.
+			 'x' => 'x',
+			 'u' => 'u',
+			 'U' => 'U',
+			 _ => throw new InvalidOperationException(
+				 $"Syntax error: Illegal escape sequence: \\{ch}")
+		 }).Try()
+		.Or(Character.Except('\''));
 
 	// Byte literals: b'...' or B'...'
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#string_and_bytes_literals
 	private static TextParser<string> ByteLiteralToken { get; } =
 		from prefix in Character.EqualTo('b').Or(Character.EqualTo('B'))
 		from open in Character.EqualTo('\'')
-		from content in Character.EqualTo('\\').Then(_ => Character.AnyChar).Try()
-			.Or(Character.Except('\''))
-			.Many()
+		from content in ValidStringEscapeOrChar.Many()
 		from close in Character.EqualTo('\'')
 		select "b'" + new string(content) + "'";
 

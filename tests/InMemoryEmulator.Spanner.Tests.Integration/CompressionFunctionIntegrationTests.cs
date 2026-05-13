@@ -76,10 +76,13 @@ public class CompressionFunctionIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ZstdDecompressToString_EmptyString_RoundTrips()
+	public async Task ZstdDecompressToString_EmptyString_ThrowsInvalidArgument()
 	{
-		var result = await Eval("ZSTD_DECOMPRESS_TO_STRING(ZSTD_COMPRESS(''))");
-		result.Should().Be("");
+		// Ref: Observed behavior on real Cloud Spanner —
+		//   ZSTD_COMPRESS('') returns "Invalid ZSTD input".
+		var act = () => Eval("ZSTD_DECOMPRESS_TO_STRING(ZSTD_COMPRESS(''))");
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.ToString().Contains("Invalid ZSTD input"));
 	}
 
 	[Fact]
@@ -119,10 +122,12 @@ public class CompressionFunctionIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ZstdDecompressToBytes_EmptyBytes_RoundTrips()
+	public async Task ZstdDecompressToBytes_EmptyBytes_ThrowsInvalidArgument()
 	{
-		var result = await Eval("ZSTD_DECOMPRESS_TO_BYTES(ZSTD_COMPRESS(b''))");
-		result.Should().BeOfType<byte[]>();
-		((byte[])result!).Should().BeEmpty();
+		// Ref: Observed behavior on real Cloud Spanner —
+		//   ZSTD_COMPRESS(b'') returns "Invalid ZSTD input".
+		var act = () => Eval("ZSTD_DECOMPRESS_TO_BYTES(ZSTD_COMPRESS(b''))");
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.ToString().Contains("Invalid ZSTD input"));
 	}
 }

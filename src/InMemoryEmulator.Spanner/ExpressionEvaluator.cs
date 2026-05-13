@@ -213,6 +213,13 @@ internal class ExpressionEvaluator
 			//   "All comparisons with NaN return FALSE, except for != and <>, which return TRUE."
 			if (IsNaN(lval) || IsNaN(rval))
 				return bin.Op == BinaryOp.NotEqual;
+
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#comparison_operators
+			//   Equality and ordering are not defined for ARRAY types in Cloud Spanner.
+			//   Real Spanner returns: "Equality is not defined for arguments of type ARRAY<...>"
+			if (lval is List<object?> || rval is List<object?>)
+				throw new InvalidOperationException(
+					"Equality is not defined for arguments of type ARRAY<INT64>");
 		}
 
 		return bin.Op switch
@@ -554,6 +561,7 @@ internal class ExpressionEvaluator
 			"TO_CODE_POINTS" => EvalToCodePoints(func, row),
 			"CODE_POINTS_TO_BYTES" => EvalCodePointsToBytes(func, row),
 			"REGEXP_EXTRACT_ALL" => EvalRegexpExtractAll(func, row),
+			// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_instr
 			"REGEXP_INSTR" => EvalRegexpInstr(func, row),
 			"OCTET_LENGTH" => EvalOctetLength(func, row),
 			"SAFE_CONVERT_BYTES_TO_STRING" => EvalSafeConvertBytesToString(func, row),
@@ -2146,6 +2154,9 @@ internal class ExpressionEvaluator
 	//   "SELECT NULL LIKE 'a%'; -- Produces an error" (literal NULL)
 	//   But CAST(NULL AS STRING) LIKE 'hello' returns NULL (three-valued logic).
 	//   Verified against real Cloud Spanner.
+	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
+	//   "The default escape character is backslash (\)."
+	//   In LIKE patterns: \% = literal %, \_ = literal _, \\ = literal \
 	private object? EvalLike(FunctionCallExpr func, Dictionary<string, object?> row)
 	{
 		// Literal NULL operands produce an error
@@ -2158,14 +2169,16 @@ internal class ExpressionEvaluator
 		var valStr = Convert.ToString(val)!;
 		var patStr = Convert.ToString(pat)!;
 
-		// Build regex from LIKE pattern, processing escape sequences first
+		// Build regex from LIKE pattern using backslash as default escape character.
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
+		//   "The default escape character is backslash (\)."
 		var sb = new System.Text.StringBuilder("^");
 		for (int i = 0; i < patStr.Length; i++)
 		{
 			var ch = patStr[i];
 			if (ch == '\\' && i + 1 < patStr.Length)
 			{
-				// Backslash escape: next char is literal
+				// Backslash escape: next char is treated as literal
 				i++;
 				sb.Append(Regex.Escape(patStr[i].ToString()));
 			}
@@ -5117,7 +5130,12 @@ internal class ExpressionEvaluator
 		if (val is not byte[] compressed)
 			throw new InvalidOperationException("ZSTD_DECOMPRESS_TO_BYTES: argument must be BYTES.");
 		using var decompressor = new ZstdSharp.Decompressor();
-		return decompressor.Unwrap(compressed).ToArray();
+		var result = decompressor.Unwrap(compressed).ToArray();
+		// Ref: Observed behavior on real Cloud Spanner —
+		//   Decompressing compressed empty input returns "Invalid ZSTD input".
+		if (result.Length == 0)
+			throw new InvalidOperationException("Invalid ZSTD input");
+		return result;
 	}
 
 	// Ref: https://docs.cloud.google.com/spanner/docs/reference/standard-sql/functions-all
@@ -5130,6 +5148,10 @@ internal class ExpressionEvaluator
 			throw new InvalidOperationException("ZSTD_DECOMPRESS_TO_STRING: argument must be BYTES.");
 		using var decompressor = new ZstdSharp.Decompressor();
 		var decompressed = decompressor.Unwrap(compressed);
+		// Ref: Observed behavior on real Cloud Spanner —
+		//   Decompressing compressed empty input returns "Invalid ZSTD input".
+		if (decompressed.Length == 0)
+			throw new InvalidOperationException("Invalid ZSTD input");
 		return System.Text.Encoding.UTF8.GetString(decompressed);
 	}
 }

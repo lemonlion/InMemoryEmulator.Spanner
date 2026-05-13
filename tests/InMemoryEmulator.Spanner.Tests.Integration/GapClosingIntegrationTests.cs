@@ -416,13 +416,13 @@ public class GapClosingIntegrationTests : IntegrationTestBase
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task MultiRow_ExceptDistinct()
+	public async Task MultiRow_MixedSetOperations_ThrowsInvalidArgument()
 	{
-		var rows = await QueryAsync("SELECT 1 AS V UNION ALL SELECT 2 UNION ALL SELECT 3 EXCEPT DISTINCT SELECT 2 AS V ORDER BY V");
-		// Depends on precedence: EXCEPT binds tighter than UNION ALL
-		// (SELECT 1) UNION ALL (SELECT 2 UNION ALL SELECT 3 EXCEPT DISTINCT SELECT 2)
-		// But standard SQL groups left to right for same precedence
-		rows.Should().NotBeEmpty();
+		// Ref: Observed behavior on real Cloud Spanner —
+		//   "Different set operations cannot be used in the same query without using parentheses for grouping"
+		var act = () => QueryAsync("SELECT 1 AS V UNION ALL SELECT 2 UNION ALL SELECT 3 EXCEPT DISTINCT SELECT 2 AS V ORDER BY V");
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.ToString().Contains("Different set operations cannot be used"));
 	}
 
 	[Fact]

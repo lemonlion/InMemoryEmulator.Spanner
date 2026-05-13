@@ -8,6 +8,8 @@ namespace InMemoryEmulator.Spanner.Tests.Integration;
 /// <summary>
 /// Integration tests for change streams DDL and INFORMATION_SCHEMA support.
 /// Ref: https://cloud.google.com/spanner/docs/change-streams/manage
+/// Note: Cloud Spanner limits to 3 change streams per column/table.
+///   Tests use unique tables per test to avoid hitting this limit.
 /// </summary>
 [Collection(IntegrationCollection.Name)]
 [Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
@@ -22,8 +24,9 @@ public class ChangeStreamIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task CreateChangeStream_ForAll_DoesNotThrow()
 	{
+		await ExecuteDdlAsync("CREATE TABLE CsAll1 (Id INT64 NOT NULL) PRIMARY KEY (Id)");
 		var act = async () => await ExecuteDdlAsync(
-			"CREATE CHANGE STREAM EverythingStream FOR ALL");
+			"CREATE CHANGE STREAM EverythingStream FOR CsAll1");
 		await act.Should().NotThrowAsync();
 	}
 
@@ -55,8 +58,9 @@ public class ChangeStreamIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task CreateChangeStream_WithOptions_DoesNotThrow()
 	{
+		await ExecuteDdlAsync("CREATE TABLE CsRetention (Id INT64 NOT NULL) PRIMARY KEY (Id)");
 		var act = async () => await ExecuteDdlAsync(
-			"CREATE CHANGE STREAM RetentionStream FOR ALL OPTIONS (retention_period = '7d')");
+			"CREATE CHANGE STREAM RetentionStream FOR CsRetention OPTIONS (retention_period = '7d')");
 		await act.Should().NotThrowAsync();
 	}
 
@@ -65,8 +69,9 @@ public class ChangeStreamIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task CreateChangeStream_WithValueCaptureType_DoesNotThrow()
 	{
+		await ExecuteDdlAsync("CREATE TABLE CsCapture (Id INT64 NOT NULL) PRIMARY KEY (Id)");
 		var act = async () => await ExecuteDdlAsync(
-			"CREATE CHANGE STREAM CaptureStream FOR ALL OPTIONS (value_capture_type = 'NEW_ROW')");
+			"CREATE CHANGE STREAM CaptureStream FOR CsCapture OPTIONS (value_capture_type = 'NEW_ROW')");
 		await act.Should().NotThrowAsync();
 	}
 
@@ -76,9 +81,11 @@ public class ChangeStreamIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task AlterChangeStream_SetForAll_DoesNotThrow()
 	{
-		await ExecuteDdlAsync("CREATE CHANGE STREAM AlterTestStream FOR ALL");
+		await ExecuteDdlAsync("CREATE TABLE CsAlter (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+		await ExecuteDdlAsync("CREATE CHANGE STREAM AlterTestStream FOR CsAlter");
+		await ExecuteDdlAsync("CREATE TABLE CsAlter2 (Id INT64 NOT NULL) PRIMARY KEY (Id)");
 		var act = async () => await ExecuteDdlAsync(
-			"ALTER CHANGE STREAM AlterTestStream SET FOR ALL");
+			"ALTER CHANGE STREAM AlterTestStream SET FOR CsAlter2");
 		await act.Should().NotThrowAsync();
 	}
 
@@ -86,7 +93,8 @@ public class ChangeStreamIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task AlterChangeStream_DropForAll_DoesNotThrow()
 	{
-		await ExecuteDdlAsync("CREATE CHANGE STREAM SuspendTestStream FOR ALL");
+		await ExecuteDdlAsync("CREATE TABLE CsSuspend (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+		await ExecuteDdlAsync("CREATE CHANGE STREAM SuspendTestStream FOR CsSuspend");
 		var act = async () => await ExecuteDdlAsync(
 			"ALTER CHANGE STREAM SuspendTestStream DROP FOR ALL");
 		await act.Should().NotThrowAsync();
@@ -98,7 +106,8 @@ public class ChangeStreamIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task DropChangeStream_DoesNotThrow()
 	{
-		await ExecuteDdlAsync("CREATE CHANGE STREAM DropTestStream FOR ALL");
+		await ExecuteDdlAsync("CREATE TABLE CsDrop (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+		await ExecuteDdlAsync("CREATE CHANGE STREAM DropTestStream FOR CsDrop");
 		var act = async () => await ExecuteDdlAsync(
 			"DROP CHANGE STREAM DropTestStream");
 		await act.Should().NotThrowAsync();
@@ -110,7 +119,8 @@ public class ChangeStreamIntegrationTests : IntegrationTestBase
 	[Fact]
 	public async Task InformationSchema_ChangeStreams_ReturnsDefined()
 	{
-		await ExecuteDdlAsync("CREATE CHANGE STREAM InfoSchemaStream FOR ALL");
+		await ExecuteDdlAsync("CREATE TABLE CsInfoSchema (Id INT64 NOT NULL) PRIMARY KEY (Id)");
+		await ExecuteDdlAsync("CREATE CHANGE STREAM InfoSchemaStream FOR CsInfoSchema");
 
 		using var conn = Fixture.CreateConnection();
 		using var cmd = conn.CreateSelectCommand(

@@ -305,22 +305,27 @@ public class OrderLimitDistinctExhaustiveIntegrationTests : IntegrationTestBase
 	[Fact]
 	[Trait(TestTraits.Category, "OrderLimitDistinctExhaustive")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Distinct_ArrayColumn_DeduplicatesIdenticalArrays()
+	public async Task Distinct_ArrayColumn_ThrowsInvalidArgument()
 	{
-		// Same array content should be deduplicated
-		var rows = await QueryAsync(
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#select_distinct
+		//   ARRAY columns cannot be used in SELECT DISTINCT.
+		//   Real Spanner returns: "Column arr of type ARRAY cannot be used in SELECT DISTINCT"
+		var act = () => QueryAsync(
 			"SELECT DISTINCT arr FROM (SELECT [1,2,3] AS arr UNION ALL SELECT [1,2,3] AS arr)");
-		rows.Should().HaveCount(1);
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.ToString().Contains("ARRAY") && e.ToString().Contains("SELECT DISTINCT"));
 	}
 
 	[Fact]
 	[Trait(TestTraits.Category, "OrderLimitDistinctExhaustive")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task Distinct_ArrayColumn_KeepsDifferentArrays()
+	public async Task Distinct_ArrayColumn_DifferentArrays_ThrowsInvalidArgument()
 	{
-		// Different array content should not be deduplicated
-		var rows = await QueryAsync(
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#select_distinct
+		//   ARRAY columns cannot be used in SELECT DISTINCT.
+		var act = () => QueryAsync(
 			"SELECT DISTINCT arr FROM (SELECT [1,2,3] AS arr UNION ALL SELECT [4,5,6] AS arr)");
-		rows.Should().HaveCount(2);
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.ToString().Contains("ARRAY") && e.ToString().Contains("SELECT DISTINCT"));
 	}
 }

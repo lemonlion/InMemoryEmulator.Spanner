@@ -53,7 +53,9 @@ public class CommitAndSchemaIntegrationTests : IntegrationTestBase
 	{
 		var rows = await QueryAsync("SELECT OPTION_NAME, OPTION_VALUE FROM INFORMATION_SCHEMA.DATABASE_OPTIONS");
 		rows.Should().NotBeEmpty();
-		rows[0]["OPTION_NAME"].Should().Be("version_retention_period");
+		// Ref: https://cloud.google.com/spanner/docs/information-schema#information_schemadatabase_options
+		//   Ordering of options is not guaranteed; check existence rather than position.
+		rows.Should().Contain(r => (string)r["OPTION_NAME"]! == "version_retention_period");
 	}
 
 	[Fact]
@@ -63,7 +65,9 @@ public class CommitAndSchemaIntegrationTests : IntegrationTestBase
 		await EnsureTableAsync();
 		var rows = await QueryAsync(
 			"SELECT TABLE_NAME, CONSTRAINT_NAME FROM INFORMATION_SCHEMA.CONSTRAINT_TABLE_USAGE WHERE TABLE_NAME = 'CommitTest'");
-		rows.Should().ContainSingle();
-		rows[0]["CONSTRAINT_NAME"].Should().Be("PK_CommitTest");
+		// Ref: https://cloud.google.com/spanner/docs/information-schema#constraint_table_usage
+		//   Real Spanner returns PK constraints AND NOT NULL check constraints (CK_IS_NOT_NULL_*).
+		rows.Should().NotBeEmpty();
+		rows.Should().Contain(r => (string)r["CONSTRAINT_NAME"]! == "PK_CommitTest");
 	}
 }

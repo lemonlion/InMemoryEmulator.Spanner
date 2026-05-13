@@ -205,12 +205,14 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Like_EscapedPercent_MatchesLiteralPercent()
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
+		//   "The default escape character is backslash (\)."
+		//   To match literal %, use \\% in the SQL string literal (\\→\ then \% in LIKE = literal %).
 		var t = await FreshTable("LikeEsc");
 		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "100%", ["Val"] = 1L });
 		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 2L, ["Name"] = "100x", ["Val"] = 2L });
 
-		// \% should match literal % — only row 1 matches
-		var rows = await QueryAsync($@"SELECT Id FROM {t} WHERE Name LIKE '100\%' ORDER BY Id");
+		var rows = await QueryAsync($@"SELECT Id FROM {t} WHERE Name LIKE '100\\%' ORDER BY Id");
 		rows.Should().HaveCount(1);
 		((long)rows[0]["Id"]!).Should().Be(1L);
 	}
@@ -220,14 +222,32 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
 	public async Task Like_EscapedUnderscore_MatchesLiteralUnderscore()
 	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/operators#like_operator
+		//   "The default escape character is backslash (\)."
+		//   To match literal _, use \\_ in the SQL string literal (\\_→\_ then \_ in LIKE = literal _).
 		var t = await FreshTable("LikeEsc");
 		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "a_b", ["Val"] = 1L });
 		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 2L, ["Name"] = "axb", ["Val"] = 2L });
 
-		// \_ should match literal _ — only row 1 matches
-		var rows = await QueryAsync($@"SELECT Id FROM {t} WHERE Name LIKE 'a\_b' ORDER BY Id");
+		var rows = await QueryAsync($@"SELECT Id FROM {t} WHERE Name LIKE 'a\\_b' ORDER BY Id");
 		rows.Should().HaveCount(1);
 		((long)rows[0]["Id"]!).Should().Be(1L);
+	}
+
+	[Fact]
+	[Trait(TestTraits.Category, "EdgeCaseBugs")]
+	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
+	public async Task Like_InvalidEscapeSequence_ThrowsSyntaxError()
+	{
+		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/lexical#string_and_bytes_literals
+		//   \_ and \% are not valid escape sequences in GoogleSQL string literals.
+		//   Real Spanner returns: "Syntax error: Illegal escape sequence: \_"
+		var t = await FreshTable("LikeEsc");
+		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 1L, ["Name"] = "a_b", ["Val"] = 1L });
+
+		var act = () => QueryAsync($@"SELECT Id FROM {t} WHERE Name LIKE 'a\_b' ORDER BY Id");
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.ToString().Contains("Illegal escape sequence"));
 	}
 
 	[Fact]
@@ -685,32 +705,34 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 	// 15. ORDER BY ... NULLS FIRST / NULLS LAST
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax#order_by_clause
 	//   "NULLS FIRST | NULLS LAST"
+	//   Real Spanner rejects non-default NULLS ordering:
+	//   "Non default sort order of NULL values is not supported."
 	// ════════════════════════════════════════════════════════════════
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task OrderBy_NullsLast_AscPutsNullsAtEnd()
+	public async Task OrderBy_NullsLast_Asc_ThrowsInvalidArgument()
 	{
+		// ASC NULLS LAST is non-default → rejected by real Spanner
 		var t = await FreshTable("nullord");
 		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 1L, ["Val"] = 10L });
-		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 2L });
-		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 3L, ["Val"] = 5L });
-		var rows = await QueryAsync($"SELECT Id FROM {t} ORDER BY Val ASC NULLS LAST");
-		rows.Select(r => (long)r["Id"]!).Should().Equal(3L, 1L, 2L);
+		var act = () => QueryAsync($"SELECT Id FROM {t} ORDER BY Val ASC NULLS LAST");
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.ToString().Contains("Non default sort order of NULL values is not supported"));
 	}
 
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task OrderBy_NullsFirst_DescPutsNullsAtStart()
+	public async Task OrderBy_NullsFirst_Desc_ThrowsInvalidArgument()
 	{
+		// DESC NULLS FIRST is non-default → rejected by real Spanner
 		var t = await FreshTable("nullord");
 		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 1L, ["Val"] = 10L });
-		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 2L });
-		await InsertAsync(t, new Dictionary<string, object?> { ["Id"] = 3L, ["Val"] = 5L });
-		var rows = await QueryAsync($"SELECT Id FROM {t} ORDER BY Val DESC NULLS FIRST");
-		rows.Select(r => (long)r["Id"]!).Should().Equal(2L, 1L, 3L);
+		var act = () => QueryAsync($"SELECT Id FROM {t} ORDER BY Val DESC NULLS FIRST");
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.ToString().Contains("Non default sort order of NULL values is not supported"));
 	}
 
 	// ════════════════════════════════════════════════════════════════
@@ -1691,19 +1713,19 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task StringAgg_WithOrderByNullsLast_NullsExcluded()
+	public async Task StringAgg_WithOrderByNullsLast_ThrowsInvalidArgument()
 	{
-		// STRING_AGG ignores NULLs by default, but NULLS LAST should still parse
+		// Ref: Observed behavior on real Cloud Spanner —
+		//   ASC NULLS LAST is non-default ordering → rejected.
 		await ExecuteDdlAsync("CREATE TABLE ECB_StrNulls (Id INT64 NOT NULL, Val STRING(10)) PRIMARY KEY (Id)");
 		await InsertAsync("ECB_StrNulls",
 			new Dictionary<string, object?> { ["Id"] = 1L, ["Val"] = "b" },
 			new Dictionary<string, object?> { ["Id"] = 2L, ["Val"] = null },
 			new Dictionary<string, object?> { ["Id"] = 3L, ["Val"] = "a" });
 
-		var rows = await QueryAsync("SELECT STRING_AGG(Val, ',' ORDER BY Val ASC NULLS LAST) AS R FROM ECB_StrNulls");
-		rows.Should().HaveCount(1);
-		// STRING_AGG ignores NULL values, so result is just "a,b"
-		rows[0]["R"].Should().Be("a,b");
+		var act = () => QueryAsync("SELECT STRING_AGG(Val, ',' ORDER BY Val ASC NULLS LAST) AS R FROM ECB_StrNulls");
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.ToString().Contains("Non default sort order of NULL values is not supported"));
 	}
 
 	[Fact]
@@ -1753,24 +1775,19 @@ public class EdgeCaseBugIntegrationTests : IntegrationTestBase
 	[Fact]
 	[Trait(TestTraits.Category, "EdgeCaseBugs")]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task ArrayAgg_RespectNulls_IncludesNullsInResult()
+	public async Task ArrayAgg_RespectNulls_WithNullsLast_ThrowsInvalidArgument()
 	{
-		// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/aggregate_functions#array_agg
-		//   "RESPECT NULLS ... include NULLs in the output array."
+		// Ref: Observed behavior on real Cloud Spanner —
+		//   ASC NULLS LAST is non-default ordering → rejected.
 		await ExecuteDdlAsync("CREATE TABLE ECB_AggRespNull (Id INT64 NOT NULL, Val STRING(10)) PRIMARY KEY (Id)");
 		await InsertAsync("ECB_AggRespNull",
 			new Dictionary<string, object?> { ["Id"] = 1L, ["Val"] = "a" },
 			new Dictionary<string, object?> { ["Id"] = 2L, ["Val"] = null },
 			new Dictionary<string, object?> { ["Id"] = 3L, ["Val"] = "b" });
 
-		var rows = await QueryAsync("SELECT ARRAY_AGG(Val RESPECT NULLS ORDER BY Val ASC NULLS LAST) AS R FROM ECB_AggRespNull");
-		rows.Should().HaveCount(1);
-		var arr = rows[0]["R"] as System.Collections.IList;
-		arr.Should().NotBeNull();
-		arr!.Count.Should().Be(3);
-		arr[0].Should().Be("a");
-		arr[1].Should().Be("b");
-		arr[2].Should().BeNull();
+		var act = () => QueryAsync("SELECT ARRAY_AGG(Val RESPECT NULLS ORDER BY Val ASC NULLS LAST) AS R FROM ECB_AggRespNull");
+		await act.Should().ThrowAsync<SpannerException>()
+			.Where(e => e.ToString().Contains("Non default sort order of NULL values is not supported"));
 	}
 
 	[Fact]

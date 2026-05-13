@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Google.Cloud.Spanner.Data;
 using InMemoryEmulator.Spanner.Tests.Shared.Infrastructure;
 using InMemoryEmulator.Spanner.Tests.Shared.Traits;
 
@@ -331,22 +332,26 @@ public class EncodingFunctionIntegrationTests : IntegrationTestBase
 	}
 
 	// ═══════════════════════════════════════════════════════════════
-	// REGEXP_INSTR — position of first regex match
+	// REGEXP_INSTR — supported in Cloud Spanner
 	// Ref: https://cloud.google.com/spanner/docs/reference/standard-sql/string_functions#regexp_instr
+	//   "Returns the 1-based position of the first occurrence of the pattern."
 	// ═══════════════════════════════════════════════════════════════
 
 	[Theory]
 	[InlineData("REGEXP_INSTR('hello world', 'world')", 7L)]
 	[InlineData("REGEXP_INSTR('hello world', 'o')", 5L)]
-	[InlineData("REGEXP_INSTR('hello world', 'xyz')", 0L)]
 	[InlineData("REGEXP_INSTR('abc123', '[0-9]+')", 4L)]
+	[InlineData("REGEXP_INSTR('hello world', 'xyz')", 0L)]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task RegexpInstr_Values(string expr, long expected) =>
-		(await Eval(expr)).Should().Be(expected);
+	public async Task RegexpInstr_Values(string expr, long expected)
+	{
+		var result = await Eval(expr);
+		result.Should().Be(expected);
+	}
 
 	[Fact]
 	[Trait(TestTraits.Target, TestTraits.GoEmulatorUnsupported)]
-	public async Task RegexpInstr_Null_IsNull()
+	public async Task RegexpInstr_Null_ReturnsNull()
 	{
 		var result = await Eval("REGEXP_INSTR(CAST(NULL AS STRING), 'test')");
 		result.Should().BeNull();
